@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 430" fill="none">
+  <defs>
+    <linearGradient id="pink" x1="35" y1="260" x2="570" y2="30" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E9568C"/>
+      <stop offset="1" stop-color="#EF8BAE"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="20" y1="355" x2="600" y2="100" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F5AC36"/>
+      <stop offset="1" stop-color="#FFD77B"/>
+    </linearGradient>
+    <linearGradient id="lilac" x1="35" y1="150" x2="590" y2="350" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#AFA9F2"/>
+      <stop offset="1" stop-color="#D6D0FF"/>
+    </linearGradient>
+  </defs>
+  <path d="M-58 273C82 317 89 66 245 67C374 68 364 330 647 148" stroke="url(#lilac)" stroke-width="46" stroke-linecap="round" opacity=".9"/>
+  <path d="M-46 327C105 370 113 119 258 128C389 137 399 383 660 206" stroke="url(#gold)" stroke-width="36" stroke-linecap="round"/>
+  <path d="M-48 223C115 262 115 24 268 30C414 37 399 273 660 98" stroke="url(#pink)" stroke-width="37" stroke-linecap="round"/>
+  <circle cx="511" cy="74" r="6" fill="#FFD77B"/>
+  <circle cx="551" cy="292" r="5" fill="#EF8BAE"/>
+  <circle cx="119" cy="68" r="4" fill="#D6D0FF"/>
+</svg>

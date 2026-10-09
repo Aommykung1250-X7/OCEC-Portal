@@ -8,12 +8,14 @@ const seedApplications = [
     exam: "OCEC Heat รอบที่ 1",
     year: "2569",
     candidate: "Nicha Srisawat",
+    nameParts: { firstName: "Nicha", lastName: "Srisawat" },
     school: "Srinakharinwirot Demonstration School",
     grade: "มัธยมศึกษาปีที่ 5",
     format: "On-site",
     center: "ศูนย์สอบกรุงเทพฯ",
     contactEmail: "nicha.student@example.com",
     phoneLast4: "4821",
+    studentInformation: { firstName: "Nicha", lastName: "Srisawat", thaiFirstName: "ณิชา", thaiLastName: "ศรีสวัสดิ์", gender: "Female", dateOfBirth: "2010-05-12", email: "nicha.student@example.com", phone: "0812344821", address1: "88 ถนนสุขุมวิท", address2: "", city: "วัฒนา", province: "กรุงเทพมหานคร", postalCode: "10110" },
     submitted: "8 ต.ค. 2569",
     status: "pending",
     heatId: "2080014",
@@ -40,17 +42,20 @@ const seedApplications = [
     exam: "OCEC Heat รอบที่ 1",
     year: "2569",
     candidate: "Thanakorn Wattanakul",
+    nameParts: { firstName: "Thanakorn", lastName: "Wattanakul" },
     school: "Triam Udom Suksa School",
     grade: "มัธยมศึกษาปีที่ 6",
     format: "On-site",
     center: "ศูนย์สอบกรุงเทพฯ",
     contactEmail: "thanakorn.w@example.com",
     phoneLast4: "1936",
+    studentInformation: { firstName: "Thanakorn", lastName: "Wattanakul", thaiFirstName: "ธนกร", thaiLastName: "วัฒนกุล", gender: "Male", dateOfBirth: "2009-08-19", email: "thanakorn.w@example.com", phone: "0815671936", address1: "52 ถนนพญาไท", address2: "", city: "ปทุมวัน", province: "กรุงเทพมหานคร", postalCode: "10330" },
     submitted: "7 ต.ค. 2569",
     status: "confirmed",
     heatId: "2080015",
     finalId: "",
     result: "pass",
+    changeHistory: [{ id: "audit-heat-02-1", editor: "ผู้ดูแลระบบ · Chayanit", at: "8 ต.ค. 2569 · 13:42", changes: [{ label: "โรงเรียน", oldValue: "Triam Udom Suksa", newValue: "Triam Udom Suksa School" }] }],
     canEdit: true,
     slipIssue: "",
     source: "school",
@@ -72,12 +77,14 @@ const seedApplications = [
     exam: "OCEC Final 2569",
     year: "2569",
     candidate: "Nicha Srisawat",
+    nameParts: { firstName: "Nicha", lastName: "Srisawat" },
     school: "Srinakharinwirot Demonstration School",
     grade: "มัธยมศึกษาปีที่ 5",
     format: "On-site",
     center: "ศูนย์สอบฮ่องกง",
     contactEmail: "nicha.student@example.com",
     phoneLast4: "4821",
+    studentInformation: { firstName: "Nicha", lastName: "Srisawat", thaiFirstName: "ณิชา", thaiLastName: "ศรีสวัสดิ์", gender: "Female", dateOfBirth: "2010-05-12", email: "nicha.student@example.com", phone: "0812344821", address1: "88 ถนนสุขุมวิท", address2: "", city: "วัฒนา", province: "กรุงเทพมหานคร", postalCode: "10110" },
     submitted: "8 ต.ค. 2569",
     status: "pending",
     heatId: "2080014",
@@ -87,7 +94,10 @@ const seedApplications = [
     slipIssue: "",
     source: "self",
     slipFileName: "payment-slip-final-01.pdf",
-    competitions: [{ id: "final", name: "OCEC Final", short: "Final", grade: "มัธยมศึกษาปีที่ 5", fee: 1550 }],
+    competitions: [
+      { id: "bbb", name: "Big Bay Bei Mathematics", short: "BBB", grade: "มัธยมศึกษาปีที่ 5", fee: 1550 },
+      { id: "hkiso", name: "HKISO Science", short: "HKISO", grade: "มัธยมศึกษาปีที่ 5", fee: 1550 },
+    ],
     pastPapers: [],
     registrationFee: 1550,
     pastPapersTotal: 0,
@@ -100,6 +110,7 @@ const seedApplications = [
     exam: "OCEC Heat รอบที่ 1",
     year: "2568",
     candidate: "Pattara Chaiyasit",
+    nameParts: { firstName: "Pattara", lastName: "Chaiyasit" },
     school: "Satit Kaset School",
     grade: "มัธยมศึกษาปีที่ 5",
     format: "On-site",
@@ -122,12 +133,43 @@ const seedApplications = [
     totalPayment: 1005,
   },
   {
+    id: "heat-05",
+    owner: "candidate",
+    kind: "Heat",
+    exam: "OCEC Heat รอบที่ 2",
+    year: "2569",
+    candidate: "Nicha Srisawat",
+    nameParts: { firstName: "Nicha", lastName: "Srisawat" },
+    school: "Srinakharinwirot Demonstration School",
+    grade: "มัธยมศึกษาปีที่ 5",
+    format: "On-site",
+    center: "ศูนย์สอบกรุงเทพฯ",
+    contactEmail: "nicha.student@example.com",
+    phoneLast4: "4821",
+    studentInformation: { firstName: "Nicha", lastName: "Srisawat", thaiFirstName: "ณิชา", thaiLastName: "ศรีสวัสดิ์", gender: "Female", dateOfBirth: "2010-05-12", email: "nicha.student@example.com", phone: "0812344821", address1: "88 ถนนสุขุมวิท", address2: "", city: "วัฒนา", province: "กรุงเทพมหานคร", postalCode: "10110" },
+    submitted: "8 ต.ค. 2569",
+    status: "confirmed",
+    heatId: "2080031",
+    finalId: "",
+    result: "pass",
+    canEdit: true,
+    slipIssue: "",
+    source: "self",
+    slipFileName: "payment-slip-heat-05.pdf",
+    competitions: [{ id: "hkiso", name: "HKISO Science", short: "HKISO", grade: "มัธยมศึกษาปีที่ 5", fee: 755 }],
+    pastPapers: [],
+    registrationFee: 755,
+    pastPapersTotal: 0,
+    totalPayment: 755,
+  },
+  {
     id: "heat-04",
     owner: "coordinator",
     kind: "Heat",
     exam: "OCEC Heat รอบที่ 2",
     year: "2569",
     candidate: "Pimchanok Rattanaporn",
+    nameParts: { firstName: "Pimchanok", lastName: "Rattanaporn" },
     school: "Bangkok Patana School",
     grade: "BBB: มัธยมศึกษาปีที่ 4 · HKISO: มัธยมศึกษาปีที่ 4",
     format: "Online Exam",
@@ -160,6 +202,7 @@ const seedApplications = [
     exam: "OCEC Final 2569",
     year: "2569",
     candidate: "Thanakorn Wattanakul",
+    nameParts: { firstName: "Thanakorn", lastName: "Wattanakul" },
     school: "Triam Udom Suksa School",
     grade: "มัธยมศึกษาปีที่ 6",
     format: "Paper-Based",
@@ -176,7 +219,10 @@ const seedApplications = [
     source: "school",
     batchId: "school-final-2569-01",
     slipFileName: "payment-slip-final-02.pdf",
-    competitions: [{ id: "final", name: "OCEC Final", short: "Final", grade: "มัธยมศึกษาปีที่ 6", fee: 1550 }],
+    competitions: [
+      { id: "bbb", name: "Big Bay Bei Mathematics", short: "BBB", grade: "มัธยมศึกษาปีที่ 6", fee: 1550 },
+      { id: "hkico", name: "HKICO Computer", short: "HKICO", grade: "มัธยมศึกษาปีที่ 6", fee: 1550 },
+    ],
     pastPapers: [],
     registrationFee: 1550,
     pastPapersTotal: 0,
@@ -189,6 +235,7 @@ const seedApplications = [
     exam: "OCEC Final 2569",
     year: "2569",
     candidate: "Siriporn Rattanakorn",
+    nameParts: { firstName: "Siriporn", lastName: "Rattanakorn" },
     school: "Satit Chula School",
     grade: "มัธยมศึกษาปีที่ 5",
     format: "Online Exam",
@@ -205,76 +252,299 @@ const seedApplications = [
     source: "school",
     batchId: "school-final-2569-02",
     slipFileName: "payment-slip-final-03.pdf",
-    competitions: [{ id: "final", name: "OCEC Final", short: "Final", grade: "มัธยมศึกษาปีที่ 5", fee: 1350 }],
+    competitions: [{ id: "hkimo", name: "HKIMO Mathematics", short: "HKIMO", grade: "มัธยมศึกษาปีที่ 5", fee: 1350 }],
     pastPapers: [],
     registrationFee: 1350,
     pastPapersTotal: 0,
     totalPayment: 1350,
   },
+  {
+    id: "demo-hkimo-heat-01",
+    owner: "candidate",
+    kind: "Heat",
+    exam: "HKIMO HEAT ROUND 2569",
+    year: "2569",
+    candidate: "Kanya Rattanasuk",
+    school: "Assumption College",
+    grade: "มัธยมศึกษาปีที่ 5",
+    format: "Online Exam",
+    center: "Online Exam",
+    contactEmail: "kanya.r@example.com",
+    phoneLast4: "3814",
+    submitted: "6 ต.ค. 2569",
+    status: "confirmed",
+    heatId: "3100012",
+    finalId: "",
+    result: "pass",
+    canEdit: true,
+    source: "self",
+    competitions: [{ id: "hkimo", name: "HKIMO Mathematics", short: "HKIMO", grade: "มัธยมศึกษาปีที่ 5", fee: 655 }],
+    pastPapers: [],
+    registrationFee: 655,
+    pastPapersTotal: 0,
+    totalPayment: 655,
+  },
+  {
+    id: "demo-hkimo-final-01",
+    owner: "candidate",
+    kind: "Final",
+    exam: "HKIMO FINAL ROUND 2569",
+    year: "2569",
+    candidate: "Kanya Rattanasuk",
+    school: "Assumption College",
+    grade: "มัธยมศึกษาปีที่ 5",
+    format: "Online Exam",
+    center: "Online Exam",
+    contactEmail: "kanya.r@example.com",
+    phoneLast4: "3814",
+    submitted: "8 ต.ค. 2569",
+    status: "confirmed",
+    heatId: "3100012",
+    finalId: "F-69031012",
+    result: "pass",
+    canEdit: true,
+    source: "self",
+    sourceHeatId: "demo-hkimo-heat-01",
+    competitions: [{ id: "hkimo", name: "HKIMO Mathematics", short: "HKIMO", grade: "มัธยมศึกษาปีที่ 5", fee: 1350 }],
+    pastPapers: [],
+    registrationFee: 1350,
+    pastPapersTotal: 0,
+    totalPayment: 1350,
+  },
+  {
+    id: "demo-hkiso-heat-01",
+    owner: "candidate",
+    kind: "Heat",
+    exam: "HKISO HEAT ROUND 2569",
+    year: "2569",
+    candidate: "Punnita Wattanapong",
+    school: "Satit Kaset School",
+    grade: "มัธยมศึกษาปีที่ 4",
+    format: "Paper-Based",
+    center: "ศูนย์สอบกรุงเทพฯ",
+    contactEmail: "punnita.w@example.com",
+    phoneLast4: "5920",
+    submitted: "6 ต.ค. 2569",
+    status: "confirmed",
+    heatId: "4200025",
+    finalId: "",
+    result: "pass",
+    canEdit: true,
+    source: "school",
+    competitions: [{ id: "hkiso", name: "HKISO Science", short: "HKISO", grade: "มัธยมศึกษาปีที่ 4", fee: 755 }],
+    pastPapers: [],
+    registrationFee: 755,
+    pastPapersTotal: 0,
+    totalPayment: 755,
+  },
 ];
 
-const demoExamCatalog = [
-  {
-    id: "heat-2569-round-1",
-    title: "OCEC Heat 2569",
-    year: "2569",
-    round: "รอบคัดเลือก · รอบที่ 1",
-    openDate: "2026-10-01",
-    closeDate: "2026-11-30",
-    examDate: "2026-12-13",
-    editCloseDate: "2026-11-30",
-    closes: "30 พฤศจิกายน 2569",
-    isOpen: true,
-    accent: "blue",
-    description: "เลือกระดับชั้น รูปแบบสอบ และศูนย์สอบในฟอร์มสมัคร",
-  },
-  {
-    id: "heat-2569-round-2",
-    title: "OCEC Heat 2569",
-    year: "2569",
-    round: "รอบคัดเลือก · รอบที่ 2",
-    openDate: "2026-10-15",
-    closeDate: "2026-12-15",
-    examDate: "2026-12-27",
-    editCloseDate: "2026-12-15",
-    closes: "15 ธันวาคม 2569",
-    isOpen: true,
-    accent: "coral",
-    description: "เลือกสมัครพร้อมรอบอื่นได้ในฟอร์มเดียว ตรวจวันปิดรับก่อนส่ง",
-  },
-  {
-    id: "heat-2570-round-1",
-    title: "OCEC Heat 2570",
-    year: "2570",
-    round: "รอบคัดเลือก · รอบที่ 1",
-    openDate: "2026-12-01",
-    closeDate: "2027-01-15",
-    examDate: "2027-02-14",
-    editCloseDate: "2027-01-15",
-    closes: "15 มกราคม 2570",
-    isOpen: false,
-    accent: "yellow",
-    description: "กำหนดการจะแสดงเมื่อเปิดรับ และเลือกสมัครได้ในฟอร์มเดียว",
-  },
-  {
-    id: "heat-2570-round-2",
-    title: "OCEC Heat 2570",
-    year: "2570",
-    round: "รอบคัดเลือก · รอบที่ 2",
-    openDate: "2026-12-15",
-    closeDate: "2027-01-31",
-    examDate: "2027-02-28",
-    editCloseDate: "2027-01-31",
-    closes: "31 มกราคม 2570",
-    isOpen: false,
-    accent: "violet",
-    description: "รอติดตามสถานะและกำหนดการเปิดรับจากโครงการ",
-  },
+const EXAM_ROUND_LABELS = { HEAT: "HEAT ROUND", FINAL: "FINAL ROUND", FINAL_X: "FINAL X" };
+const RESULT_AWARDS = ["GOLD AWARD", "SILVER AWARD", "BRONZE AWARD", "MERIT AWARD", "PARTICIPATION"];
+const FINAL_ELIGIBLE_AWARDS = new Set(["GOLD AWARD", "SILVER AWARD", "BRONZE AWARD"]);
+const DEMO_RESULT_ROSTER = [
+  { candidateName: "Kanya Rattanasuk", grade: "Grade 5", schoolName: "Assumption College", award: "GOLD AWARD" },
+  { candidateName: "Thanakorn Wattanakul", grade: "Grade 6", schoolName: "Triam Udom Suksa School", award: "GOLD AWARD" },
+  { candidateName: "Punnita Wattanapong", grade: "Grade 4", schoolName: "Satit Kaset School", award: "SILVER AWARD" },
+  { candidateName: "Nicha Srisawat", grade: "Grade 5", schoolName: "Srinakharinwirot Demonstration School", award: "SILVER AWARD" },
+  { candidateName: "Pimchanok Rattanaporn", grade: "Grade 4", schoolName: "Bangkok Patana School", award: "BRONZE AWARD" },
+  { candidateName: "Pattara Chaiyasit", grade: "Grade 5", schoolName: "Satit Kaset School", award: "BRONZE AWARD" },
+  { candidateName: "Narin Petchthong", grade: "Grade 3", schoolName: "Suankularb Wittayalai School", award: "MERIT AWARD" },
+  { candidateName: "Ananya Kittisak", grade: "Grade 6", schoolName: "St. Joseph Convent School", award: "MERIT AWARD" },
+  { candidateName: "Chanon Pongsiri", grade: "Grade 4", schoolName: "Triam Udom Suksa School", award: "PARTICIPATION" },
+  { candidateName: "Mali Srisuk", grade: "Grade 5", schoolName: "Satit Kaset School", award: "PARTICIPATION" },
 ];
+const DEMO_LARGE_RESULT_ROSTER = (() => {
+  const firstNames = ["Aaron", "Aileen", "Ananya", "Arun", "Benjamin", "Chanon", "Chayut", "Daniel", "Ethan", "Faye", "Grace", "Haruto", "Ittipon", "James", "Kanya", "Kavin", "Liam", "Mali", "Megan", "Narin", "Nicha", "Noah", "Olivia", "Pattara", "Pimchanok", "Punnita", "Rina", "Sanya", "Tara", "Thanakorn", "Thida", "Tinn", "Wichai", "Yuki", "Zane"];
+  const lastNames = ["Rattanasuk", "Wattanakul", "Srisawat", "Petchthong", "Kittisak", "Chaiyasit", "Wattanapong", "Rattanaporn", "Pongsiri", "Srisuk", "Sukprasert", "Noppakun", "Thammasiri", "Boonmee", "Kanjana", "Sukhum", "Jirawat", "Chantarangsu", "Piyakul", "Phromsri", "Rojanaporn", "Suwannarat", "Akarapong", "Sangthong", "Maneerat", "Thongchai", "Kongkaew", "Limsakul", "Prasertchai", "Srisombat"];
+  const schools = ["Assumption College", "Triam Udom Suksa School", "Satit Kaset School", "Srinakharinwirot Demonstration School", "Bangkok Patana School", "Suankularb Wittayalai School", "St. Joseph Convent School", "บดินทรเดชา (สิงห์ สิงหเสนี)", "สวนกุหลาบวิทยาลัย", "โรงเรียนมหิดลวิทยานุสรณ์"];
+  return firstNames.flatMap((firstName, firstIndex) => lastNames.map((lastName, lastIndex) => {
+    const index = firstIndex * lastNames.length + lastIndex;
+    return {
+      candidateName: `${firstName} ${lastName}`,
+      grade: `Grade ${3 + (index % 6)}`,
+      schoolName: schools[index % schools.length],
+      award: RESULT_AWARDS[(index * 7) % RESULT_AWARDS.length],
+    };
+  }));
+})();
+const DEMO_COMPETITION_ROUNDS = [
+  { competitionId: "hkimo", title: "HKIMO", rounds: ["HEAT", "FINAL"], accent: "blue" },
+  { competitionId: "bbb", title: "Big Bay Bei (BBB)", rounds: ["HEAT", "FINAL", "FINAL_X"], accent: "coral" },
+  { competitionId: "hkiso", title: "HKISO", rounds: ["HEAT", "FINAL"], accent: "violet" },
+  { competitionId: "hkico", title: "HKICO", rounds: ["HEAT", "FINAL"], accent: "yellow" },
+  { competitionId: "timo", title: "TIMO", rounds: ["HEAT", "FINAL"], accent: "blue" },
+];
+const ROUND_SCHEDULES = {
+  HEAT: { openDate: "2026-10-01", closeDate: "2026-11-30", examDate: "2026-12-13", editCloseDate: "2026-11-30" },
+  FINAL: { openDate: "2026-11-15", closeDate: "2027-01-15", examDate: "2027-02-14", editCloseDate: "2027-01-15", finalConfirmCloseDate: "2027-01-15" },
+  FINAL_X: { openDate: "2026-12-01", closeDate: "2027-02-15", examDate: "2027-03-14", editCloseDate: "2027-02-15", finalConfirmCloseDate: "2027-02-15" },
+};
+const demoExamCatalog = DEMO_COMPETITION_ROUNDS.flatMap((competition) => competition.rounds.map((roundType) => ({
+  id: `${competition.competitionId}-${roundType.toLowerCase()}-2569`,
+  competitionId: competition.competitionId,
+  title: competition.title,
+  year: "2569",
+  roundType,
+  round: EXAM_ROUND_LABELS[roundType],
+  ...ROUND_SCHEDULES[roundType],
+  isOpen: roundType === "HEAT" && ["hkimo", "bbb"].includes(competition.competitionId),
+  accent: competition.accent,
+  prices: roundType === "HEAT" ? { paperBased: 755, onlineExam: 655 } : { paperBased: 1550, onlineExam: 1350 },
+  description: `${competition.title} · ${EXAM_ROUND_LABELS[roundType]} · ปีการศึกษา 2569`,
+})));
+const DEMO_PUBLISHED_RESULT_WORKFLOWS = {
+  "hkimo-heat-2569": { fileName: "ผลสอบ HKIMO HEAT ตัวอย่าง.xlsx", publishedAt: "2026-09-28T09:00:00+07:00", draftImported: true, hasConflict: false, conflictResolved: true, published: true, rows: makeMockResultRows(seedApplications, demoExamCatalog.find((exam) => exam.id === "hkimo-heat-2569")) },
+  "hkimo-final-2569": { fileName: "ผลสอบ HKIMO FINAL ตัวอย่าง.xlsx", publishedAt: "2026-10-02T10:00:00+07:00", draftImported: true, hasConflict: false, conflictResolved: true, published: true, rows: makeMockResultRows(seedApplications, demoExamCatalog.find((exam) => exam.id === "hkimo-final-2569")) },
+  "timo-heat-2569": { fileName: "ผลสอบ TIMO HEAT ตัวอย่าง.xlsx", publishedAt: "2026-10-09T08:00:00+07:00", draftImported: true, hasConflict: false, conflictResolved: true, published: true, rows: makeMockResultRows(seedApplications, demoExamCatalog.find((exam) => exam.id === "timo-heat-2569")) },
+};
+const DEMO_DRAFT_RESULT_WORKFLOWS = {
+  "bbb-heat-2569": { fileName: "ผลสอบ BBB HEAT ฉบับร่าง.xlsx", draftImported: true, hasConflict: true, conflictResolved: false, published: false, rows: makeMockResultRows(seedApplications, demoExamCatalog.find((exam) => exam.id === "bbb-heat-2569")) },
+};
+
+function getExamRoundType(exam) {
+  if (exam.roundType) return exam.roundType;
+  const round = String(exam.round || "").toUpperCase();
+  if (round.includes("FINAL X") || round.includes("FINAL_X")) return "FINAL_X";
+  if (round.includes("FINAL")) return "FINAL";
+  return "HEAT";
+}
+
+function isFinalEligibleAward(award) {
+  return FINAL_ELIGIBLE_AWARDS.has(String(award || "").trim().toUpperCase());
+}
+
+function getPublicResultStatus(row) {
+  if (row.roundType === "HEAT") {
+    return isFinalEligibleAward(row.award)
+      ? { label: "ผ่านรอบ HEAT ROUND", tone: "eligible" }
+      : { label: "ไม่ผ่านรอบ HEAT ROUND", tone: "not-eligible" };
+  }
+  return { label: "ประกาศผลแล้ว", tone: "published" };
+}
+
+function getResultIssueKey(row) {
+  return `${row.applicationId || ""}::${row.candidateNo || row.examNumber || ""}::${row.candidateName || row.candidate || ""}`;
+}
+
+function getActiveExamYear(examCatalog, roundType, fallbackYear = "2569") {
+  const roundExams = (examCatalog || []).filter((item) => getExamRoundType(item) === roundType);
+  const openYears = [...new Set(roundExams.filter((item) => item.isOpen).map((item) => item.year).filter(Boolean))];
+  const years = openYears.length ? openYears : [...new Set(roundExams.map((item) => item.year).filter(Boolean))];
+  return years.sort((left, right) => Number(right) - Number(left))[0] || fallbackYear;
+}
+
+function getCompetitionExamPrice(examCatalog, competitionId, roundType, format, competitionFees, year = "2569") {
+  const roundExams = (examCatalog || []).filter((item) => item.competitionId === competitionId && getExamRoundType(item) === roundType);
+  const exam = roundExams.find((item) => item.year === year) || roundExams.find((item) => item.isOpen) || roundExams[0];
+  const priceKey = format === "Online" || format === "Online Exam" ? "onlineExam" : "paperBased";
+  const configuredPrice = exam?.prices?.[priceKey];
+  if (configuredPrice !== undefined && configuredPrice !== null && configuredPrice !== "") return Math.max(0, Number(configuredPrice) || 0);
+  const legacyKey = roundType === "HEAT"
+    ? (priceKey === "onlineExam" ? "heatOnline" : "heatOnsite")
+    : (priceKey === "onlineExam" ? "finalOnline" : "finalOnsite");
+  return Number(competitionFees?.[legacyKey] || 0);
+}
 
 function formatThaiDate(date) {
   if (!date) return "ยังไม่กำหนด";
   return new Intl.DateTimeFormat("th-TH", { day: "numeric", month: "long", year: "numeric" }).format(new Date(`${date}T12:00:00`));
+}
+
+function getBangkokTodayISO() {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function getApplicationEditDeadline(application, examCatalog) {
+  const roundType = application?.kind === "Final" ? "FINAL" : "HEAT";
+  const roundExams = (examCatalog || []).filter((exam) => exam.year === application?.year && getExamRoundType(exam) === roundType);
+  const competitionIds = new Set((application?.competitions || []).map((item) => item.id));
+  const matchingExams = roundExams.filter((exam) => competitionIds.has(exam.competitionId));
+  return (matchingExams.length ? matchingExams : roundExams)
+    .map((exam) => exam.editCloseDate)
+    .filter(Boolean)
+    .sort()[0] || "";
+}
+
+function isApplicationEditable(application, examCatalog) {
+  if (application?.status !== "confirmed") return false;
+  const deadline = getApplicationEditDeadline(application, examCatalog);
+  return Boolean(deadline && getBangkokTodayISO() <= deadline);
+}
+
+function getApplicationsForResultTarget(applications, target) {
+  if (!target) return [];
+  const kind = target.roundType === "HEAT" ? "Heat" : "Final";
+  return applications.filter((application) => application.kind === kind
+    && application.year === target.year
+    && ((application.competitions || []).some((competition) => competition.id === target.competitionId)
+      || (application.examIds || []).includes(target.competitionId)));
+}
+
+function getApplicationPhone(application) {
+  return application?.studentInformation?.phone || application?.phone || (application?.phoneLast4 ? `08X-XXX-${application.phoneLast4}` : "ไม่ระบุ");
+}
+
+function makeMockResultRows(applications, target) {
+  if (!target) return [];
+  const roundType = getExamRoundType(target);
+  const targetApplications = getApplicationsForResultTarget(applications, target);
+  const examPrefix = { hkimo: "31", bbb: "20", hkiso: "42", hkico: "50", timo: "60" }[target.competitionId] || "90";
+  const roster = target.competitionId === "timo" && roundType === "HEAT" ? DEMO_LARGE_RESULT_ROSTER : DEMO_RESULT_ROSTER;
+  return roster.map((person, index) => {
+    const linkedApplication = targetApplications.find((application) => application.candidate.toLowerCase() === person.candidateName.toLowerCase());
+    const hasSchoolMismatch = roundType === "HEAT" && target.competitionId === "bbb" && linkedApplication?.id === "heat-01";
+    const fallbackNumber = `${examPrefix}${String(index + 1).padStart(5, "0")}`;
+    const examNumber = roundType === "HEAT"
+      ? (linkedApplication?.heatId || fallbackNumber)
+      : (linkedApplication?.finalId || `F-69${fallbackNumber}`);
+    const finalEligible = isFinalEligibleAward(person.award);
+    const schoolName = hasSchoolMismatch ? `${person.schoolName} · Bangkok` : person.schoolName;
+    return {
+      applicationId: linkedApplication?.id || `mock-${target.id}-${index + 1}`,
+      issueApplicationId: hasSchoolMismatch ? linkedApplication.id : "",
+      examNumber,
+      candidateNo: examNumber,
+      grade: person.grade,
+      school: schoolName,
+      schoolName,
+      applicationSchoolName: linkedApplication?.school || "",
+      candidate: person.candidateName,
+      candidateName: person.candidateName,
+      award: person.award,
+      matchStatus: hasSchoolMismatch ? "school-mismatch" : "matched",
+      result: finalEligible ? "pass" : "not-passed",
+      score: 68 + ((index * 7 + target.competitionId.length * 3) % 31),
+    };
+  });
+}
+
+function resultTargetLabel(target) {
+  const title = target?.title || target?.competitionTitle || "รายการสอบ";
+  const round = EXAM_ROUND_LABELS[target?.roundType] || target?.round || "รอบสอบ";
+  return `${title} · ${round} · ปี ${target?.year || "ไม่ระบุ"}`;
+}
+
+function isFinalConfirmationWindowOpen(exam, today = getBangkokTodayISO()) {
+  return !exam?.finalConfirmCloseDate || today <= exam.finalConfirmCloseDate;
+}
+
+function getEligibleFinalRounds(application, examCatalog, publishedHeatResults, today = getBangkokTodayISO()) {
+  const passedCompetitions = new Set(publishedHeatResults
+    .filter((result) => result.applicationId === application?.id && (isFinalEligibleAward(result.award) || result.result === "pass"))
+    .map((result) => result.competitionId));
+  const applicationCompetitions = new Set((application?.competitions || []).map((competition) => competition.id));
+  return (examCatalog || []).filter((exam) => exam.year === application?.year
+    && getExamRoundType(exam) === "FINAL"
+    && passedCompetitions.has(exam.competitionId)
+    && applicationCompetitions.has(exam.competitionId)
+    && isFinalConfirmationWindowOpen(exam, today));
+}
+
+function ExamLogo({ exam, className = "exam-type-mark", iconSize = 20 }) {
+  return <span className={`${className}${exam.logoDataUrl ? " exam-logo-has-image" : ""}`}>{exam.logoDataUrl ? <img src={exam.logoDataUrl} alt={`โลโก้ ${exam.title}`} /> : <Icon name="award" size={iconSize} />}</span>;
 }
 
 const demoGoogleProfile = {
@@ -299,60 +569,52 @@ const pageLabels = {
   "admin-home": "ภาพรวมแอดมิน",
   "admin-review": "ตรวจใบสมัคร",
   "admin-round": "ตั้งค่ารอบสอบ",
-  "admin-results": "ผลสอบ Heat",
+  "admin-results": "นำเข้าผลสอบ",
   "admin-final-ids": "เลขประจำตัว Final",
   "admin-sheets": "Google Sheets",
+  "admin-mock-papers": "Mock และข้อสอบเก่า",
+  "admin-application-edit": "แก้ไขใบสมัคร (แอดมิน)",
 };
 
-const iconPaths = {
-  home: <><path d="m3 10 9-7 9 7" /><path d="M5 9.5V21h14V9.5" /><path d="M9 21v-7h6v7" /></>,
-  file: <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6M8 13h8M8 17h8" /></>,
-  search: <><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 5 5" /></>,
-  check: <><path d="m5 12 4 4L19 6" /><circle cx="12" cy="12" r="9" /></>,
-  award: <><circle cx="12" cy="8" r="6" /><path d="m8.5 13-1 8 4.5-2 4.5 2-1-8" /><path d="m9.5 8 1.7 1.7L14.8 6" /></>,
-  grid: <><rect x="3" y="3" width="8" height="8" rx="2" /><rect x="13" y="3" width="8" height="5" rx="2" /><rect x="13" y="10" width="8" height="11" rx="2" /><rect x="3" y="13" width="8" height="8" rx="2" /></>,
-  users: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8" /></>,
-  settings: <><circle cx="12" cy="12" r="3" /><path d="m19.4 15 .1.1 1.4 1.1-1.4 2.4-1.7-.7a8 8 0 0 1-1.8 1l-.3 1.8h-2.8l-.3-1.8a8 8 0 0 1-1.8-1l-1.7.7-1.4-2.4 1.4-1.1a8 8 0 0 1 0-2l-1.4-1.1 1.4-2.4 1.7.7a8 8 0 0 1 1.8-1l.3-1.8h2.8l.3 1.8a8 8 0 0 1 1.8 1l1.7-.7 1.4 2.4-1.4 1.1a8 8 0 0 1 0 2Z" transform="translate(-1 -1)" /></>,
-  upload: <><path d="M12 16V4" /><path d="m7 9 5-5 5 5" /><path d="M4 16v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4" /></>,
-  sync: <><path d="M20 7v5h-5M4 17v-5h5" /><path d="M5.6 9A7 7 0 0 1 18 6l2 2M4 16l2 2a7 7 0 0 0 12.4-3" /></>,
-  bell: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" /><path d="M10 21h4" /></>,
-  arrow: <><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></>,
-  chevron: <path d="m9 18 6-6-6-6" />,
-  clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
-  lock: <><rect x="4" y="10" width="16" height="11" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></>,
-  info: <><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></>,
-  edit: <><path d="m15 5 4 4M4 20l4-.8L19 8a2.8 2.8 0 0 0-4-4L4 15z" /></>,
-  plus: <><path d="M12 5v14M5 12h14" /></>,
-  menu: <><path d="M4 6h16M4 12h16M4 18h16" /></>,
-  mail: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></>,
-  calendar: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 10h18" /></>,
-  building: <><path d="M3 21h18M5 21V5l7-3 7 3v16M9 9h1M14 9h1M9 13h1M14 13h1M10 21v-4h4v4" /></>,
-  download: <><path d="M12 3v12" /><path d="m7 10 5 5 5-5M4 21h16" /></>,
-  close: <><path d="m6 6 12 12M18 6 6 18" /></>,
-  help: <><circle cx="12" cy="12" r="9" /><path d="M9.6 9a2.5 2.5 0 0 1 4.8 1c0 1.7-2.4 2-2.4 4M12 17h.01" /></>,
-  shield: <><path d="M12 3 20 6v5c0 5-3.4 8.7-8 10-4.6-1.3-8-5-8-10V6z" /><path d="m9 12 2 2 4-4" /></>,
-  hash: <><path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18" /></>,
-  sparkle: <><path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z" /><path d="m19 16 .8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8L19 16Z" /></>,
+const iconGlyphs = {
+  home: "home",
+  file: "file",
+  book: "book",
+  search: "search",
+  check: "check",
+  award: "medal",
+  grid: "apps",
+  users: "users",
+  settings: "settings",
+  upload: "upload",
+  sync: "refresh",
+  bell: "bell",
+  arrow: "arrow-to-right",
+  chevron: "angle-small-right",
+  clock: "clock",
+  lock: "lock",
+  info: "circle-i",
+  edit: "edit",
+  plus: "add",
+  menu: "menu-burger",
+  mail: "envelope",
+  phone: "phone-call",
+  calendar: "calendar",
+  building: "building",
+  monitor: "monitor",
+  download: "download",
+  close: "cross-small",
+  cursor: "cursor",
+  trash: "trash",
+  help: "interrogation",
+  shield: "shield-check",
+  hash: "hastag",
+  sparkle: "sparkles",
 };
 
 function Icon({ name, size = 18, className = "" }) {
-  return (
-    <svg
-      className={className}
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.75"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      {iconPaths[name] || iconPaths.file}
-    </svg>
-  );
+  const glyph = iconGlyphs[name] || iconGlyphs.file;
+  return <i className={`ocec-icon fi fi-rr-${glyph} ${className}`} style={{ fontSize: `${size}px` }} aria-hidden="true" />;
 }
 
 function BrandMark() {
@@ -363,13 +625,15 @@ function BrandMark() {
   );
 }
 
-function Button({ children, variant = "primary", icon, type = "button", onClick, disabled = false, className = "" }) {
+function Button({ children, variant = "primary", icon, type = "button", onClick, disabled = false, className = "", ariaLabel, title }) {
   return (
     <button
       className={"button button-" + variant + " " + className}
       type={type}
       onClick={onClick}
       disabled={disabled}
+      aria-label={ariaLabel}
+      title={title}
     >
       {icon ? <Icon name={icon} size={17} /> : null}
       <span>{children}</span>
@@ -432,10 +696,26 @@ function Field({ label, hint, required = false, children, className = "" }) {
 }
 
 const FORM_COMPETITIONS = [
+  { id: "hkimo", short: "HKIMO", name: "Hong Kong International Mathematical Olympiad (HKIMO)", subject: "Mathematics", grades: ["Primary 1", "Primary 2", "Primary 3", "Primary 4", "Primary 5", "Primary 6", "Secondary 1", "Secondary 2", "Secondary 3", "Senior Secondary"] },
   { id: "bbb", short: "BBB", name: "Big Bay Bei (BBB)", subject: "Mathematics", grades: ["Primary 1", "Primary 2", "Primary 3", "Primary 4", "Primary 5", "Primary 6", "Secondary 1", "Secondary 2", "Secondary 3", "Senior Secondary"] },
   { id: "hkiso", short: "HKISO", name: "HKISO", subject: "Science", grades: ["Primary 2", "Primary 3", "Primary 4", "Primary 5", "Primary 6", "Secondary 1", "Secondary 2", "Secondary 3", "Senior Secondary"] },
   { id: "hkico", short: "HKICO", name: "HKICO", subject: "Computer", grades: ["Primary 2 — Scratch", "Primary 3 — Scratch", "Primary 4 — Scratch", "Primary 5 — Blockly", "Primary 6 — Blockly", "Secondary 1 — Blockly", "Secondary 2 — Python", "Secondary 3 — Python", "Senior Secondary — Python"] },
+  { id: "timo", short: "TIMO", name: "Thailand International Mathematical Olympiad (TIMO)", subject: "Mathematics", grades: ["Primary 1", "Primary 2", "Primary 3", "Primary 4", "Primary 5", "Primary 6", "Secondary 1", "Secondary 2", "Secondary 3", "Senior Secondary"] },
 ];
+
+function getFormCompetitions(examCatalog, roundType, options = {}) {
+  const matchingExams = (examCatalog || []).filter((exam) => getExamRoundType(exam) === roundType && (!options.openOnly || exam.isOpen) && (!options.year || exam.year === options.year));
+  if (!matchingExams.length) return examCatalog?.length ? [] : FORM_COMPETITIONS;
+  const catalogById = new Map(FORM_COMPETITIONS.map((competition) => [competition.id, competition]));
+  const uniqueExams = [...new Map(matchingExams.map((exam) => [exam.competitionId || exam.id, exam])).values()];
+  return uniqueExams.map((exam) => ({ ...(catalogById.get(exam.competitionId) || ({
+    id: exam.competitionId || exam.id,
+    short: exam.title.length > 18 ? `${exam.title.slice(0, 16)}…` : exam.title,
+    name: exam.title,
+    subject: "Academic Competition",
+    grades: FORM_COMPETITIONS[0].grades,
+  })), year: exam.year }));
+}
 
 const FORM_PAST_PAPER_GROUPS = [
   { id: "hkiso", title: "HKISO Past Papers", items: [
@@ -452,6 +732,25 @@ const FORM_PAST_PAPER_GROUPS = [
     { id: "bbb-2026", title: "Qualifier Round 2026", detail: "PDF English + Thai · Thai VDO", price: 250 },
   ] },
 ];
+
+const DEMO_CENTER_CATALOG = [
+  { code: "208", name: "ศูนย์สอบกรุงเทพฯ", applicants: 18 },
+  { code: "305", name: "ศูนย์สอบเชียงใหม่", applicants: 7 },
+  { code: "412", name: "ศูนย์สอบขอนแก่น", applicants: 5 },
+  { code: "888", name: "ศูนย์สอบฮ่องกง", applicants: 3 },
+];
+
+const DEMO_PAST_PAPERS = FORM_PAST_PAPER_GROUPS.flatMap((group) => group.items.map((item) => ({ id: item.id, group: group.title, title: item.title, detail: item.detail, name: `${item.title} — ${item.detail}`, price: item.price, active: true })));
+
+function groupPastPaperCatalog(catalog) {
+  return Object.values((catalog || []).filter((paper) => paper.active).reduce((groups, paper) => {
+    const groupName = paper.group || "ข้อสอบเก่า";
+    const id = groupName.toLowerCase().replace(/[^a-z0-9]+/g, "-") || "past-papers";
+    groups[id] ||= { id, title: groupName, items: [] };
+    groups[id].items.push({ id: paper.id, title: paper.title || paper.name, detail: paper.detail || "", price: Number(paper.price || 0) });
+    return groups;
+  }, {}));
+}
 
 const FORM_CENTERS = ["Amnat Charoen", "Bangkok", "Buriram", "Chaiyaphum", "Chiang Mai", "Chiang Rai", "Chonburi", "Chumphon", "Khon Kaen", "Krabi", "Lampang", "Mukdahan", "Nakhon Ratchasima", "Nakhon Sawan", "Nonthaburi", "Pathum Thani", "Phatthalung", "Phitsanulok", "Phuket", "Ratchaburi", "Rayong", "Roi Et", "Sakon Nakhon", "Samut Prakan", "Saraburi", "Songkhla", "Surat Thani", "Trang", "Ubon Ratchathani", "Udon Thani"];
 const FORM_SCHOOLS = ["AIT International School", "Aiyasiri School", "Amnuay Silpa School", "Bangkok Christian College", "Bangkok Patana School", "Chulalongkorn University Demonstration School", "Kasetsart University Laboratory School", "Satit Prasarnmit Demonstration School", "Triam Udom Suksa School", "Other"];
@@ -510,7 +809,10 @@ function ApplicationCard({ application, onOpen }) {
         </div>
       </div>
       <div className="application-card-footer">
-        <span className="muted-inline"><Icon name="building" size={15} />{application.center}</span>
+        <div className="application-card-footer-meta">
+          <span className="muted-inline"><Icon name="building" size={15} />{application.center}</span>
+          <span className="muted-inline"><Icon name="phone" size={15} />{getApplicationPhone(application)}</span>
+        </div>
         <Button variant="text" icon="arrow" onClick={onOpen}>ดูรายละเอียด</Button>
       </div>
     </article>
@@ -527,13 +829,12 @@ function Sidebar({ page, persona, applications = [], navigate, open, onClose, no
     { id: "final-confirm", label: "ยืนยันสิทธิ์ Final", icon: "award" },
     { id: "results", label: "ประกาศผล", icon: "grid" },
   ];
-  const adminItems = [
-    { id: "admin-home", label: "ภาพรวมแอดมิน", icon: "grid" },
-    { id: "admin-review", label: "ตรวจใบสมัคร", icon: "file", count: String(pendingReviewCount) },
-    { id: "admin-round", label: "ตั้งค่ารอบสอบ", icon: "calendar" },
-    { id: "admin-results", label: "ผลสอบ Heat", icon: "award" },
-    { id: "admin-final-ids", label: "เลขประจำตัว Final", icon: "users" },
-    { id: "admin-sheets", label: "Google Sheets", icon: "sync" },
+  const adminGroups = [
+    { label: "ภาพรวม", items: [{ id: "admin-home", label: "ภาพรวมแอดมิน", icon: "grid" }] },
+    { label: "ใบสมัคร", items: [{ id: "admin-review", label: "ตรวจใบสมัคร", icon: "file", count: String(pendingReviewCount) }] },
+    { label: "รอบสอบและข้อมูลตั้งต้น", items: [{ id: "admin-round", label: "รอบสอบ ศูนย์สอบ และราคา", icon: "calendar" }] },
+    { label: "ผลสอบและ Final", items: [{ id: "admin-results", label: "นำเข้าผลสอบ", icon: "award" }, { id: "admin-final-ids", label: "เลขประจำตัว Final", icon: "users" }] },
+    { label: "รายงานและการจัดส่ง", items: [{ id: "admin-mock-papers", label: "รายชื่อ Mock และข้อสอบเก่า", icon: "book" }, { id: "admin-sheets", label: "Google Sheets", icon: "sync" }] },
   ];
   const renderItems = (items) => items.map((item) => (
     <a
@@ -571,10 +872,7 @@ function Sidebar({ page, persona, applications = [], navigate, open, onClose, no
             <div className="nav-list">{renderItems(mainItems)}</div>
           </> : null}
           {persona === "admin" ? (
-            <>
-              <p className="nav-section-title nav-section-admin">จัดการระบบ</p>
-              <div className="nav-list">{renderItems(adminItems)}</div>
-            </>
+            adminGroups.map((group) => <section className="admin-nav-group" key={group.label}><p className="nav-section-title nav-section-admin">{group.label}</p><div className="nav-list">{renderItems(group.items)}</div></section>)
           ) : null}
         </nav>
         <div className="sidebar-bottom">
@@ -771,7 +1069,7 @@ function PublicPortalHeader({ page, navigate, setPersona, authProfile, onSignIn,
   const accountRootRef = useRef(null);
   const dialogRef = useRef(null);
   const loginTriggerRef = useRef(null);
-  const requiresRegistrationLogin = !authProfile && (page === "apply-heat" || page === "apply-final");
+  const requiresRegistrationLogin = !authProfile && page === "apply-heat";
 
   useEffect(() => {
     setLoginDialogOpen(requiresRegistrationLogin);
@@ -834,6 +1132,7 @@ function PublicPortalHeader({ page, navigate, setPersona, authProfile, onSignIn,
         <a href="#open-exams" onClick={(event) => { event.preventDefault(); goToLandingSection(page, navigate, "open-exams"); }}>รายการสอบ</a>
         <a href="#how-to-apply" onClick={(event) => { event.preventDefault(); goToLandingSection(page, navigate, "how-to-apply"); }}>วิธีสมัคร</a>
         <button onClick={() => navigate("lookup-choice")}>ค้นหาสถานะ</button>
+        <button type="button" aria-current={page === "final-confirm" ? "page" : undefined} className={page === "final-confirm" ? "landing-nav-current" : ""} onClick={() => navigate("final-confirm")}>ยืนยันสิทธิ์</button>
         <button onClick={() => navigate("results")}>ประกาศผล</button>
       </nav>
       <div className="header-account" ref={accountRootRef}>
@@ -896,6 +1195,7 @@ function PublicPortalFooter({ setPersona, navigate }) {
     <footer className="landing-footer">
       <a className="landing-footer-brand" href="#home"><BrandMark /><span><strong>OCEC Portal</strong><small>ระบบสมัครสอบ</small></span></a>
       <span>© 2569 OCEC Portal · หน้าต้นแบบ</span>
+      <a className="flaticon-attribution" href="https://www.flaticon.com/uicons" target="_blank" rel="noreferrer">UIcons by Flaticon</a>
       <button onClick={() => { setPersona("admin"); navigate("admin-home"); }}>ดูตัวอย่างหลังบ้าน</button>
     </footer>
   );
@@ -915,7 +1215,10 @@ function PublicPortalLayout({ page, navigate, setPersona, authProfile, onSignIn,
 }
 
 function LandingPage({ navigate, setPersona, authProfile, onSignIn, onSignOut, onStartApplication, resultPublished, examCatalog }) {
-  const openExamCount = examCatalog.filter((exam) => exam.isOpen).length;
+  const openExams = examCatalog.filter((exam) => exam.isOpen);
+  const openExamCount = openExams.length;
+  const heroOpenExams = openExams.slice(0, 2);
+  const orderedExams = [...examCatalog].sort((left, right) => Number(Boolean(right.isOpen)) - Number(Boolean(left.isOpen)));
   const examCarouselRef = useRef(null);
   const [examScrollState, setExamScrollState] = useState({ canPrevious: false, canNext: false });
 
@@ -937,7 +1240,7 @@ function LandingPage({ navigate, setPersona, authProfile, onSignIn, onSignOut, o
       window.removeEventListener("resize", updateScrollState);
       observer?.disconnect();
     };
-  }, []);
+  }, [examCatalog.length]);
 
   function scrollExamCarousel(direction) {
     const track = examCarouselRef.current;
@@ -970,8 +1273,11 @@ function LandingPage({ navigate, setPersona, authProfile, onSignIn, onSignOut, o
             <div className="landing-art-sun" />
             <div className="landing-art-orbit landing-art-orbit-one" />
             <div className="landing-art-orbit landing-art-orbit-two" />
-            <div className="landing-art-card landing-art-card-back"><span className="art-mini-mark art-mark-muted">H</span><span><small>ยังไม่เปิดรับ</small><strong>OCEC Heat 2570</strong></span><Icon name="clock" size={16} /></div>
-            <div className="landing-art-card landing-art-card-front"><span className="art-mini-mark art-mark-teal">H</span><span><small>เปิดรับสมัคร</small><strong>OCEC Heat 2569</strong></span><Icon name="arrow" size={16} /></div>
+            {heroOpenExams.length ? heroOpenExams.map((exam, index) => <div className={`landing-art-card ${index === 0 ? "landing-art-card-front" : "landing-art-card-back"}`} key={exam.id}>
+              <ExamLogo exam={exam} className={`art-mini-mark ${index === 0 ? "art-mark-teal" : "art-mark-muted"}`} iconSize={18} />
+              <span><small>เปิดรับสมัคร · {EXAM_ROUND_LABELS[getExamRoundType(exam)] || exam.round}</small><strong>{exam.title} {exam.year}</strong></span>
+              <Icon name="arrow" size={16} />
+            </div>) : <div className="landing-art-card landing-art-card-front"><span className="art-mini-mark art-mark-muted"><Icon name="clock" size={18} /></span><span><small>ยังไม่มีรายการเปิดรับ</small><strong>ติดตามกำหนดการรอบถัดไป</strong></span><Icon name="clock" size={16} /></div>}
             <div className="landing-art-count"><span>เปิดรับ</span><strong>{openExamCount}</strong><span>รายการ</span></div>
             <span className="landing-art-spark landing-art-spark-a"><Icon name="sparkle" size={19} /></span>
             <span className="landing-art-spark landing-art-spark-b"><Icon name="sparkle" size={14} /></span>
@@ -993,9 +1299,9 @@ function LandingPage({ navigate, setPersona, authProfile, onSignIn, onSignOut, o
             </div>
           </div>
           <div className="exam-list-grid" ref={examCarouselRef} role="region" tabIndex={0} aria-label="รายการสอบทั้งหมด เลื่อนไปด้านข้างเพื่อดูรายการเพิ่มเติม">
-            {examCatalog.map((exam) => (
+            {orderedExams.map((exam) => (
               <article className={`exam-listing-card exam-card-${exam.accent}${exam.isOpen ? "" : " exam-card-upcoming"}`} key={exam.id}>
-                <div className="exam-card-top"><span className="exam-type-mark"><Icon name="award" size={21} /></span><span className={exam.isOpen ? "exam-open-label" : "exam-upcoming-label"}><i />{exam.isOpen ? "เปิดรับสมัคร" : "ยังไม่เปิดรับ"}</span></div>
+                <div className="exam-card-top"><ExamLogo exam={exam} iconSize={21} /><span className={exam.isOpen ? "exam-open-label" : "exam-upcoming-label"}><i />{exam.isOpen ? "เปิดรับสมัคร" : "ยังไม่เปิดรับ"}</span></div>
                 <p className="exam-round-label">{exam.round} · ปีการศึกษา {exam.year}</p>
                 <h3>{exam.title}</h3>
                 <p className="exam-card-description">{exam.description}</p>
@@ -1037,7 +1343,6 @@ function ApplicationsPage({ applications, navigate }) {
         eyebrow="บัญชีของฉัน"
         title="ใบสมัครของฉัน"
         description="ดูใบสมัครย้อนหลังตามรายการสอบและปี รวมถึงติดตามสถานะของผู้เข้าสอบทุกคน"
-        action={<Button icon="plus" onClick={() => navigate("apply-heat")}>สร้างใบสมัครใหม่</Button>}
       />
       <div className="filter-toolbar">
         <div className="segmented-control" role="group" aria-label="กรองตามรายการสอบ">
@@ -1163,14 +1468,15 @@ function EditVerifyPage({ applications, onVerified, navigate }) {
   );
 }
 
-function EditApplicationPage({ application, onSave, navigate, editWindowOpen }) {
+function EditApplicationPage({ application, onSave, navigate, examCatalog }) {
   const [form, setForm] = useState(() => ({
     candidate: application.candidate,
     school: application.school,
     contactEmail: application.contactEmail,
     phone: "08X-XXX-" + application.phoneLast4,
   }));
-  const editable = application.status === "confirmed" && application.canEdit && editWindowOpen;
+  const editDeadline = getApplicationEditDeadline(application, examCatalog);
+  const editable = isApplicationEditable(application, examCatalog);
   const updateField = (key, value) => setForm((current) => ({ ...current, [key]: value }));
   return (
     <div className="page-stack">
@@ -1178,7 +1484,7 @@ function EditApplicationPage({ application, onSave, navigate, editWindowOpen }) 
       <div className="form-layout">
         <section className="surface form-surface">
           <div className="form-section-heading"><span className="form-section-icon"><Icon name="edit" /></span><div><h2>ข้อมูลผู้เข้าสอบ</h2><p>แก้ไขข้อมูลที่อนุญาตก่อนถึงกำหนดปิดแก้ไข</p></div></div>
-          {!editable ? <div className="notice notice-amber"><Icon name="lock" /><div><strong>ยังไม่สามารถแก้ไขใบสมัครนี้ได้</strong><p>{application.status === "pending" ? "ใบสมัครอยู่ระหว่างตรวจสอบ สามารถดูสถานะได้ แต่ยังแก้ไขข้อมูลไม่ได้" : "รอบแก้ไขข้อมูลปิดแล้ว"}</p></div></div> : null}
+          {!editable ? <div className="notice notice-amber"><Icon name="lock" /><div><strong>ยังไม่สามารถแก้ไขใบสมัครนี้ได้</strong><p>{application.status === "pending" ? "ใบสมัครอยู่ระหว่างตรวจสอบ สามารถดูสถานะได้ แต่ยังแก้ไขข้อมูลไม่ได้" : !application.canEdit ? "ใบสมัครนี้ไม่ได้เปิดสิทธิ์แก้ข้อมูล" : !editDeadline ? "ยังไม่ได้กำหนดวันปิดแก้ไขของรอบนี้" : "รอบแก้ไขข้อมูลปิดแล้ว"}</p></div></div> : null}
           <div className="form-grid">
             <Field label="ชื่อภาษาอังกฤษ" required><input value={form.candidate} disabled={!editable} onChange={(event) => updateField("candidate", event.target.value)} /></Field>
             <Field label="โรงเรียน" required><input value={form.school} disabled={!editable} onChange={(event) => updateField("school", event.target.value)} /></Field>
@@ -1189,7 +1495,7 @@ function EditApplicationPage({ application, onSave, navigate, editWindowOpen }) 
             <div className="locked-fields-title"><Icon name="lock" size={16} /><strong>ข้อมูลที่ล็อกหลังอนุมัติ</strong></div>
             <div className="locked-chip-row"><span>รายการสอบ <b>{application.kind}</b></span><span>ระดับชั้น <b>{application.grade}</b></span><span>รูปแบบ <b>{application.format}</b></span><span>ศูนย์สอบ <b>{application.center}</b></span></div>
           </div>
-          {editable ? <div className="form-footer"><span>แก้ไขได้ถึง 30 พฤศจิกายน 2569</span><Button icon="check" onClick={() => onSave(application.id, form)}>บันทึกการแก้ไข</Button></div> : null}
+          {editable ? <div className="form-footer"><span>แก้ไขได้ถึง {formatThaiDate(editDeadline)}</span><Button icon="check" onClick={() => onSave(application.id, form)}>บันทึกการแก้ไข</Button></div> : null}
         </section>
         <aside className="surface side-note">
           <span className="side-note-icon"><Icon name="info" /></span>
@@ -1203,9 +1509,14 @@ function EditApplicationPage({ application, onSave, navigate, editWindowOpen }) 
   );
 }
 
-function ApplicationDetailPage({ application, navigate, resultPublished, editWindowOpen }) {
+function ApplicationDetailPage({ application, navigate, resultRows = [], examCatalog }) {
   if (!application) return <div className="surface empty-state">ไม่พบใบสมัครที่เลือก</div>;
-  const canEdit = application.status === "confirmed" && application.canEdit && editWindowOpen;
+  const canEdit = isApplicationEditable(application, examCatalog);
+  const applicationResults = resultRows.filter((result) => result.applicationId === application.id);
+  const hasPassedHeat = applicationResults.some((result) => result.roundType === "HEAT" && result.result === "pass");
+  const resultSummary = applicationResults.length
+    ? applicationResults.map((result) => `${result.competitionTitle} ${EXAM_ROUND_LABELS[result.roundType] || result.roundType}: ${result.result === "pass" ? "ผ่าน" : "ไม่ผ่าน"}`).join(" · ")
+    : "ยังไม่ประกาศผล";
   return (
     <div className="page-stack">
       <PageHeading eyebrow={application.kind + " · ปีการศึกษา " + application.year} title="รายละเอียดใบสมัคร" description={application.candidate + " · " + application.school} action={<Button variant="outline" icon="arrow" onClick={() => navigate("applications")}>กลับไปใบสมัครของฉัน</Button>} />
@@ -1228,11 +1539,11 @@ function ApplicationDetailPage({ application, navigate, resultPublished, editWin
               <div><span>ศูนย์สอบ</span><strong>{application.center}</strong></div>
               <div><span>อีเมลติดต่อ</span><strong>{application.contactEmail}</strong></div>
               <div><span>วันที่ส่งใบสมัคร</span><strong>{application.submitted}</strong></div>
-              <div><span>สถานะผลสอบ</span><strong>{!resultPublished ? "ยังไม่ประกาศผล" : application.result === "pass" ? "ผ่านรอบ Heat" : application.result === "not-passed" ? "ไม่ผ่านรอบ Heat" : "ไม่มีผลสอบ"}</strong></div>
+              <div><span>สถานะผลสอบ</span><strong>{resultSummary}</strong></div>
             </div>
           </section>
-          {resultPublished && application.result === "pass" ? (
-            <div className="final-next-step"><span className="final-next-icon"><Icon name="award" /></span><div><strong>คุณผ่านเข้าสู่รอบ Final</strong><p>ยืนยันสิทธิ์และสมัครสอบ Final ได้ภายในเวลาที่กำหนด</p></div><Button onClick={() => navigate("final-confirm")}>ยืนยันสิทธิ์ <Icon name="arrow" size={16} /></Button></div>
+          {hasPassedHeat ? (
+            <div className="final-next-step"><span className="final-next-icon"><Icon name="award" /></span><div><strong>คุณผ่านเข้าสู่รอบ Final</strong><p>ยืนยันสิทธิ์และสมัครสอบ Final ได้ภายในเวลาที่กำหนด</p></div><Button onClick={() => navigate("final-confirm", application.id)}>ยืนยันสิทธิ์ <Icon name="arrow" size={16} /></Button></div>
           ) : null}
         </div>
         <aside className="surface timeline-card">
@@ -1240,7 +1551,7 @@ function ApplicationDetailPage({ application, navigate, resultPublished, editWin
           <div className="timeline">
             <div className="timeline-item timeline-done"><span><Icon name="check" size={13} /></span><div><strong>ส่งใบสมัครแล้ว</strong><small>{application.submitted}</small></div></div>
             <div className={"timeline-item " + (application.status === "confirmed" ? "timeline-done" : "timeline-current")}><span>{application.status === "confirmed" ? <Icon name="check" size={13} /> : "2"}</span><div><strong>{application.status === "confirmed" ? "ตรวจสอบและยืนยันแล้ว" : "รอตรวจใบสมัครและสลิป"}</strong><small>{application.status === "confirmed" ? "ตรวจสอบเรียบร้อย" : "เจ้าหน้าที่กำลังตรวจสอบ"}</small></div></div>
-            <div className={"timeline-item " + (resultPublished && application.result ? "timeline-done" : "")}><span>{resultPublished && application.result ? <Icon name="check" size={13} /> : "3"}</span><div><strong>ประกาศผลสอบ</strong><small>{!resultPublished ? "รอประกาศผล" : application.result === "pass" ? "ผ่านรอบ Heat" : application.result === "not-passed" ? "ประกาศผลแล้ว" : "ไม่มีผลสอบ"}</small></div></div>
+            <div className={"timeline-item " + (applicationResults.length ? "timeline-done" : "")}><span>{applicationResults.length ? <Icon name="check" size={13} /> : "3"}</span><div><strong>ประกาศผลสอบ</strong><small>{applicationResults.length ? resultSummary : "รอประกาศผล"}</small></div></div>
           </div>
           <div className="timeline-contact"><Icon name="mail" size={16} /><span>แจ้งเตือนส่งไปที่<br /><strong>{application.contactEmail}</strong></span></div>
         </aside>
@@ -1277,86 +1588,185 @@ function SlipUploadPage({ application, onUploaded, onReturn, notify }) {
   );
 }
 
-function FinalConfirmationPage({ applications, onContinue, navigate, resultPublished }) {
+function FinalConfirmationPage({ applications, applicationHint, onContinue, navigate, publishedHeatResults = [], examCatalog, authProfile, onSignIn }) {
+  const [path, setPath] = useState(applicationHint?.source === "self" ? "account" : "school");
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState("");
   const [lastFour, setLastFour] = useState("");
   const [verified, setVerified] = useState(false);
   const [error, setError] = useState("");
-  const eligible = applications.filter((item) => item.kind === "Heat" && item.result === "pass" && item.candidate.toLowerCase().includes(query.trim().toLowerCase()));
+  const [showPreview, setShowPreview] = useState(false);
+  const localToday = getBangkokTodayISO();
+  const hasPublishedHeat = publishedHeatResults.length > 0;
+  const eligibleApplications = applications.filter((item) => item.kind === "Heat" && getEligibleFinalRounds(item, examCatalog, publishedHeatResults, localToday).length > 0);
+  const canConfirm = hasPublishedHeat && eligibleApplications.length > 0;
+  const pendingReason = !hasPublishedHeat ? "รอประกาศผล Heat" : "ปิดยืนยันสิทธิ์ครบแล้ว";
+  const accountMatches = canConfirm ? eligibleApplications.filter((item) => item.source === "self" && authProfile && item.contactEmail?.toLowerCase() === authProfile.email.toLowerCase()) : [];
+  const eligible = canConfirm ? eligibleApplications.filter((item) => item.source === "school" && item.candidate.toLowerCase().includes(query.trim().toLowerCase())) : [];
   const selected = applications.find((item) => item.id === selectedId);
+  const selectedFinalRounds = selected ? getEligibleFinalRounds(selected, examCatalog, publishedHeatResults, localToday) : [];
+  const finalRoundDeadlineText = (application) => getEligibleFinalRounds(application, examCatalog, publishedHeatResults, localToday)
+    .map((exam) => `${exam.title}: ${exam.finalConfirmCloseDate ? formatThaiDate(exam.finalConfirmCloseDate) : "ไม่กำหนดวันปิด"}`)
+    .join(" · ");
+
   function verify(event) {
     event.preventDefault();
     if (!selected || selected.phoneLast4 !== lastFour) {
-      setError("ข้อมูลไม่ตรงกับใบสมัคร Heat กรุณาตรวจสอบเลข 4 ตัวท้าย");
+      setError("เลข 4 ตัวท้ายไม่ตรงกับใบสมัคร Heat กรุณาตรวจสอบอีกครั้ง");
       return;
     }
     setError("");
     setVerified(true);
   }
+
   return (
-    <div className="page-stack narrow-page">
-      <PageHeading eyebrow="OCEC Final 2569" title="ยืนยันสิทธิ์เข้าสอบ Final" description="สำหรับผู้ผ่านการคัดเลือกรอบ Heat เพื่อดำเนินการสมัครสอบ Final" />
-      <div className="step-progress"><span className="step-active"><b>1</b>ค้นหาผู้ผ่าน</span><i /><span className={selectedId ? "step-active" : ""}><b>2</b>ยืนยันตัวตน</span><i /><span className={verified ? "step-active" : ""}><b>3</b>สมัคร Final</span></div>
-      <section className="surface final-confirm-card">
-        {!resultPublished ? (
-          <div className="results-pending compact-pending"><span className="results-pending-icon"><Icon name="clock" /></span><h2>รอประกาศผล Heat</h2><p>ผู้ผ่านสามารถเริ่มยืนยันสิทธิ์ Final ได้ทันทีหลังแอดมินยืนยันประกาศผล</p></div>
-        ) : !verified ? (
-          <>
-            <div className="callout-title"><span className="callout-icon"><Icon name="award" /></span><div><h2>ค้นหารายชื่อผู้ผ่าน Heat</h2><p>ใช้ชื่อภาษาอังกฤษและตรวจสอบเลขสอบกับโรงเรียนให้ตรงกับตัวคุณ</p></div></div>
-            <Field label="ค้นหาชื่อภาษาอังกฤษ" required><div className="input-with-icon"><Icon name="search" /><input value={query} onChange={(event) => { setQuery(event.target.value); setSelectedId(""); }} placeholder="เช่น Nicha Srisawat" required /></div></Field>
-            {query ? <div className="eligible-list">{eligible.map((item) => <button key={item.id} className={"eligible-option " + (selectedId === item.id ? "eligible-option-selected" : "")} onClick={() => { setSelectedId(item.id); setError(""); }}><span className="eligible-radio" /><span><strong>{item.candidate}</strong><small>เลขสอบ {item.heatId} · {item.school}</small></span><Icon name="chevron" /></button>)}{eligible.length === 0 ? <div className="empty-inline"><Icon name="info" /><span>ไม่พบรายชื่อผู้ผ่านที่ตรงกับชื่อ</span></div> : null}</div> : null}
-            {selected ? (
-              <form onSubmit={verify} className="verify-final-form">
-                <div className="selected-candidate"><span className="selected-check"><Icon name="check" size={15} /></span><div><strong>{selected.candidate}</strong><small>{selected.heatId} · {selected.school}</small></div><span className="pass-label">ผ่าน Heat</span></div>
-                <Field label="เลข 4 ตัวท้ายของเบอร์โทรศัพท์ในใบสมัคร Heat" required><input inputMode="numeric" maxLength={4} value={lastFour} onChange={(event) => setLastFour(event.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="••••" required /></Field>
-                {error ? <p className="inline-error" role="alert"><Icon name="info" size={16} />{error}</p> : null}
-                <Button type="submit" icon="shield" className="button-full">ยืนยันตัวตน</Button>
-              </form>
-            ) : null}
-          </>
-        ) : (
-          <div className="verified-panel">
-            <span className="verified-badge"><Icon name="check" /></span>
-            <p className="eyebrow">ยืนยันตัวตนสำเร็จ</p>
-            <h2>พร้อมสมัครสอบ Final</h2>
-            <p>ข้อมูลจากใบสมัคร Heat จะถูกนำมาเติมในฟอร์ม Final ให้ตรวจสอบและแก้ไขก่อนส่ง</p>
-            <div className="verified-actions">
-              <Button icon="shield" onClick={() => onContinue(selected, true)}>ผูกใบสมัครกับบัญชี Google</Button>
-              <Button variant="outline" onClick={() => onContinue(selected, false)}>ดำเนินการต่อโดยไม่เข้าสู่ระบบ</Button>
-            </div>
-            <button className="back-link" onClick={() => { setVerified(false); setSelectedId(""); }}><Icon name="arrow" size={15} />ค้นหาชื่ออื่น</button>
-          </div>
-        )}
+    <div className="page-stack final-rights-page">
+      <section className="final-rights-hero" aria-labelledby="final-rights-title">
+        <div className="final-rights-hero-copy">
+          <span className="final-rights-kicker"><Icon name="award" size={16} /> OCEC FINAL 2569</span>
+          <h1 id="final-rights-title">ก้าวต่อไปของคุณ<br /><em>เริ่มที่การยืนยันสิทธิ์</em></h1>
+          <p>สำหรับผู้ผ่านรอบ Heat ตรวจสอบข้อมูลให้ตรงกับใบสมัครเดิม แล้วเริ่มสมัคร Final ในขั้นตอนเดียว</p>
+          <div className="final-rights-hero-meta"><span><Icon name="check" size={17} /> ใช้ข้อมูล Heat เดิม</span><span><Icon name="shield" size={17} /> ยืนยันตัวตนก่อนสมัคร</span></div>
+        </div>
+        <div className="final-rights-hero-art" aria-hidden="true"><span className="final-rights-orbit" /><span className="final-rights-medal"><Icon name="award" size={48} /></span><span className="final-rights-star final-rights-star-one">✦</span><span className="final-rights-star final-rights-star-two">✦</span><span className="final-rights-final-word">FINAL</span></div>
       </section>
-      <div className="info-banner"><Icon name="clock" /><div><strong>กำหนดปิดยืนยันสิทธิ์</strong><p>15 มกราคม 2570 เวลา 23:59 น.</p></div><Button variant="text" onClick={() => navigate("home")}>ดูรอบสอบ</Button></div>
+
+      <div className="final-rights-info-row"><div><span className={canConfirm ? "final-rights-live" : "final-rights-waiting"}><i />{canConfirm ? "เปิดยืนยันสิทธิ์" : pendingReason}</span><span className="final-rights-deadline"><Icon name="calendar" size={17} /> วันปิดยืนยันสิทธิ์แยกตามรายการสอบและรอบ</span></div><Button variant="text" onClick={() => navigate("results")}>ดูประกาศผล <Icon name="arrow" size={16} /></Button></div>
+
+      <div className="final-rights-layout">
+        <div className="final-rights-main">
+          {!canConfirm ? <div className="notice notice-amber final-rights-pending"><Icon name="clock" /><div><strong>{pendingReason}</strong><p>{!hasPublishedHeat ? "ระบบจะเปิดยืนยันสิทธิ์ให้อัตโนมัติทันทีหลังแอดมินประกาศผล Heat" : "วันปิดยืนยันสิทธิ์ของทุกรายการที่เกี่ยวข้องผ่านแล้ว"} ขณะนี้แสดงขั้นตอนตัวอย่างเพื่อดูหน้าจอ</p></div><Button variant="outline" onClick={() => setShowPreview((value) => !value)}>{showPreview ? "ซ่อนตัวอย่าง" : "ดูตัวอย่างขั้นตอน"}</Button></div> : null}
+          {canConfirm || showPreview ? (
+            <section className="surface final-rights-workspace" aria-labelledby="final-rights-workspace-title">
+              <div className="final-rights-workspace-heading"><div><p className="eyebrow">ยืนยันสิทธิ์เข้าสอบ Final</p><h2 id="final-rights-workspace-title">คุณสมัคร Heat แบบไหน?</h2><p>เลือกวิธีที่ตรงกับใบสมัคร Heat ของคุณ</p></div><span className="final-rights-step-number">01 / 03</span></div>
+              <div className="final-rights-paths" role="tablist" aria-label="วิธีค้นหาใบสมัคร Heat">
+                <button type="button" role="tab" aria-selected={path === "account"} className={path === "account" ? "final-rights-path selected" : "final-rights-path"} onClick={() => { setPath("account"); setVerified(false); setError(""); }}><span className="final-rights-path-icon"><Icon name="users" /></span><strong>สมัครด้วยบัญชีตนเอง</strong><small>เปิดใบสมัครของฉันแล้วไปต่อได้เลย</small></button>
+                <button type="button" role="tab" aria-selected={path === "school"} className={path === "school" ? "final-rights-path selected" : "final-rights-path"} onClick={() => { setPath("school"); setVerified(false); setError(""); }}><span className="final-rights-path-icon"><Icon name="building" /></span><strong>โรงเรียนสมัครให้</strong><small>ค้นหาชื่อและยืนยันเบอร์โทรศัพท์</small></button>
+              </div>
+
+              {path === "account" ? (
+                <div className="final-rights-account-panel" role="tabpanel">
+                  {authProfile ? <><div className="final-rights-account-identity"><img src={authProfile.picture} alt="" /><div><small>บัญชีที่เข้าสู่ระบบ</small><strong>{authProfile.name}</strong><span>{authProfile.email}</span></div></div>{accountMatches.length ? <div className="final-rights-match-list">{accountMatches.map((item) => <div className="final-rights-match" key={item.id}><span className="final-rights-match-icon"><Icon name="award" /></span><div><strong>{item.candidate}</strong><small>เลขสอบ {item.heatId} · {item.school}</small><small>{finalRoundDeadlineText(item)}</small></div><Button disabled={!canConfirm} icon="arrow" onClick={() => onContinue(item, "account", null, getEligibleFinalRounds(item, examCatalog, publishedHeatResults, localToday))}>ยืนยันสิทธิ์</Button></div>)}</div> : <div className="final-rights-empty"><Icon name="info" /><div><strong>ยังไม่พบใบสมัคร Heat ที่ผ่านในบัญชีนี้</strong><p>หากโรงเรียนเป็นผู้สมัครให้ เลือกแท็บ “โรงเรียนสมัครให้” เพื่อค้นหาด้วยชื่อ</p></div></div>}</> : <div className="final-rights-signin"><span className="final-rights-signin-icon"><GoogleMark /></span><div><strong>เข้าสู่ระบบเพื่อดูใบสมัครของฉัน</strong><p>ผู้ที่สมัคร Heat ด้วยบัญชีตนเองไม่ต้องยืนยันเบอร์โทรศัพท์ซ้ำ</p></div><Button variant="outline" onClick={() => onSignIn(demoGoogleProfile)}>เข้าสู่ระบบตัวอย่าง</Button></div>}
+                </div>
+              ) : verified ? (
+                <div className="final-rights-verified" role="tabpanel"><span className="final-rights-verified-icon"><Icon name="check" size={28} /></span><p className="eyebrow">ยืนยันตัวตนสำเร็จ</p><h3>พร้อมสมัคร OCEC Final</h3><p>ข้อมูลจากใบสมัคร Heat ของ <strong>{selected?.candidate}</strong> จะถูกเติมในฟอร์ม Final ให้ตรวจสอบก่อนส่ง</p><div className="final-rights-verified-summary"><span>เลขสอบ Heat <strong>{selected?.heatId}</strong></span><span>โรงเรียน <strong>{selected?.school}</strong></span><span className="final-rights-deadline-list">รอบที่ยืนยันได้<strong>{selectedFinalRounds.map((exam) => `${exam.title} · ปิด ${exam.finalConfirmCloseDate ? formatThaiDate(exam.finalConfirmCloseDate) : "ไม่กำหนด"}`).join(" / ")}</strong></span></div><div className="final-rights-verified-actions"><Button disabled={!canConfirm || !selectedFinalRounds.length} icon="arrow" onClick={() => onContinue(selected, "google", { name: selected?.candidate, email: selected?.contactEmail, picture: demoGoogleProfile.picture }, selectedFinalRounds)}>เข้าสู่ระบบ Google แล้วสมัคร</Button><Button disabled={!canConfirm || !selectedFinalRounds.length} variant="outline" onClick={() => onContinue(selected, "guest", null, selectedFinalRounds)}>สมัครต่อโดยไม่เข้าสู่ระบบ</Button></div><button type="button" className="back-link" onClick={() => { setVerified(false); setSelectedId(""); setLastFour(""); }}><Icon name="arrow" size={15} />ค้นหารายชื่ออื่น</button></div>
+              ) : (
+                <div className="final-rights-school-panel" role="tabpanel"><div className="final-rights-section-label"><span>02</span><div><strong>ค้นหาใบสมัคร Heat</strong><small>ใช้ชื่อภาษาอังกฤษตามใบสมัคร</small></div></div><Field label="ชื่อและนามสกุลภาษาอังกฤษ" required><div className="input-with-icon"><Icon name="search" /><input value={query} onChange={(event) => { setQuery(event.target.value); setSelectedId(""); setLastFour(""); setError(""); }} placeholder="เช่น Thanakorn Wattanakul" autoComplete="off" /></div></Field>{query.trim() ? <div className="final-rights-results" aria-live="polite"><p>{eligible.length ? `พบ ${eligible.length} รายการ · ตรวจเลขสอบและโรงเรียนก่อนเลือก` : "ไม่พบรายชื่อที่ตรงกับคำค้น"}</p>{eligible.map((item) => <button type="button" key={item.id} className={selectedId === item.id ? "final-rights-result selected" : "final-rights-result"} aria-pressed={selectedId === item.id} onClick={() => { setSelectedId(item.id); setLastFour(""); setError(""); }}><span className="final-rights-result-radio" /><span><strong>{item.candidate}</strong><small>เลขสอบ {item.heatId} · {item.school}</small><small>{finalRoundDeadlineText(item)}</small></span><Icon name="chevron" size={18} /></button>)}</div> : <div className="final-rights-search-hint"><Icon name="info" size={16} />เริ่มพิมพ์ชื่อเพื่อดูใบสมัครที่ผ่านรอบ Heat</div>}{selected ? <form onSubmit={verify} className="final-rights-verify-form"><div className="final-rights-section-label"><span>03</span><div><strong>ยืนยันตัวตน</strong><small>ใช้เบอร์โทรศัพท์ในใบสมัคร Heat ที่เลือก</small></div></div><Field label="เลข 4 ตัวท้ายของเบอร์โทรศัพท์" required hint="กรอกเฉพาะตัวเลข 4 หลักสุดท้าย"><input inputMode="numeric" pattern="[0-9]{4}" maxLength={4} value={lastFour} onChange={(event) => { setLastFour(event.target.value.replace(/\D/g, "").slice(0, 4)); setError(""); }} placeholder="••••" required /></Field>{error ? <p className="inline-error" role="alert"><Icon name="info" size={16} />{error}</p> : null}<Button type="submit" disabled={!canConfirm} icon="shield">ยืนยันตัวตน</Button></form> : null}</div>
+              )}
+            </section>
+          ) : <section className="surface final-rights-locked"><span><Icon name="lock" size={26} /></span><h2>การยืนยันสิทธิ์ยังไม่เปิด</h2><p>เมื่อประกาศผล Heat แล้ว ผู้ผ่านจะค้นหาชื่อและเริ่มขั้นตอนนี้ได้ทันที</p><Button variant="outline" onClick={() => setShowPreview(true)}>ดูตัวอย่างหน้าจอ</Button></section>}
+        </div>
+        <aside className="final-rights-aside"><section className="surface final-rights-guide"><p className="eyebrow">ขั้นตอนสั้น ๆ</p><h2>จาก Heat สู่ Final</h2><ol><li><span>01</span><div><strong>ตรวจสอบสิทธิ์</strong><small>ดูใบสมัครในบัญชี หรือค้นหาชื่อ</small></div></li><li><span>02</span><div><strong>ยืนยันตัวตน</strong><small>ผู้สมัครผ่านโรงเรียนใช้เลขโทรศัพท์ 4 ตัวท้าย</small></div></li><li><span>03</span><div><strong>สมัคร Final</strong><small>ตรวจข้อมูลเดิม ชำระเงิน และแนบสลิปใหม่</small></div></li></ol></section><div className="final-rights-help"><Icon name="info" size={18} /><p>ใบสมัคร Final เป็นใบสมัครใหม่ แยกจาก Heat และรอเจ้าหน้าที่ตรวจสลิปอีกครั้ง</p></div></aside>
+      </div>
     </div>
   );
 }
 
-function PublicResultsPage({ applications, published }) {
+function PublicResultsPage({ resultRows = [] }) {
   const [query, setQuery] = useState("");
-  const results = applications.filter((item) => item.kind === "Heat" && item.result === "pass" && (item.candidate.toLowerCase().includes(query.trim().toLowerCase()) || (item.heatId || "").includes(query.trim())));
+  const resultsTableRef = useRef(null);
+  const publishedTargets = [...new Map(resultRows.map((row) => [row.targetId, {
+    targetId: row.targetId,
+    competitionId: row.competitionId,
+    competitionTitle: row.competitionTitle,
+    roundType: row.roundType,
+    round: row.round,
+    year: row.year,
+    publishedAt: row.publishedAt,
+  }])).values()].sort((left, right) => Date.parse(right.publishedAt || 0) - Date.parse(left.publishedAt || 0));
+  const competitionKey = (target) => `${target.competitionId}::${target.year}`;
+  const latestTarget = publishedTargets[0];
+  const [selectedCompetition, setSelectedCompetition] = useState(() => latestTarget ? competitionKey(latestTarget) : "all");
+  const [selectedRound, setSelectedRound] = useState(() => latestTarget?.roundType || "all");
+  const [selectedGrade, setSelectedGrade] = useState("all");
+  const [page, setPage] = useState(1);
+  const pageSize = 100;
+  function changePage(nextPage) {
+    setPage(nextPage);
+    window.requestAnimationFrame(() => resultsTableRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
+  const competitionOptions = [...new Map(publishedTargets.map((target) => [competitionKey(target), {
+    key: competitionKey(target),
+    title: target.competitionTitle,
+    year: target.year,
+  }])).values()];
+  const targetMatchesCompetition = (target) => selectedCompetition === "all" || competitionKey(target) === selectedCompetition;
+  const roundOptions = [...new Set(publishedTargets.filter(targetMatchesCompetition).map((target) => target.roundType))];
+  const targetMatchesRound = (target) => selectedRound === "all" || target.roundType === selectedRound;
+  const gradeOptions = [...new Set(resultRows.filter((row) => {
+    const target = publishedTargets.find((item) => item.targetId === row.targetId);
+    return target && targetMatchesCompetition(target) && targetMatchesRound(target);
+  }).map((row) => row.grade).filter(Boolean))].sort((left, right) => left.localeCompare(right, "en"));
+  const searchTerm = query.trim().toLowerCase();
+  const results = resultRows.filter((row) => {
+    const target = publishedTargets.find((item) => item.targetId === row.targetId);
+    const matchesSearch = !searchTerm || (row.candidateName || row.candidate || "").toLowerCase().includes(searchTerm) || String(row.candidateNo || row.examNumber || "").toLowerCase().includes(searchTerm);
+    return target && targetMatchesCompetition(target) && targetMatchesRound(target)
+      && (selectedGrade === "all" || row.grade === selectedGrade) && matchesSearch;
+  });
+  const totalPages = Math.max(1, Math.ceil(results.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pageStart = (currentPage - 1) * pageSize;
+  const resultsOnPage = results.slice(pageStart, pageStart + pageSize);
+  const rangeStart = results.length ? pageStart + 1 : 0;
+  const rangeEnd = Math.min(pageStart + pageSize, results.length);
+  const pageItems = totalPages <= 6
+    ? Array.from({ length: totalPages }, (_, index) => index + 1)
+    : currentPage <= 4
+      ? [1, 2, 3, 4, "ellipsis", totalPages]
+      : currentPage >= totalPages - 3
+        ? [1, "ellipsis", totalPages - 3, totalPages - 2, totalPages - 1, totalPages]
+        : [1, "ellipsis", currentPage - 1, currentPage, currentPage + 1, "ellipsis", totalPages];
+  const resultGroups = publishedTargets.filter((target) => targetMatchesCompetition(target) && targetMatchesRound(target))
+    .map((target) => ({ target, rows: resultsOnPage.filter((row) => row.targetId === target.targetId) }))
+    .filter((group) => group.rows.length);
   return (
     <div className="page-stack">
-      <PageHeading eyebrow="ผลการคัดเลือก" title="ประกาศผลสอบ OCEC Heat" description="ค้นหารายชื่อผู้ผ่านรอบ Heat ด้วยชื่อภาษาอังกฤษหรือเลขประจำตัวสอบ" />
-      {!published ? (
+      <PageHeading eyebrow="ผลการคัดเลือก" title="ประกาศผลสอบ OCEC" description="ตรวจผลสอบทุกระดับรางวัล ค้นหาด้วยชื่อภาษาอังกฤษหรือ CANDIDATE NO และกรองรายการสอบ รอบสอบ และระดับชั้นได้" />
+      {!publishedTargets.length ? (
         <section className="surface results-pending">
           <span className="results-pending-icon"><Icon name="clock" /></span>
           <h2>รอประกาศผลอย่างเป็นทางการ</h2>
-          <p>เมื่อมีการยืนยันประกาศผลแล้ว สามารถค้นหารายชื่อผู้ผ่านได้จากหน้านี้</p>
-          <span className="result-date"><Icon name="calendar" size={15} />กำหนดประกาศผล 15 ธันวาคม 2569</span>
+          <p>เมื่อมีการประกาศผลรายการสอบแล้ว จะสามารถเลือกดูผลของแต่ละรายการและรอบได้จากหน้านี้</p>
+          <span className="result-date"><Icon name="calendar" size={15} />ประกาศผลตามกำหนดการของแต่ละรายการ</span>
         </section>
       ) : (
         <>
+          <section className="surface results-public-filter-card">
+            <div className="results-public-filter-heading"><div><p className="eyebrow">ค้นหาผลสอบ</p><h2>เลือกตัวกรองที่ต้องการ</h2></div><span className="result-announced"><span />ประกาศแล้ว</span></div>
+            {latestTarget ? <div className="latest-result-hint"><Icon name="clock" size={14} /><span>เริ่มจากผลที่ประกาศล่าสุด: <strong>{resultTargetLabel(latestTarget)}</strong> · เลือกรายการสอบหรือรอบอื่นเพื่อดูผลเพิ่มเติม</span></div> : null}
+            <div className="results-public-filters">
+              <label className="results-public-search"><span>ค้นหาชื่อภาษาอังกฤษหรือ CANDIDATE NO</span><div className="input-with-icon"><Icon name="search" /><input value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="เช่น Kanya Rattanasuk หรือ 6000012" /></div></label>
+              <label><span>รายการสอบ</span><select value={selectedCompetition} onChange={(event) => { const value = event.target.value; setSelectedCompetition(value); const newestExamRound = value === "all" ? "all" : publishedTargets.find((target) => competitionKey(target) === value)?.roundType || "all"; setSelectedRound(newestExamRound); setSelectedGrade("all"); setPage(1); }}><option value="all">ทุกรายการสอบ</option>{competitionOptions.map((option) => <option key={option.key} value={option.key}>{option.title} · ปี {option.year}</option>)}</select></label>
+              <label><span>รอบสอบ</span><select value={selectedRound} onChange={(event) => { setSelectedRound(event.target.value); setSelectedGrade("all"); setPage(1); }}><option value="all">ทุกรอบสอบ</option>{roundOptions.map((round) => <option key={round} value={round}>{EXAM_ROUND_LABELS[round] || round}</option>)}</select></label>
+              <label><span>ระดับชั้น</span><select value={selectedGrade} onChange={(event) => { setSelectedGrade(event.target.value); setPage(1); }}><option value="all">ทุกระดับชั้น</option>{gradeOptions.map((grade) => <option key={grade} value={grade}>{grade}</option>)}</select></label>
+            </div>
+          </section>
           <section className="results-hero">
-            <div><span className="result-announced"><span />ประกาศผลอย่างเป็นทางการ</span><h2>รายชื่อผู้ผ่านการคัดเลือก</h2><p>OCEC Heat รอบที่ 1 · ปีการศึกษา 2569</p></div>
+            <div><span className="result-announced"><span />ประกาศผลอย่างเป็นทางการ</span><h2>ผลสอบผู้เข้าสอบทั้งหมด</h2><p>แสดงทุกรางวัล · GOLD, SILVER และ BRONZE ผ่านรอบ HEAT ROUND</p></div>
             <div className="result-total"><strong>{results.length.toString().padStart(2, "0")}</strong><span>รายชื่อที่พบ</span></div>
           </section>
-          <section className="surface results-table-card">
-            <div className="table-toolbar"><div className="input-with-icon search-table"><Icon name="search" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="ค้นหาชื่อหรือเลขประจำตัวสอบ" /></div><span>ค้นหาได้โดยไม่ต้องเข้าสู่ระบบ</span></div>
-            <div className="responsive-table"><table><thead><tr><th>เลขประจำตัวสอบ</th><th>ชื่อภาษาอังกฤษ</th><th>โรงเรียน</th><th>ผลการคัดเลือก</th></tr></thead><tbody>{results.map((item) => <tr key={item.id}><td><strong className="mono-number">{item.heatId}</strong></td><td>{item.candidate}</td><td>{item.school}</td><td><span className="pass-label"><Icon name="check" size={13} />ผ่าน</span></td></tr>)}{results.length === 0 ? <tr><td colSpan="4"><div className="empty-table">ไม่พบรายชื่อที่ตรงกับคำค้น</div></td></tr> : null}</tbody></table></div>
-            <div className="table-footnote"><Icon name="info" size={15} />หน้านี้แสดงเฉพาะผู้ผ่านการคัดเลือก ผู้มีบัญชีสามารถดูผลของตนเองได้ในใบสมัครของฉัน</div>
+          <section className="surface results-table-card" ref={resultsTableRef}>
+            <div className="results-public-table-heading"><div><strong>ผลการสอบ</strong><small>แสดง {rangeStart.toLocaleString()}–{rangeEnd.toLocaleString()} จาก {results.length.toLocaleString()} รายชื่อ · สูงสุด {pageSize} รายการต่อหน้า</small></div></div>
+            <div className="responsive-table"><table>
+              <thead><tr><th>CANDIDATE NO</th><th>GRADE</th><th>SCHOOL NAME</th><th>CANDIDATE NAME</th><th>AWARD</th><th>ผลการสอบ / RESULT</th></tr></thead>
+              {results.length ? resultGroups.map((group) => <tbody key={group.target.targetId}>
+                <tr className="result-target-group-row"><th colSpan="6" scope="rowgroup">{resultTargetLabel(group.target)}</th></tr>
+                {group.rows.map((item) => {
+                  const resultStatus = getPublicResultStatus(item);
+                  return <tr key={`${item.applicationId}-${item.targetId}`}>
+                    <td><strong className="mono-number">{item.candidateNo || item.examNumber}</strong></td>
+                    <td>{item.grade}</td>
+                    <td>{item.schoolName || item.school}</td>
+                    <td>{item.candidateName || item.candidate}</td>
+                    <td><span className={`award-badge award-${String(item.award || "").toLowerCase().replaceAll(" ", "-")}`}>{item.award}</span></td>
+                    <td><span className={`result-outcome result-outcome-${resultStatus.tone}`}>{resultStatus.tone === "eligible" ? <Icon name="check" size={12} /> : null}{resultStatus.label}</span></td>
+                  </tr>;
+                })}
+              </tbody>) : <tbody><tr><td colSpan="6"><div className="results-empty-state"><span><Icon name="search" /></span><strong>ไม่พบผลสอบที่ตรงกับคำค้นหาหรือตัวกรอง</strong><small>ลองเปลี่ยนชื่อหรือเลขสอบ หรือเลือกตัวกรองเป็น “ทั้งหมด”</small><Button variant="text" onClick={() => { setQuery(""); setSelectedCompetition("all"); setSelectedRound("all"); setSelectedGrade("all"); setPage(1); }}>ล้างคำค้นและตัวกรอง</Button></div></td></tr></tbody>}
+            </table></div>
+            {results.length ? <div className="results-pagination"><span>หน้า {currentPage.toLocaleString()} จาก {totalPages.toLocaleString()}</span>{totalPages > 1 ? <nav aria-label="แบ่งหน้าผลสอบ"><button type="button" className="pagination-step" aria-label="หน้าก่อนหน้า" disabled={currentPage <= 1} onClick={() => changePage(currentPage - 1)}>ก่อนหน้า</button>{pageItems.map((item, index) => item === "ellipsis" ? <span className="pagination-ellipsis" key={`ellipsis-${index}`} aria-hidden="true">…</span> : <button type="button" key={item} className={`pagination-page${currentPage === item ? " is-active" : ""}`} aria-label={`หน้า ${item}`} aria-current={currentPage === item ? "page" : undefined} onClick={() => changePage(item)}>{item}</button>)}<button type="button" className="pagination-step" aria-label="หน้าถัดไป" disabled={currentPage >= totalPages} onClick={() => changePage(currentPage + 1)}>ถัดไป</button></nav> : null}</div> : null}
+            <div className="table-footnote"><Icon name="info" size={15} />ผู้ได้ GOLD, SILVER หรือ BRONZE สามารถเริ่มยืนยันสิทธิ์ Final ได้เมื่อมีการประกาศผล HEAT แล้ว</div>
           </section>
         </>
       )}
@@ -1364,11 +1774,25 @@ function PublicResultsPage({ applications, published }) {
   );
 }
 
-function ApplicationFormPage({ kind, prefill, onSubmit, navigate }) {
+function ApplicationFormPage({ kind, prefill, applicationMode, allowedRoundIds, onSubmit, navigate, competitionFees, examCatalog, centerCatalog, pastPaperCatalog }) {
   const isFinal = kind === "Final";
-  const competitions = FORM_COMPETITIONS;
-  const pastPaperGroups = FORM_PAST_PAPER_GROUPS;
-  const centers = FORM_CENTERS;
+  const examRoundType = isFinal ? "FINAL" : "HEAT";
+  const examYear = isFinal && prefill?.year ? prefill.year : getActiveExamYear(examCatalog, examRoundType);
+  // Final applications are reached only through a verified Heat result; show the matching Final rounds
+  // after that gate even when the public registration card is still marked closed.
+  const catalogCompetitions = getFormCompetitions(examCatalog, examRoundType, { openOnly: !isFinal, year: examYear });
+  const allowedFinalRounds = Array.isArray(allowedRoundIds) ? new Set(allowedRoundIds) : null;
+  const openCompetitions = isFinal
+    ? catalogCompetitions.filter((competition) => {
+      const finalRound = examCatalog.find((exam) => exam.competitionId === competition.id && exam.year === examYear && getExamRoundType(exam) === "FINAL");
+      return finalRound && isFinalConfirmationWindowOpen(finalRound) && (!allowedFinalRounds || allowedFinalRounds.has(finalRound.id));
+    })
+    : catalogCompetitions;
+  const competitions = isFinal && prefill?.competitions?.length
+    ? openCompetitions.filter((competition) => prefill.competitions.some((selected) => selected.id === competition.id))
+    : openCompetitions;
+  const pastPaperGroups = groupPastPaperCatalog(pastPaperCatalog);
+  const centers = [...new Set([...FORM_CENTERS, ...(centerCatalog || []).map((center) => center.name)])];
   const schools = FORM_SCHOOLS;
   const [applicationSource, setApplicationSource] = useState("self");
   const [schoolBatch, setSchoolBatch] = useState(() => {
@@ -1376,26 +1800,26 @@ function ApplicationFormPage({ kind, prefill, onSubmit, navigate }) {
     return { applicants: [firstApplicant], activeId: firstApplicant.id, confirmDetails: false, marketingConsent: false };
   });
   const [form, setForm] = useState(() => ({
-    source: "self",
-    firstName: "",
-    lastName: "",
-    thaiFirstName: "",
-    thaiLastName: "",
-    gender: "",
-    dateOfBirth: "",
-    schoolName: "",
-    certificateSchoolName: "",
-    email: prefill?.contactEmail || "",
-    address1: "",
-    address2: "",
-    city: "",
-    province: "",
-    postalCode: "",
-    phone: "",
-    competitionIds: [],
-    grades: {},
-    format: "Paper-Based",
-    center: prefill?.center || "",
+    source: applicationMode === "guest" ? "guest" : "self",
+    firstName: prefill?.studentInformation?.firstName || prefill?.candidate?.split(" ")[0] || "",
+    lastName: prefill?.studentInformation?.lastName || prefill?.candidate?.split(" ").slice(1).join(" ") || "",
+    thaiFirstName: prefill?.studentInformation?.thaiFirstName || "",
+    thaiLastName: prefill?.studentInformation?.thaiLastName || "",
+    gender: prefill?.studentInformation?.gender || "",
+    dateOfBirth: prefill?.studentInformation?.dateOfBirth || "",
+    schoolName: prefill?.school && FORM_SCHOOLS.includes(prefill.school) ? prefill.school : prefill?.school ? "Other" : "",
+    certificateSchoolName: prefill?.studentInformation?.certificateSchoolName || (prefill?.school && !FORM_SCHOOLS.includes(prefill.school) ? prefill.school : ""),
+    email: prefill?.studentInformation?.email || prefill?.contactEmail || "",
+    address1: prefill?.studentInformation?.address1 || "",
+    address2: prefill?.studentInformation?.address2 || "",
+    city: prefill?.studentInformation?.city || "",
+    province: prefill?.studentInformation?.province || "",
+    postalCode: prefill?.studentInformation?.postalCode || "",
+    phone: prefill?.studentInformation?.phone || "",
+    competitionIds: isFinal ? (prefill?.competitions || []).map((competition) => competition.id) : [],
+    grades: isFinal ? Object.fromEntries((prefill?.competitions || []).map((competition) => [competition.id, competition.grade])) : {},
+    format: prefill?.format === "Online Exam" ? "Online" : "Paper-Based",
+    center: prefill?.center && prefill.center !== "Online Exam" ? prefill.center : "",
     pastPaperIds: [],
     confirmDetails: false,
     marketingConsent: false,
@@ -1407,7 +1831,11 @@ function ApplicationFormPage({ kind, prefill, onSubmit, navigate }) {
   const selectedCompetitions = competitions.filter((competition) => form.competitionIds.includes(competition.id));
   const allPastPapers = pastPaperGroups.flatMap((group) => group.items);
   const pastPapersTotal = allPastPapers.filter((paper) => form.pastPaperIds.includes(paper.id)).reduce((sum, paper) => sum + paper.price, 0);
-  const registrationFee = selectedCompetitions.length * (form.format === "Online" ? 655 : 755);
+  const priceForCompetition = (competition, format = form.format) => getCompetitionExamPrice(examCatalog, competition.id, examRoundType, format, competitionFees, examYear);
+  const registrationFee = selectedCompetitions.reduce((sum, competition) => sum + priceForCompetition(competition), 0);
+  const paperBasedFee = selectedCompetitions.reduce((sum, competition) => sum + priceForCompetition(competition, "Paper-Based"), 0);
+  const onlineExamFee = selectedCompetitions.reduce((sum, competition) => sum + priceForCompetition(competition, "Online"), 0);
+  const scheduleExam = (examCatalog || []).find((exam) => exam.year === examYear && getExamRoundType(exam) === examRoundType);
   const totalPayment = pastPapersTotal + registrationFee;
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
   function toggleCompetition(id) {
@@ -1447,17 +1875,17 @@ function ApplicationFormPage({ kind, prefill, onSubmit, navigate }) {
     setFileError("");
     const candidate = `${form.firstName} ${form.lastName}`.trim();
     const school = form.schoolName === "Other" ? form.certificateSchoolName : form.schoolName;
-    onSubmit({ ...form, kind, candidate, school, contactEmail: form.email, grade: selectedCompetitions.map((competition) => `${competition.short}: ${form.grades[competition.id]}`).join(" · "), center: form.format === "Online" ? "Online Exam" : form.center, examListings: selectedCompetitions, pastPaperSelections: allPastPapers.filter((paper) => form.pastPaperIds.includes(paper.id)), pastPapersTotal, registrationFee, totalPayment, fileName, sourceHeatId: prefill?.id || "" });
+    onSubmit({ ...form, kind, examYear, candidate, school, contactEmail: form.email, grade: selectedCompetitions.map((competition) => `${competition.short}: ${form.grades[competition.id]}`).join(" · "), center: form.format === "Online" ? "Online Exam" : form.center, examListings: selectedCompetitions, pastPaperSelections: allPastPapers.filter((paper) => form.pastPaperIds.includes(paper.id)), pastPapersTotal, registrationFee, totalPayment, fileName, sourceHeatId: prefill?.id || "" });
   }
   if (!isFinal && applicationSource === "school") {
-    return <SchoolBatchForm kind={kind} prefill={prefill} batch={schoolBatch} setBatch={setSchoolBatch} onSubmit={onSubmit} navigate={navigate} onBack={() => { setApplicationSource("self"); update("source", "self"); }} />;
+    return <SchoolBatchForm kind={kind} prefill={prefill} batch={schoolBatch} setBatch={setSchoolBatch} onSubmit={onSubmit} navigate={navigate} competitionFees={competitionFees} examCatalog={examCatalog} examYear={examYear} centerCatalog={centerCatalog} pastPaperCatalog={pastPaperCatalog} onBack={() => { setApplicationSource("self"); update("source", "self"); }} />;
   }
   return (
     <div className="page-stack">
       <PageHeading
-        eyebrow={isFinal ? "OCEC Final 2569" : "เปิดรับสมัคร · ปีการศึกษา 2569"}
+        eyebrow={isFinal ? `OCEC Final ${examYear}` : `เปิดรับสมัคร · ปีการศึกษา ${examYear}`}
         title={isFinal ? "สมัครสอบ Final" : "สมัครสอบ OCEC"}
-        description={isFinal ? "ตรวจสอบข้อมูลและกรอกข้อมูลผู้เข้าสอบ รายการสอบ และการชำระเงินให้ครบในฟอร์มเดียว" : "สมัคร BBB, HKISO และ HKICO ได้ในฟอร์มเดียว เลือกระดับชั้นของแต่ละรายการแยกกันได้"}
+        description={isFinal ? "ตรวจสอบข้อมูลและกรอกข้อมูลผู้เข้าสอบ รายการสอบ และการชำระเงินให้ครบในฟอร์มเดียว" : "เลือกรายการที่เปิดรับสมัครและเลือกระดับชั้นแยกกันได้ในฟอร์มเดียว"}
         action={<Button variant="outline" icon="arrow" onClick={() => navigate(isFinal ? "final-confirm" : "home")}>ยกเลิก</Button>}
       />
       <div className="form-layout">
@@ -1473,7 +1901,7 @@ function ApplicationFormPage({ kind, prefill, onSubmit, navigate }) {
               </div>
             </div>
           ) : (
-            <div className="notice notice-blue"><Icon name="info" /><div><strong>ข้อมูลจากใบสมัคร Heat</strong><p>ตรวจสอบและแก้ไขข้อมูลที่อนุญาตได้ก่อนส่งใบสมัคร Final</p></div></div>
+            <div className="notice notice-blue"><Icon name="info" /><div><strong>ข้อมูลจากใบสมัคร Heat · เลขสอบ {prefill?.heatId}</strong><p>ตรวจสอบข้อมูลที่เติมให้แล้ว และกรอกช่องที่ยังว่างก่อนส่งใบสมัคร Final ใบใหม่</p></div></div>
           )}
           <div className="form-grid">
             <Field label="English First Name" required><input autoComplete="given-name" value={form.firstName} onChange={(event) => update("firstName", event.target.value)} placeholder="First name" required /></Field>
@@ -1504,21 +1932,22 @@ function ApplicationFormPage({ kind, prefill, onSubmit, navigate }) {
               {competitions.map((competition) => {
                 const selected = form.competitionIds.includes(competition.id);
                 return <article className={`competition-card${selected ? " competition-card-selected" : ""}`} key={competition.id}>
-                  <label className="competition-select"><input type="checkbox" checked={selected} onChange={() => toggleCompetition(competition.id)} /><span className="competition-check-mark" aria-hidden="true" /><span><strong>{competition.name}</strong><small>{competition.subject}</small></span><span className="competition-fee">{form.format === "Online" ? "฿655" : "฿755"}<small> / รายการ</small></span></label>
-                  {selected ? <Field label={`ระดับชั้น ${competition.short}`} required className="competition-grade"><select value={form.grades[competition.id] || ""} onChange={(event) => { setForm((current) => ({ ...current, grades: { ...current.grades, [competition.id]: event.target.value } })); setSelectionError(""); }} required><option value="">เลือกระดับชั้น</option>{competition.grades.map((grade) => <option key={grade}>{grade}</option>)}</select></Field> : null}
+                  <label className="competition-select"><input type="checkbox" checked={selected} onChange={() => toggleCompetition(competition.id)} /><span className="competition-check-mark" aria-hidden="true" /><span><strong>{competition.name}</strong><small>{competition.subject}</small></span><span className="competition-fee">฿{priceForCompetition(competition).toLocaleString()}<small> / รายการ</small></span></label>
+                  {selected ? <Field label={`ระดับชั้น ${competition.short}`} required className="competition-grade"><select value={form.grades[competition.id] || ""} onChange={(event) => { setForm((current) => ({ ...current, grades: { ...current.grades, [competition.id]: event.target.value } })); setSelectionError(""); }} required><option value="">เลือกระดับชั้น</option>{form.grades[competition.id] && !competition.grades.includes(form.grades[competition.id]) ? <option value={form.grades[competition.id]}>{form.grades[competition.id]} (จาก Heat)</option> : null}{competition.grades.map((grade) => <option key={grade}>{grade}</option>)}</select></Field> : null}
                 </article>;
               })}
+              {!competitions.length ? <div className="empty-inline"><Icon name="calendar" /><span>ขณะนี้ยังไม่มีรายการสอบรอบนี้ที่เปิดรับสมัคร</span></div> : null}
             </div>
-            <div className="schedule-note"><Icon name="calendar" size={16} /><div><strong>กำหนดการรอบสอบ</strong><span>ปิดรับสมัคร 30 พ.ย. 2569 · วันสอบ 13 ธ.ค. 2569</span><small>HKICO 08:30–09:30 · HKISO 09:45–10:45 · Big Bay Bei 11:15–12:30</small></div></div>
+            <div className="schedule-note"><Icon name="calendar" size={16} /><div><strong>{isFinal ? "การสมัครรอบ Final" : "กำหนดการรอบสอบ"}</strong><span>{isFinal ? "ใบสมัคร Final แยกจาก Heat และต้องแนบสลิปชำระเงินใหม่" : `ปิดรับสมัคร ${formatThaiDate(scheduleExam?.closeDate)} · วันสอบ ${formatThaiDate(scheduleExam?.examDate)}`}</span><small>{isFinal ? "ตรวจรายการสอบและระดับชั้นจาก Heat ก่อนส่งใบสมัคร" : scheduleExam?.description || "ตรวจสอบวันสอบและรายละเอียดของรอบที่เลือก"}</small></div></div>
             {selectionError ? <p className="inline-error selection-error" role="alert"><Icon name="info" size={16} />{selectionError}</p> : null}
           </section>
           <section className="form-zone" aria-labelledby="zone-mode">
             <div className="form-progress"><span className="form-progress-number">03</span><div><strong id="zone-mode">Exam Mode and Exam Center <span>/ รูปแบบและศูนย์สอบ</span></strong><small>ค่าธรรมเนียมคิดแยกตามจำนวนรายการสอบ</small></div></div>
             <fieldset className="mode-fieldset"><legend className="field-title">เลือกรูปแบบการสอบ <span className="required-mark">*</span></legend><div className="mode-options">
-              <label className={form.format === "Paper-Based" ? "mode-option mode-option-selected" : "mode-option"}><input type="radio" name="exam-mode" checked={form.format === "Paper-Based"} onChange={() => { update("format", "Paper-Based"); update("center", ""); }} /><span><strong>Paper-Based</strong><small>สอบที่ศูนย์สอบ</small></span><b>฿755 <small>/ รายการ</small></b></label>
-              <label className={form.format === "Online" ? "mode-option mode-option-selected" : "mode-option"}><input type="radio" name="exam-mode" checked={form.format === "Online"} onChange={() => { update("format", "Online"); update("center", ""); }} /><span><strong>Online Exam</strong><small>สอบออนไลน์</small></span><b>฿655 <small>/ รายการ</small></b></label>
+              <label className={form.format === "Paper-Based" ? "mode-option mode-option-selected" : "mode-option"}><input type="radio" name="exam-mode" checked={form.format === "Paper-Based"} onChange={() => { update("format", "Paper-Based"); update("center", ""); }} /><span><strong>Paper-Based</strong><small>สอบที่ศูนย์สอบ</small></span><b>{selectedCompetitions.length ? `฿${paperBasedFee.toLocaleString()}` : "เลือกวิชาก่อน"} <small>{selectedCompetitions.length ? `/ ${selectedCompetitions.length} รายการ` : ""}</small></b></label>
+              <label className={form.format === "Online" ? "mode-option mode-option-selected" : "mode-option"}><input type="radio" name="exam-mode" checked={form.format === "Online"} onChange={() => { update("format", "Online"); update("center", ""); }} /><span><strong>Online Exam</strong><small>สอบออนไลน์</small></span><b>{selectedCompetitions.length ? `฿${onlineExamFee.toLocaleString()}` : "เลือกวิชาก่อน"} <small>{selectedCompetitions.length ? `/ ${selectedCompetitions.length} รายการ` : ""}</small></b></label>
             </div></fieldset>
-            {form.format === "Paper-Based" ? <Field label="Exam Center / ศูนย์สอบ" required hint="เลือกจังหวัด/ศูนย์สอบที่สะดวก"><select value={form.center} onChange={(event) => { update("center", event.target.value); setPaymentError(""); }} required><option value="">เลือกศูนย์สอบ</option>{centers.map((center) => <option key={center}>{center}</option>)}</select></Field> : <div className="online-device-note"><Icon name="monitor" /><div><strong>อุปกรณ์สำหรับสอบออนไลน์</strong><span>ใช้คอมพิวเตอร์หรือแล็ปท็อปสำหรับทำข้อสอบ และใช้สมาร์ตโฟนหรือแท็บเล็ตสำหรับ Zoom/กล้อง</span></div></div>}
+            {form.format === "Paper-Based" ? <Field label="Exam Center / ศูนย์สอบ" required hint="เลือกจังหวัด/ศูนย์สอบที่สะดวก"><select value={form.center} onChange={(event) => { update("center", event.target.value); setPaymentError(""); }} required><option value="">เลือกศูนย์สอบ</option>{form.center && !centers.includes(form.center) ? <option value={form.center}>{form.center} (จาก Heat)</option> : null}{centers.map((center) => <option key={center}>{center}</option>)}</select></Field> : <div className="online-device-note"><Icon name="monitor" /><div><strong>อุปกรณ์สำหรับสอบออนไลน์</strong><span>ใช้คอมพิวเตอร์หรือแล็ปท็อปสำหรับทำข้อสอบ และใช้สมาร์ตโฟนหรือแท็บเล็ตสำหรับ Zoom/กล้อง</span></div></div>}
             <p className="form-helper-note">โปรดตรวจสอบรายการสอบ ระดับชั้น รูปแบบ และศูนย์สอบให้ถูกต้องก่อนชำระเงิน</p>
           </section>
           <section className="form-zone" aria-labelledby="zone-papers">
@@ -1557,12 +1986,14 @@ function ApplicationFormPage({ kind, prefill, onSubmit, navigate }) {
   );
 }
 
-function SchoolBatchForm({ kind, prefill, batch, setBatch, onSubmit, navigate, onBack }) {
+function SchoolBatchForm({ kind, prefill, batch, setBatch, onSubmit, navigate, onBack, competitionFees, examCatalog, examYear, centerCatalog, pastPaperCatalog }) {
   const [formError, setFormError] = useState("");
   const [errorSection, setErrorSection] = useState("");
-  const competitions = FORM_COMPETITIONS;
-  const pastPaperGroups = FORM_PAST_PAPER_GROUPS;
+  const activeExamYear = examYear || getActiveExamYear(examCatalog, "HEAT");
+  const competitions = getFormCompetitions(examCatalog, "HEAT", { openOnly: true, year: activeExamYear });
+  const pastPaperGroups = groupPastPaperCatalog(pastPaperCatalog);
   const allPastPapers = pastPaperGroups.flatMap((group) => group.items);
+  const centers = [...new Set([...FORM_CENTERS, ...(centerCatalog || []).map((center) => center.name)])];
   const activeApplicant = batch.applicants.find((applicant) => applicant.id === batch.activeId) || batch.applicants[0];
   const activeIndex = Math.max(0, batch.applicants.findIndex((applicant) => applicant.id === activeApplicant.id));
 
@@ -1592,7 +2023,7 @@ function SchoolBatchForm({ kind, prefill, batch, setBatch, onSubmit, navigate, o
     const selectedCompetitions = competitions.filter((competition) => applicant.competitionIds.includes(competition.id));
     const selectedPapers = allPastPapers.filter((paper) => applicant.pastPaperIds.includes(paper.id));
     const papersTotal = selectedPapers.reduce((sum, paper) => sum + paper.price, 0);
-    const registrationFee = selectedCompetitions.length * (applicant.format === "Online" ? 655 : 755);
+    const registrationFee = selectedCompetitions.reduce((sum, competition) => sum + getCompetitionExamPrice(examCatalog, competition.id, "HEAT", applicant.format, competitionFees, activeExamYear), 0);
     return { selectedCompetitions, selectedPapers, papersTotal, registrationFee, totalPayment: papersTotal + registrationFee };
   }
 
@@ -1683,6 +2114,7 @@ function SchoolBatchForm({ kind, prefill, batch, setBatch, onSubmit, navigate, o
         ...applicant,
         source: "school",
         kind,
+        examYear: activeExamYear,
         candidate: `${applicant.firstName} ${applicant.lastName}`.trim(),
         school,
         contactEmail: applicant.email,
@@ -1769,20 +2201,20 @@ function SchoolBatchForm({ kind, prefill, batch, setBatch, onSubmit, navigate, o
             <div className="competition-list">{competitions.map((competition) => {
               const selected = activeApplicant.competitionIds.includes(competition.id);
               return <article className={`competition-card${selected ? " competition-card-selected" : ""}`} key={competition.id}>
-                <label className="competition-select"><input type="checkbox" checked={selected} onChange={() => toggleCompetition(competition.id)} /><span className="competition-check-mark" aria-hidden="true" /><span><strong>{competition.name}</strong><small>{competition.subject}</small></span><span className="competition-fee">{activeApplicant.format === "Online" ? "฿655" : "฿755"}<small> / รายการ</small></span></label>
+                <label className="competition-select"><input type="checkbox" checked={selected} onChange={() => toggleCompetition(competition.id)} /><span className="competition-check-mark" aria-hidden="true" /><span><strong>{competition.name}</strong><small>{competition.subject}</small></span><span className="competition-fee">฿{getCompetitionExamPrice(examCatalog, competition.id, "HEAT", activeApplicant.format, competitionFees, activeExamYear).toLocaleString()}<small> / รายการ</small></span></label>
                 {selected ? <Field label={`ระดับชั้น ${competition.short}`} required className="competition-grade"><select value={activeApplicant.grades[competition.id] || ""} onChange={(event) => updateApplicant(activeApplicant.id, "grades", { ...activeApplicant.grades, [competition.id]: event.target.value })}><option value="">เลือกระดับชั้น</option>{competition.grades.map((grade) => <option key={grade}>{grade}</option>)}</select></Field> : null}
               </article>;
-            })}</div>
+            })}{!competitions.length ? <div className="empty-inline"><Icon name="calendar" /><span>ขณะนี้ยังไม่มีรายการสอบรอบ HEAT ที่เปิดรับสมัคร</span></div> : null}</div>
             <div className="schedule-note"><Icon name="calendar" size={16} /><div><strong>กำหนดการรอบสอบ</strong><span>ปิดรับสมัคร 30 พ.ย. 2569 · วันสอบ 13 ธ.ค. 2569</span><small>HKICO 08:30–09:30 · HKISO 09:45–10:45 · Big Bay Bei 11:15–12:30</small></div></div>
           </section>
 
           <section className="form-zone" aria-labelledby={`school-zone-mode-${activeApplicant.id}`}>
             <div className="form-progress"><span className="form-progress-number">03</span><div><strong id={`school-zone-mode-${activeApplicant.id}`}>Exam Mode and Exam Center <span>/ รูปแบบและศูนย์สอบ</span></strong><small>เลือกให้ผู้เข้าสอบแต่ละคนได้อิสระ</small></div></div>
             <fieldset className="mode-fieldset"><legend className="field-title">เลือกรูปแบบการสอบ <span className="required-mark">*</span></legend><div className="mode-options">
-              <label className={activeApplicant.format === "Paper-Based" ? "mode-option mode-option-selected" : "mode-option"}><input type="radio" name={`exam-mode-${activeApplicant.id}`} checked={activeApplicant.format === "Paper-Based"} onChange={() => { setBatch((current) => ({ ...current, applicants: current.applicants.map((applicant) => applicant.id === activeApplicant.id ? { ...applicant, format: "Paper-Based", center: "" } : applicant) })); setFormError(""); setErrorSection(""); }} /><span><strong>Paper-Based</strong><small>สอบที่ศูนย์สอบ</small></span><b>฿755 <small>/ รายการ</small></b></label>
-              <label className={activeApplicant.format === "Online" ? "mode-option mode-option-selected" : "mode-option"}><input type="radio" name={`exam-mode-${activeApplicant.id}`} checked={activeApplicant.format === "Online"} onChange={() => { setBatch((current) => ({ ...current, applicants: current.applicants.map((applicant) => applicant.id === activeApplicant.id ? { ...applicant, format: "Online", center: "" } : applicant) })); setFormError(""); setErrorSection(""); }} /><span><strong>Online Exam</strong><small>สอบออนไลน์</small></span><b>฿655 <small>/ รายการ</small></b></label>
+              <label className={activeApplicant.format === "Paper-Based" ? "mode-option mode-option-selected" : "mode-option"}><input type="radio" name={`exam-mode-${activeApplicant.id}`} checked={activeApplicant.format === "Paper-Based"} onChange={() => { setBatch((current) => ({ ...current, applicants: current.applicants.map((applicant) => applicant.id === activeApplicant.id ? { ...applicant, format: "Paper-Based", center: "" } : applicant) })); setFormError(""); setErrorSection(""); }} /><span><strong>Paper-Based</strong><small>สอบที่ศูนย์สอบ</small></span><b>{activeTotals.selectedCompetitions.length ? `฿${activeTotals.selectedCompetitions.reduce((sum, competition) => sum + getCompetitionExamPrice(examCatalog, competition.id, "HEAT", "Paper-Based", competitionFees, activeExamYear), 0).toLocaleString()}` : "เลือกวิชาก่อน"} <small>{activeTotals.selectedCompetitions.length ? `/ ${activeTotals.selectedCompetitions.length} รายการ` : ""}</small></b></label>
+              <label className={activeApplicant.format === "Online" ? "mode-option mode-option-selected" : "mode-option"}><input type="radio" name={`exam-mode-${activeApplicant.id}`} checked={activeApplicant.format === "Online"} onChange={() => { setBatch((current) => ({ ...current, applicants: current.applicants.map((applicant) => applicant.id === activeApplicant.id ? { ...applicant, format: "Online", center: "" } : applicant) })); setFormError(""); setErrorSection(""); }} /><span><strong>Online Exam</strong><small>สอบออนไลน์</small></span><b>{activeTotals.selectedCompetitions.length ? `฿${activeTotals.selectedCompetitions.reduce((sum, competition) => sum + getCompetitionExamPrice(examCatalog, competition.id, "HEAT", "Online", competitionFees, activeExamYear), 0).toLocaleString()}` : "เลือกวิชาก่อน"} <small>{activeTotals.selectedCompetitions.length ? `/ ${activeTotals.selectedCompetitions.length} รายการ` : ""}</small></b></label>
             </div></fieldset>
-            {activeApplicant.format === "Paper-Based" ? <Field label="Exam Center / ศูนย์สอบ" required hint="เลือกจังหวัด/ศูนย์สอบที่สะดวก"><select value={activeApplicant.center} onChange={(event) => updateApplicant(activeApplicant.id, "center", event.target.value)}><option value="">เลือกศูนย์สอบ</option>{FORM_CENTERS.map((center) => <option key={center}>{center}</option>)}</select></Field> : <div className="online-device-note"><Icon name="monitor" /><div><strong>อุปกรณ์สำหรับสอบออนไลน์</strong><span>ใช้คอมพิวเตอร์หรือแล็ปท็อปสำหรับทำข้อสอบ และใช้สมาร์ตโฟนหรือแท็บเล็ตสำหรับ Zoom/กล้อง</span></div></div>}
+            {activeApplicant.format === "Paper-Based" ? <Field label="Exam Center / ศูนย์สอบ" required hint="เลือกจังหวัด/ศูนย์สอบที่สะดวก"><select value={activeApplicant.center} onChange={(event) => updateApplicant(activeApplicant.id, "center", event.target.value)}><option value="">เลือกศูนย์สอบ</option>{centers.map((center) => <option key={center}>{center}</option>)}</select></Field> : <div className="online-device-note"><Icon name="monitor" /><div><strong>อุปกรณ์สำหรับสอบออนไลน์</strong><span>ใช้คอมพิวเตอร์หรือแล็ปท็อปสำหรับทำข้อสอบ และใช้สมาร์ตโฟนหรือแท็บเล็ตสำหรับ Zoom/กล้อง</span></div></div>}
             <p className="form-helper-note">โปรดตรวจสอบรายการสอบ ระดับชั้น รูปแบบ และศูนย์สอบของผู้เข้าสอบคนนี้</p>
           </section>
 
@@ -1842,11 +2274,14 @@ function SchoolBatchForm({ kind, prefill, batch, setBatch, onSubmit, navigate, o
   );
 }
 
-function AdminHomePage({ applications, examCatalog, navigate, resultPublished, syncFailed }) {
+function AdminHomePage({ applications, examCatalog, resultWorkflows, navigate, resultPublished, syncFailed }) {
   const pendingApps = applications.filter((item) => item.status === "pending");
   const confirmedApps = applications.filter((item) => item.status === "confirmed");
   const heatApps = applications.filter((item) => item.kind === "Heat");
   const finalApps = applications.filter((item) => item.kind === "Final");
+  const issueApps = applications.filter((item) => item.slipIssue);
+  const resultIssueCount = Object.values(resultWorkflows || {}).reduce((count, workflow) => count + ((workflow.rows || []).filter((row) => row.matchStatus !== "matched").length || Number(workflow.hasConflict && !workflow.conflictResolved)), 0);
+  const finalIdsWaiting = finalApps.filter((item) => !item.finalId).length;
   const openRounds = examCatalog.filter((item) => item.isOpen);
   const paperlessCount = applications.filter((item) => item.format === "Online Exam").length;
   const competitionCounts = applications.reduce((counts, item) => {
@@ -1854,11 +2289,12 @@ function AdminHomePage({ applications, examCatalog, navigate, resultPublished, s
     return counts;
   }, {});
   const tasks = [
-    { id: "admin-review", icon: "file", tone: "amber", title: "ตรวจใบสมัครและสลิป", detail: `${pendingApps.length} ใบสมัคร · แยกตรวจรายผู้เข้าสอบ`, count: pendingApps.length },
-    { id: "admin-results", icon: "award", tone: "violet", title: resultPublished ? "ดูผลสอบ Heat ที่ประกาศแล้ว" : "เตรียมผลสอบ Heat", detail: resultPublished ? "ผลสอบถูกเผยแพร่แล้ว" : "นำเข้าผลฉบับร่างและตรวจรายการจับคู่", count: resultPublished ? 0 : 1 },
-    { id: "admin-final-ids", icon: "users", tone: "blue", title: "จัดการเลขประจำตัว Final", detail: `${finalApps.filter((item) => !item.finalId).length} รายการยังไม่มีเลข`, count: finalApps.filter((item) => !item.finalId).length },
-    ...(syncFailed ? [{ id: "admin-sheets", icon: "sync", tone: "amber", title: "ติดตามการซิงก์ข้อมูล", detail: "ระบบกำลังลองซิงก์ใหม่อัตโนมัติ", count: 1 }] : []),
-  ].filter((task) => task.count > 0);
+    { id: "admin-review", icon: "file", tone: "amber", title: "คิวตรวจสลิป", detail: `${pendingApps.length} ใบสมัคร · เปิดคิวเพื่อตรวจและยืนยัน`, count: pendingApps.length },
+    { id: "admin-results", icon: "info", tone: "violet", title: "รายการผลสอบที่ต้องตรวจ", detail: resultIssueCount ? `${resultIssueCount} รายการจากฉบับร่าง · กดเพื่อตรวจสอบก่อนประกาศ` : "ยังไม่มีรายการจากผลสอบที่ต้องตรวจ", count: resultIssueCount },
+    { id: "admin-results", icon: "award", tone: "violet", title: resultPublished ? "ดูผลสอบที่ประกาศแล้ว" : "เตรียมผลสอบ", detail: resultPublished ? "ประกาศแล้ว · ข้อมูลผลสอบล็อก" : "เลือกรายการและรอบ นำเข้าฉบับร่างเพื่อตรวจสอบ", count: resultPublished ? 0 : 1 },
+    { id: "admin-final-ids", icon: "users", tone: "blue", title: "นำเข้าเลขประจำตัว Final", detail: `${finalIdsWaiting} รายการยังไม่มีเลข`, count: finalIdsWaiting },
+    { id: "admin-sheets", icon: "sync", tone: syncFailed ? "amber" : "blue", title: "รายการซิงก์ชีต", detail: syncFailed ? "มีรายการรอซิงก์ · ระบบกำลังลองใหม่" : "สถานะตัวอย่างปกติ · ไม่มีรายการค้าง", count: syncFailed ? 1 : 0 },
+  ];
   const byYear = Object.values(examCatalog.reduce((groups, item) => {
     groups[item.year] ||= { year: item.year, total: 0, open: 0 };
     groups[item.year].total += 1;
@@ -1868,7 +2304,7 @@ function AdminHomePage({ applications, examCatalog, navigate, resultPublished, s
   const totalDue = pendingApps.reduce((sum, item) => sum + (item.totalPayment || 0), 0);
 
   return (
-    <div className="page-stack">
+    <div className="page-stack admin-home-page">
       <PageHeading eyebrow="พื้นที่เจ้าหน้าที่ · ข้อมูลตัวอย่าง" title="ภาพรวมแอดมิน" description="เห็นคิวตรวจใบสมัคร รอบสอบ และงานประกาศผลในจุดเดียว" action={<Button icon="calendar" onClick={() => navigate("admin-round")}>จัดการรายการสอบ</Button>} />
       <div className="admin-stat-grid">
         <div className="admin-stat-card"><span className="admin-stat-icon stat-blue"><Icon name="file" /></span><div><span>ใบสมัครทั้งหมด</span><strong>{applications.length}</strong><small>Heat {heatApps.length} · Final {finalApps.length}</small></div><span className="stat-ok"><Icon name="users" size={13} />{applications.filter((item) => item.source === "school").length} ผ่านโรงเรียน</span></div>
@@ -1880,61 +2316,185 @@ function AdminHomePage({ applications, examCatalog, navigate, resultPublished, s
         <section className="surface admin-queue-card">
           <div className="section-heading"><div><p className="eyebrow">คิวงาน</p><h2>รายการที่ต้องดำเนินการ</h2></div><Button variant="text" icon="arrow" onClick={() => navigate("admin-review")}>เปิดคิวตรวจ</Button></div>
           {tasks.length ? <div className="admin-task-list">{tasks.map((task) => (
-            <button key={task.id} onClick={() => navigate(task.id)}><span className={`task-icon task-${task.tone}`}><Icon name={task.icon} /></span><span><strong>{task.title}</strong><small>{task.detail}</small></span><span className="task-count">{String(task.count).padStart(2, "0")}</span></button>
+            <button key={task.title} onClick={() => navigate(task.id, task.targetId)}><span className={`task-icon task-${task.tone}`}><Icon name={task.icon} /></span><span><strong>{task.title}</strong><small>{task.detail}</small></span><span className="task-count">{String(task.count).padStart(2, "0")}</span></button>
           ))}</div> : <div className="admin-clear-state"><span><Icon name="check" /></span><div><strong>ไม่มีงานค้าง</strong><small>คิวตรวจสอบและงานหลังสอบเรียบร้อยแล้ว</small></div></div>}
         </section>
         <section className="surface round-status-card">
           <div className="section-heading"><div><p className="eyebrow">รายการสอบ</p><h2>สถานะรับสมัคร</h2></div><span className={openRounds.length ? "schedule-open" : "closed-badge"}>{openRounds.length ? `เปิด ${openRounds.length} รายการ` : "ปิดรับสมัคร"}</span></div>
-          <div className="admin-round-summary-list">{byYear.map((group) => <div className="admin-round-summary" key={group.year}><div><strong>OCEC Heat {group.year}</strong><small>{group.open} จาก {group.total} รอบเปิดรับ</small></div><span>{group.open ? <i className="online-dot" /> : <i className="offline-dot" />}{group.open ? "เปิด" : "รอเปิด"}</span></div>)}</div>
+          <div className="admin-round-summary-list">{byYear.map((group) => <div className="admin-round-summary" key={group.year}><div><strong>รายการสอบปี {group.year}</strong><small>{group.open} รอบเปิดรับ · รวม {group.total} การ์ด</small></div><span>{group.open ? <i className="online-dot" /> : <i className="offline-dot" />}{group.open ? "เปิด" : "รอเปิด"}</span></div>)}</div>
           <div className="round-status-rows"><div><span><Icon name="users" />ใบสมัครออนไลน์</span><strong>{paperlessCount} รายการ</strong></div><div><span><Icon name="grid" />ผลสอบ Heat</span><strong>{resultPublished ? "ประกาศแล้ว" : "รอเตรียมฉบับร่าง"}</strong></div><div><span><Icon name="building" />ศูนย์สอบ</span><strong>{examCatalog.some((item) => item.isOpen) ? "ล็อกตามรอบที่เปิด" : "แก้ไขได้"}</strong></div></div>
           <Button variant="outline" className="button-full" onClick={() => navigate("admin-round")}>ตั้งค่ารอบสอบและศูนย์</Button>
         </section>
       </div>
+      <section className="surface admin-exception-queue"><div className="section-heading"><div><p className="eyebrow">ต้องติดตามเป็นพิเศษ</p><h2>คิวปัญหาใบสมัคร</h2></div><span className="conflict-count">{issueApps.length} รายการ</span></div>{issueApps.length ? <div className="admin-exception-list">{issueApps.map((item) => <button type="button" className="admin-exception-row" key={item.id} onClick={() => navigate("admin-review", item.id)}><span className="task-icon task-amber"><Icon name="file" /></span><span><strong>{item.candidate}</strong><small>{item.exam} · {item.school}</small><em>{item.slipIssue}</em></span><span>เปิดใบสมัคร <Icon name="arrow" size={14} /></span></button>)}</div> : <div className="admin-clear-state"><span><Icon name="check" /></span><div><strong>ไม่มีใบสมัครที่มีปัญหา</strong><small>ความผิดปกติของชื่อโรงเรียนในไฟล์ผลสอบจะแสดงในหน้านำเข้าผลสอบ</small></div></div>}</section>
       <section className="surface admin-competition-summary"><div><p className="eyebrow">ภาพรวมตามรายการสอบ</p><h2>รายการที่ผู้สมัครเลือก</h2><p>นับรายการแข่งขันที่เลือกในใบสมัครตัวอย่าง</p></div><div className="admin-competition-chips">{Object.entries(competitionCounts).map(([name, count]) => <span key={name}><strong>{count}</strong>{name}</span>)}</div><span className="admin-data-note"><Icon name="info" size={14} />ข้อมูล mock · ใช้ทดลองหน้าจอเท่านั้น</span></section>
       <section className={`surface sync-banner ${syncFailed ? "sync-banner-failed" : ""}`}><span className="sync-banner-icon"><Icon name={syncFailed ? "clock" : "sync"} /></span><div><strong>{syncFailed ? "กำลังรอซิงก์ข้อมูล" : "สถานะซิงก์ตัวอย่าง: ปกติ"}</strong><p>{syncFailed ? "ระบบจะลองใหม่อัตโนมัติทุก 2–3 นาที · ดูสถานะรายการได้ในหน้าซิงก์" : `${confirmedApps.length} ใบสมัครที่อนุมัติแล้ว · เชื่อมต่อจริงยังไม่เปิดใช้งาน`}</p></div><Button variant="text" onClick={() => navigate("admin-sheets")}>ดูสถานะ</Button></section>
     </div>
   );
 }
 
-function AdminReviewPage({ applications, onApprove, onSlipIssue, notify, navigate }) {
-  const pendingApps = applications.filter((item) => item.status === "pending");
-  const [selectedId, setSelectedId] = useState(pendingApps[0]?.id || applications[0]?.id || "");
+function AdminMockPapersPage({ applications, notify }) {
+  const [tab, setTab] = useState("mock");
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("pending");
+  const [examFilter, setExamFilter] = useState("all");
+  const [yearFilter, setYearFilter] = useState("all");
+  const [schoolFilter, setSchoolFilter] = useState("all");
+  const [gradeFilter, setGradeFilter] = useState("all");
+  const [paperFilter, setPaperFilter] = useState("all");
+  const fmtMoney = (value) => `฿${Number(value || 0).toLocaleString()}`;
+  const examOptions = [...new Set(applications.map((item) => item.exam).filter(Boolean))];
+  const years = [...new Set(applications.map((item) => item.year).filter(Boolean))].sort((a, b) => b.localeCompare(a));
+  const schools = [...new Set(applications.map((item) => item.school).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const grades = [...new Set(applications.map((item) => item.grade).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const paperNames = [...new Set(applications.flatMap((item) => (item.pastPapers || []).map((paper) => paper.name)).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const applicantRows = applications.filter((item) => {
+    const query = search.trim().toLowerCase();
+    const competitions = (item.competitions || []).map((competition) => `${competition.short || ""} ${competition.name || ""}`).join(" ");
+    return (!query || [item.candidate, item.school, item.exam, item.grade, competitions].filter(Boolean).some((value) => value.toLowerCase().includes(query)))
+      && (examFilter === "all" || item.exam === examFilter)
+      && (yearFilter === "all" || item.year === yearFilter)
+      && (schoolFilter === "all" || item.school === schoolFilter)
+      && (gradeFilter === "all" || item.grade === gradeFilter);
+  });
+  const paperRows = applications.flatMap((application) => (application.pastPapers || []).map((paper) => ({ application, paper, quantity: 1 }))).filter(({ application, paper }) => {
+    const query = search.trim().toLowerCase();
+    return (!query || [application.candidate, application.school, application.exam, paper.name].filter(Boolean).some((value) => value.toLowerCase().includes(query)))
+      && (examFilter === "all" || application.exam === examFilter)
+      && (yearFilter === "all" || application.year === yearFilter)
+      && (schoolFilter === "all" || application.school === schoolFilter)
+      && (paperFilter === "all" || paper.name === paperFilter);
+  });
+  const totalPaperSets = paperRows.reduce((sum, row) => sum + row.quantity, 0);
+  const breakdown = tab === "mock"
+    ? Object.entries(applicantRows.reduce((counts, item) => { counts[item.exam] = (counts[item.exam] || 0) + 1; return counts; }, {}))
+    : Object.entries(paperRows.reduce((counts, row) => { counts[row.paper.name] = (counts[row.paper.name] || 0) + row.quantity; return counts; }, {}));
+  const paperGroupsByExamYear = Object.values(paperRows.reduce((groups, row) => {
+    const key = `${row.application.exam}|${row.application.year}`;
+    groups[key] ||= { exam: row.application.exam, year: row.application.year, sets: 0, total: 0 };
+    groups[key].sets += row.quantity;
+    groups[key].total += Number(row.paper.fee || 0);
+    return groups;
+  }, {}));
+  const filterReset = () => { setSearch(""); setExamFilter("all"); setYearFilter("all"); setSchoolFilter("all"); setGradeFilter("all"); setPaperFilter("all"); };
+
+  return (
+    <div className="page-stack admin-mock-page">
+      <PageHeading eyebrow="ข้อมูลจำลอง · ไม่มีการเชื่อมต่อภายนอก" title="Mock และข้อสอบเก่า" description="ดูรายชื่อผู้สมัครและรายการข้อสอบเก่าที่เลือกซื้อ เพื่อเตรียมข้อมูลก่อนส่ง Mock หรือจัดส่งเอกสาร" action={<Button icon="download" onClick={() => notify("ตัวอย่างส่งออก Excel · ไม่มีการสร้างหรือดาวน์โหลดไฟล์จริง")}>ส่งออก Excel</Button>} />
+      <div className="admin-mock-stat-grid">
+        <article className="admin-mock-stat"><span className="admin-mock-stat-icon mock-icon-violet"><Icon name="users" /></span><div><small>ผู้สมัครทั้งหมด</small><strong>{applications.length}</strong><span>รวม Heat และ Final</span></div></article>
+        <article className="admin-mock-stat"><span className="admin-mock-stat-icon mock-icon-pink"><Icon name="building" /></span><div><small>สมัครผ่านโรงเรียน</small><strong>{applications.filter((item) => item.source === "school").length}</strong><span>ใบสมัครรายบุคคล</span></div></article>
+        <article className="admin-mock-stat"><span className="admin-mock-stat-icon mock-icon-gold"><Icon name="book" /></span><div><small>ชุดข้อสอบเก่าที่เลือก</small><strong>{applications.reduce((sum, item) => sum + (item.pastPapers || []).length, 0)}</strong><span>นับเป็น 1 ชุดต่อรายการที่เลือก</span></div></article>
+      </div>
+      <section className="surface admin-mock-workspace">
+        <div className="admin-mock-tabs" role="tablist" aria-label="ประเภทข้อมูล">
+          <button type="button" role="tab" aria-selected={tab === "mock"} className={tab === "mock" ? "admin-mock-tab active" : "admin-mock-tab"} onClick={() => { setTab("mock"); filterReset(); }}><Icon name="users" size={17} />รายชื่อส่ง Mock <span>{applications.length}</span></button>
+          <button type="button" role="tab" aria-selected={tab === "papers"} className={tab === "papers" ? "admin-mock-tab active" : "admin-mock-tab"} onClick={() => { setTab("papers"); filterReset(); }}><Icon name="book" size={17} />รายการซื้อข้อสอบเก่า <span>{applications.reduce((sum, item) => sum + (item.pastPapers || []).length, 0)}</span></button>
+        </div>
+        <div className="admin-mock-toolbar"><div><p className="eyebrow">{tab === "mock" ? "รายชื่อผู้สมัคร" : "รายการจัดส่งข้อสอบเก่า"}</p><h2>{tab === "mock" ? `พบ ${applicantRows.length} ผู้สมัคร` : `พบ ${totalPaperSets} ชุด`}</h2><small>{tab === "mock" ? "ใช้ค้นหาและกรองข้อมูลเพื่อเตรียมรายชื่อส่ง Mock" : "แต่ละแถวคือข้อสอบเก่าหนึ่งชุดที่ผู้สมัครเลือกไว้"}</small></div><label className="admin-mock-search"><Icon name="search" size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={tab === "mock" ? "ค้นหาชื่อ โรงเรียน หรือรายการสอบ" : "ค้นหาชื่อ โรงเรียน หรือข้อสอบเก่า"} /></label></div>
+        <div className="admin-mock-filters">
+          <label><span>รายการสอบ</span><select value={examFilter} onChange={(event) => setExamFilter(event.target.value)}><option value="all">ทุกรายการสอบ</option>{examOptions.map((exam) => <option key={exam}>{exam}</option>)}</select></label>
+          <label><span>ปีการศึกษา</span><select value={yearFilter} onChange={(event) => setYearFilter(event.target.value)}><option value="all">ทุกปี</option>{years.map((year) => <option key={year}>{year}</option>)}</select></label>
+          <label><span>โรงเรียน</span><select value={schoolFilter} onChange={(event) => setSchoolFilter(event.target.value)}><option value="all">ทุกโรงเรียน</option>{schools.map((school) => <option key={school}>{school}</option>)}</select></label>
+          {tab === "mock" ? <label><span>ระดับชั้น</span><select value={gradeFilter} onChange={(event) => setGradeFilter(event.target.value)}><option value="all">ทุกระดับชั้น</option>{grades.map((grade) => <option key={grade}>{grade}</option>)}</select></label> : <label><span>ชื่อข้อสอบเก่า</span><select value={paperFilter} onChange={(event) => setPaperFilter(event.target.value)}><option value="all">ทุกรายการ</option>{paperNames.map((paper) => <option key={paper}>{paper}</option>)}</select></label>}
+          <button type="button" className="admin-mock-reset" onClick={filterReset}>ล้างตัวกรอง</button>
+        </div>
+        {breakdown.length ? <div className="admin-mock-breakdown"><span>{tab === "mock" ? "จำนวนผู้สมัครตามรายการสอบ" : "จำนวนชุดตามชื่อข้อสอบ"}</span><div>{breakdown.map(([name, count]) => <span className="admin-mock-breakdown-chip" key={name}><strong>{count}</strong>{name}</span>)}</div></div> : null}
+        {tab === "papers" ? <div className="admin-mock-breakdown admin-mock-exam-year-breakdown"><span>สรุปข้อสอบเก่าตามรายการสอบและปี</span><div>{paperGroupsByExamYear.length ? paperGroupsByExamYear.map((group) => <span className="admin-mock-breakdown-chip" key={`${group.exam}-${group.year}`}><strong>{group.sets} ชุด</strong>{group.exam} · {group.year} · ฿{group.total.toLocaleString()}</span>) : <small>ไม่มีรายการซื้อข้อสอบเก่าตามตัวกรอง</small>}</div></div> : null}
+        {tab === "mock" ? (
+          <div className="admin-mock-table-wrap"><table className="admin-mock-table"><thead><tr><th>ผู้สมัคร</th><th>โรงเรียน</th><th>รายการสอบ</th><th>ระดับชั้น</th><th>รูปแบบสอบ</th><th>ปี</th><th>สถานะ</th></tr></thead><tbody>{applicantRows.map((item) => <tr key={item.id}><td><strong>{item.candidate}</strong><small>{item.contactEmail}</small></td><td>{item.school}</td><td><strong>{item.exam}</strong><small>{(item.competitions || []).map((competition) => competition.short || competition.name).join(" : ") || "ไม่ระบุ"}</small></td><td>{item.grade || "—"}</td><td>{item.format === "On-site" ? "Paper-Based" : item.format}</td><td>{item.year}</td><td><StatusBadge status={item.status} /></td></tr>)}{applicantRows.length === 0 ? <tr><td colSpan="7"><div className="admin-mock-empty"><Icon name="search" /><strong>ไม่พบรายชื่อที่ตรงกับตัวกรอง</strong><span>ลองเปลี่ยนคำค้นหรือกดล้างตัวกรอง</span></div></td></tr> : null}</tbody></table></div>
+        ) : (
+          <div className="admin-mock-table-wrap"><table className="admin-mock-table"><thead><tr><th>ผู้สมัคร</th><th>โรงเรียน</th><th>รายการสอบ</th><th>ข้อสอบเก่าที่เลือก</th><th>จำนวน</th><th>ราคา</th><th>ปี</th></tr></thead><tbody>{paperRows.map(({ application, paper }, index) => <tr key={`${application.id}-${paper.id}-${index}`}><td><strong>{application.candidate}</strong><small>{application.contactEmail}</small></td><td>{application.school}</td><td>{application.exam}</td><td><strong>{paper.name}</strong><small>{paper.detail || "ข้อสอบเก่าสำหรับผู้สมัคร"}</small></td><td><span className="admin-mock-quantity">1 ชุด</span></td><td>{fmtMoney(paper.fee)}</td><td>{application.year}</td></tr>)}{paperRows.length === 0 ? <tr><td colSpan="7"><div className="admin-mock-empty"><Icon name="book" /><strong>ไม่มีรายการข้อสอบเก่าที่ตรงกับตัวกรอง</strong><span>ลองเปลี่ยนคำค้นหรือกดล้างตัวกรอง</span></div></td></tr> : null}</tbody></table></div>
+        )}
+        <div className="admin-mock-footer"><span><Icon name="info" size={15} />ข้อมูล mock สำหรับต้นแบบเท่านั้น · ไม่มีการส่งหรือดาวน์โหลดไฟล์จริง</span><Button variant="outline" icon="download" onClick={() => notify("ตัวอย่างส่งออก Excel · ไม่มีการสร้างหรือดาวน์โหลดไฟล์จริง")}>ส่งออก Excel</Button></div>
+      </section>
+    </div>
+  );
+}
+
+function getAdminReviewExamLabel(item) {
+  const competitionNames = (item.competitions || []).map((competition) => competition.short || competition.name).filter(Boolean);
+  const examName = competitionNames.join(" : ") || item.exam || "รายการสอบ";
+  const kind = String(item.kind || "").trim().toUpperCase();
+  const round = kind ? (kind.includes("ROUND") ? kind : `${kind} ROUND`) : "ไม่ระบุรอบ";
+  const format = item.format === "On-site" || item.format === "Paper-Based"
+    ? "Paper-Based"
+    : item.format === "Online" || item.format === "Online Exam"
+      ? "Online Exam"
+      : item.format || "ไม่ระบุรูปแบบ";
+
+  return `${examName} ${round} · ${format}`;
+}
+
+function AdminReviewPage({ applications, onApprove, onSlipIssue, notify, navigate, activeApplicationId }) {
+  const pendingApps = applications.filter((item) => item.status === "pending");
+  const [selectedId, setSelectedId] = useState(activeApplicationId || pendingApps[0]?.id || applications[0]?.id || "");
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState(activeApplicationId ? "all" : "pending");
   const [kindFilter, setKindFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("all");
-  const filteredApplications = applications.filter((item) => {
+  const [reviewView, setReviewView] = useState(activeApplicationId ? "all" : "school-groups");
+  const [selectedGroupKey, setSelectedGroupKey] = useState("");
+  const schoolApplications = applications.filter((item) => item.source === "school");
+  const schoolGroups = Object.values(schoolApplications.reduce((groups, item) => {
+    const key = `${item.year}|${item.exam}`;
+    groups[key] ||= { key, year: item.year, exam: item.exam, applications: [] };
+    groups[key].applications.push(item);
+    return groups;
+  }, {})).map((group) => ({ ...group, pending: group.applications.filter((item) => item.status === "pending").length }));
+  const selectedGroup = schoolGroups.find((group) => group.key === selectedGroupKey);
+  const reviewPool = reviewView === "school-groups"
+    ? selectedGroup?.applications || []
+    : applications;
+  const filteredApplications = reviewPool.filter((item) => {
     const query = search.trim().toLowerCase();
-    const matchesSearch = !query || [item.candidate, item.school, item.contactEmail, item.heatId, item.finalId, item.exam].filter(Boolean).some((value) => value.toLowerCase().includes(query));
+    const applicationNumber = `OC-${item.year}-${String(item.id || "").toUpperCase()}`;
+    const competitionTerms = (item.competitions || []).flatMap((competition) => [competition.short, competition.name, competition.subject]).filter(Boolean);
+    const matchesSearch = !query || [item.candidate, item.id, applicationNumber, item.school, item.contactEmail, item.heatId, item.finalId, item.exam, item.year, ...competitionTerms].filter(Boolean).some((value) => String(value).toLowerCase().includes(query));
     return matchesSearch && (statusFilter === "all" || (statusFilter === "pending" ? item.status === "pending" : item.status === statusFilter)) && (kindFilter === "all" || item.kind === kindFilter) && (sourceFilter === "all" || (sourceFilter === "school" ? item.source === "school" : item.source !== "school"));
   });
   const selected = filteredApplications.find((item) => item.id === selectedId) || filteredApplications[0];
   const pendingCount = applications.filter((item) => item.status === "pending").length;
+  const scopedStatusCount = (status) => reviewPool.filter((item) => status === "all" || item.status === status).length;
   const fmtMoney = (value) => `฿${Number(value || 0).toLocaleString()}`;
   return (
     <div className="page-stack">
       <PageHeading eyebrow="จัดการใบสมัคร · ข้อมูล mock" title="ตรวจใบสมัครและสลิป" description="เปิดดูข้อมูลแต่ละผู้สมัคร ตรวจรายการสอบและยอดชำระ ก่อนอนุมัติหรือแจ้งปัญหาสลิป" action={<span className="queue-indicator"><span />รอตรวจ {pendingCount} ใบ</span>} />
       <div className="review-layout">
         <section className="surface review-queue">
-          <div className="review-queue-head"><div><h2>ใบสมัคร</h2><p>{filteredApplications.length} จาก {applications.length} รายการ</p></div><span className="queue-pill">{pendingCount}</span></div>
-          <label className="input-with-icon review-search"><Icon name="search" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ค้นหาชื่อ โรงเรียน หรือเลขสอบ" /></label>
-          <div className="review-filter-row" role="group" aria-label="กรองสถานะใบสมัคร">{[{ id: "pending", label: "รอตรวจ" }, { id: "confirmed", label: "ยืนยันแล้ว" }, { id: "all", label: "ทั้งหมด" }].map((filter) => <button type="button" key={filter.id} className={statusFilter === filter.id ? "review-filter-active" : ""} aria-pressed={statusFilter === filter.id} onClick={() => setStatusFilter(filter.id)}>{filter.label}<span>{filter.id === "all" ? applications.length : applications.filter((item) => item.status === filter.id).length}</span></button>)}</div>
-          <div className="review-filter-selects"><label><span>ประเภท</span><select value={kindFilter} onChange={(event) => setKindFilter(event.target.value)}><option value="all">Heat และ Final</option><option value="Heat">Heat</option><option value="Final">Final</option></select></label><label><span>ผู้สมัคร</span><select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}><option value="all">ทุกช่องทาง</option><option value="school">ผ่านโรงเรียน</option><option value="self">สมัครด้วยตนเอง</option></select></label></div>
-          <div className="review-list">
-            {filteredApplications.map((item) => (
-              <button className={`review-list-item ${selected?.id === item.id ? "review-list-selected" : ""}`} key={item.id} onClick={() => setSelectedId(item.id)}>
-                <span className="candidate-avatar">{item.candidate.split(" ").map((part) => part[0]).slice(0, 2).join("")}</span>
-                <span className="review-list-copy"><strong>{item.candidate}</strong><small>{item.kind} · {item.school}</small><small>{item.source === "school" ? "ส่งผ่านโรงเรียน" : "สมัครด้วยตนเอง"} · {(item.competitions || []).length} รายการ · {fmtMoney(item.totalPayment)}</small></span>
-                <span className={`review-status-dot ${item.status === "confirmed" ? "review-status-confirmed" : item.slipIssue ? "review-status-issue" : "review-status-pending"}`} title={item.status === "confirmed" ? "ยืนยันแล้ว" : item.slipIssue || "รอตรวจสลิป"} />
-              </button>
-            ))}
-            {!filteredApplications.length ? <div className="review-empty-filter"><Icon name="search" /><strong>ไม่พบใบสมัคร</strong><span>ลองเปลี่ยนคำค้นหาหรือตัวกรอง</span></div> : null}
+          <div className="admin-review-mode" role="tablist" aria-label="มุมมองคิวใบสมัคร">
+            <button type="button" role="tab" aria-selected={reviewView === "school-groups"} className={reviewView === "school-groups" ? "active" : ""} onClick={() => { setReviewView("school-groups"); setSelectedGroupKey(""); setSearch(""); setSourceFilter("all"); setKindFilter("all"); }}>ส่งผ่านโรงเรียน <span>{schoolApplications.length}</span></button>
+            <button type="button" role="tab" aria-selected={reviewView === "all"} className={reviewView === "all" ? "active" : ""} onClick={() => { setReviewView("all"); setSelectedGroupKey(""); setSearch(""); }}>ใบสมัครทั้งหมด <span>{applications.length}</span></button>
           </div>
+          {reviewView === "school-groups" && !selectedGroup ? (
+            <>
+              <div className="review-queue-head"><div><h2>กลุ่มรายการสอบ</h2><p>เลือกกลุ่มเพื่อเปิดรายชื่อผู้สมัคร</p></div><span className="queue-pill">{schoolGroups.length}</span></div>
+              <div className="review-group-list">{schoolGroups.map((group) => <button type="button" key={group.key} className="review-group-card" onClick={() => { setSelectedGroupKey(group.key); setSelectedId(""); setStatusFilter("pending"); setKindFilter("all"); }}><span className="review-group-mark"><Icon name={group.applications[0]?.kind === "Final" ? "award" : "file"} /></span><span className="review-group-copy"><small>ปีการศึกษา {group.year} · {group.applications[0]?.kind}</small><strong>{group.exam}</strong><em>{group.pending ? `${group.pending} ใบ รอตรวจ` : "ไม่มีงานค้าง"}</em></span><span className="review-group-count">{group.applications.length}<small>ใบสมัคร</small></span><Icon name="chevron" size={18} /></button>)}{schoolGroups.length === 0 ? <div className="review-empty-filter"><Icon name="building" /><strong>ยังไม่มีใบสมัครจากโรงเรียน</strong></div> : null}</div>
+            </>
+          ) : (
+            <>
+              <div className="review-queue-head"><div>{reviewView === "school-groups" ? <button type="button" className="review-back-groups" onClick={() => { setSelectedGroupKey(""); setSearch(""); }}><Icon name="arrow" size={15} />กลับไปกลุ่ม</button> : null}<h2>{selectedGroup?.exam || "ใบสมัคร"}</h2><p>{selectedGroup ? `ปีการศึกษา ${selectedGroup.year} · ${filteredApplications.length} จาก ${reviewPool.length} ใบ` : `${filteredApplications.length} จาก ${applications.length} รายการ`}</p></div><span className="queue-pill">{reviewPool.filter((item) => item.status === "pending").length}</span></div>
+              <label className="input-with-icon review-search"><Icon name="search" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ค้นหาชื่อ โรงเรียน หรือเลขสอบ" /></label>
+              <div className="review-filter-row" role="group" aria-label="กรองสถานะใบสมัคร">{[{ id: "pending", label: "รอตรวจ" }, { id: "confirmed", label: "ยืนยันแล้ว" }, { id: "all", label: "ทั้งหมด" }].map((filter) => <button type="button" key={filter.id} className={statusFilter === filter.id ? "review-filter-active" : ""} aria-pressed={statusFilter === filter.id} onClick={() => setStatusFilter(filter.id)}>{filter.label}<span>{scopedStatusCount(filter.id)}</span></button>)}</div>
+              <div className="review-filter-selects"><label><span>ประเภท</span><select value={kindFilter} onChange={(event) => setKindFilter(event.target.value)}><option value="all">Heat และ Final</option><option value="Heat">Heat</option><option value="Final">Final</option></select></label>{reviewView === "all" ? <label><span>ผู้สมัคร</span><select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}><option value="all">ทุกช่องทาง</option><option value="school">ผ่านโรงเรียน</option><option value="self">สมัครด้วยตนเอง</option></select></label> : null}</div>
+              <div className="review-list">
+                {filteredApplications.map((item) => (
+                  <button className={`review-list-item ${selected?.id === item.id ? "review-list-selected" : ""}`} key={item.id} onClick={() => setSelectedId(item.id)}>
+                    <span className={`review-status-avatar ${item.status === "confirmed" ? "review-status-avatar-confirmed" : item.slipIssue ? "review-status-avatar-issue" : "review-status-avatar-pending"}`} title={item.status === "confirmed" ? "ยืนยันใบสมัคร" : item.slipIssue ? `ต้องตรวจสอบ: ${item.slipIssue}` : "รออนุมัติ/ตรวจสอบสลิป"} aria-label={item.status === "confirmed" ? "ยืนยันใบสมัคร" : item.slipIssue ? `ต้องตรวจสอบ: ${item.slipIssue}` : "รออนุมัติ/ตรวจสอบสลิป"}>
+                      <Icon name={item.status === "confirmed" ? "check" : item.slipIssue ? "info" : "clock"} size={16} />
+                    </span>
+                    <span className="review-list-copy"><strong>{item.candidate}</strong><small>{getAdminReviewExamLabel(item)}</small><small>{item.source === "school" ? "ส่งผ่านโรงเรียน" : "สมัครด้วยตนเอง"} · {(item.competitions || []).length} รายการ · {fmtMoney(item.totalPayment)}</small></span>
+                  </button>
+                ))}
+                {!filteredApplications.length ? <div className="review-empty-filter"><Icon name="search" /><strong>ไม่พบใบสมัคร</strong><span>ลองเปลี่ยนคำค้นหาหรือตัวกรอง</span></div> : null}
+              </div>
+            </>
+          )}
         </section>
         {selected ? (
           <section className="surface review-detail">
-            <div className="review-detail-head"><div><p className="eyebrow">{selected.kind} · {selected.source === "school" ? "ส่งผ่านโรงเรียน" : "สมัครด้วยตนเอง"}</p><h2>{selected.candidate}</h2><span>{selected.school}{selected.batchId ? ` · ชุด ${selected.batchId}` : ""}</span></div><StatusBadge status={selected.status} /></div>
-            <div className="review-detail-grid"><div><span>เลขที่ใบสมัคร</span><strong>OC-{selected.year}-{selected.id.toUpperCase()}</strong></div><div><span>อีเมลติดต่อผู้เข้าสอบ</span><strong>{selected.contactEmail}</strong></div><div><span>รูปแบบสอบ · ศูนย์สอบ</span><strong>{selected.format === "On-site" ? "Paper-Based" : selected.format} · {selected.center}</strong></div><div><span>ส่งใบสมัคร</span><strong>{selected.submitted} · โทรลงท้าย {selected.phoneLast4}</strong></div></div>
+            <div className="review-detail-head"><div><p className="eyebrow">{selected.kind} · {selected.source === "school" ? "ส่งผ่านโรงเรียน" : "สมัครด้วยตนเอง"}</p><h2>{selected.candidate}</h2><span>{selected.school}{selected.batchId ? ` · ชุด ${selected.batchId}` : ""}</span></div><div className="review-detail-actions"><StatusBadge status={selected.status} /><Button variant="outline" icon="edit" onClick={() => navigate("admin-application-edit", selected.id)}>แก้ไขใบสมัคร</Button></div></div>
+            {selected.slipIssue ? <div className="notice notice-amber admin-record-issue"><Icon name="info" /><div><strong>สลิปมีปัญหา</strong><p>{selected.slipIssue}</p><Button variant="text" icon="edit" onClick={() => navigate("admin-application-edit", selected.id)}>เปิดข้อมูลเพื่อแก้ไข</Button></div></div> : null}
+            <div className="review-detail-grid"><div><span>เลขที่ใบสมัคร</span><strong>OC-{selected.year}-{selected.id.toUpperCase()}</strong></div><div><span>อีเมลติดต่อผู้เข้าสอบ</span><strong>{selected.contactEmail}</strong></div><div><span>เบอร์โทรศัพท์ผู้เข้าสอบ</span><strong>{getApplicationPhone(selected)}</strong></div><div><span>รูปแบบสอบ · ศูนย์สอบ</span><strong>{selected.format === "On-site" ? "Paper-Based" : selected.format} · {selected.center}</strong></div><div><span>ส่งใบสมัคร</span><strong>{selected.submitted}</strong></div></div>
             <section className="review-data-section"><div className="review-data-heading"><div><strong>รายการสอบและระดับชั้น</strong><small>แยกตรวจตามข้อมูลของผู้สมัครแต่ละคน</small></div><span>{(selected.competitions || []).length} รายการ</span></div>{selected.competitions?.length ? <div className="review-competition-list">{selected.competitions.map((competition) => <div key={competition.id}><span><strong>{competition.short || competition.name}</strong><small>{competition.name}</small></span><span>{competition.grade}</span><b>{fmtMoney(competition.fee)}</b></div>)}</div> : <p className="review-no-data">ไม่มีรายละเอียดรายการสอบในข้อมูลตัวอย่าง</p>}</section>
             <section className="review-data-section"><div className="review-data-heading"><div><strong>ข้อสอบเก่าที่เลือก</strong><small>{selected.pastPapers?.length ? "จัดส่งข้อมูลเข้าใช้งานไปยังอีเมลผู้สมัคร" : "ไม่ได้เลือกซื้อข้อสอบเก่า"}</small></div><span>{selected.pastPapers?.length || 0} ชุด</span></div>{selected.pastPapers?.length ? <div className="review-paper-list">{selected.pastPapers.map((paper) => <div key={paper.id}><span>{paper.name}</span><b>{fmtMoney(paper.fee)}</b></div>)}</div> : null}</section>
             <div className="review-payment-grid"><div><span>ข้อสอบเก่า</span><strong>{fmtMoney(selected.pastPapersTotal)}</strong></div><div><span>ค่าสมัครสอบ</span><strong>{fmtMoney(selected.registrationFee)}</strong></div><div className="review-payment-total"><span>ยอดชำระรวม</span><strong>{fmtMoney(selected.totalPayment)}</strong></div></div>
@@ -1943,6 +2503,7 @@ function AdminReviewPage({ applications, onApprove, onSlipIssue, notify, navigat
               <div className="slip-paper"><div className="slip-paper-logo">OCEC<span>PAYMENT</span></div><div className="slip-paper-title">PAYMENT CONFIRMATION · MOCK</div><div className="slip-paper-amount">{fmtMoney(selected.totalPayment)}</div><div className="slip-paper-lines"><i /><i /><i /><i /></div><span className={`slip-paper-status ${selected.slipIssue ? "slip-paper-status-issue" : ""}`}><Icon name={selected.slipIssue ? "info" : "check"} size={13} />{selected.slipIssue || "รอตรวจสอบสลิป"}</span></div>
             </div>
             {selected.slipIssue ? <div className="notice notice-amber"><Icon name="mail" /><div><strong>แจ้งปัญหาสลิปแล้ว</strong><p>เทมเพลต “{selected.slipIssue}” ส่งไปที่ {selected.contactEmail} · เมื่ออัปโหลดใหม่จะกลับเข้าคิวตรวจ</p><Button variant="text" icon="upload" onClick={() => navigate("slip-upload", selected.id)}>เปิดหน้าจำลองอัปโหลดใหม่</Button></div></div> : null}
+            <section className="review-history-panel"><div className="review-history-heading"><span className="review-history-icon"><Icon name="clock" size={16} /></span><div><strong>ประวัติการแก้ไข</strong><small>บันทึกภายในของผู้ดูแลระบบ</small></div><span>{(selected.changeHistory || []).length} ครั้ง</span></div>{selected.changeHistory?.length ? <div className="review-history-list">{selected.changeHistory.map((entry) => <article className="review-history-entry" key={entry.id}><div className="review-history-meta"><strong>{entry.editor}</strong><time>{entry.at}</time></div><div className="review-history-changes">{entry.changes.map((change, index) => <div key={`${entry.id}-${index}`}><span>{change.label}</span><div><del>{change.oldValue || "—"}</del><Icon name="arrow" size={13} /><strong>{change.newValue || "—"}</strong></div></div>)}</div></article>)}</div> : <p className="review-history-empty">ยังไม่มีประวัติการแก้ไข · การแก้ไขครั้งถัดไปจะแสดงผู้แก้ เวลา และค่าก่อน–หลังไว้ที่นี่</p>}</section>
             <div className="review-actions">
               <div className="review-action-label"><strong>ผลการตรวจสอบ</strong><small>{selected.status === "confirmed" ? "ใบสมัครนี้อนุมัติแล้ว" : selected.slipIssue ? "รอสลิปใหม่ก่อนอนุมัติ" : "การอนุมัติจะยืนยันใบสมัครและเข้าคิวซิงก์ชีต"}</small></div>
               <div className="review-action-buttons">
@@ -1951,40 +2512,298 @@ function AdminReviewPage({ applications, onApprove, onSlipIssue, notify, navigat
               </div>
             </div>
           </section>
-        ) : <div className="surface empty-state">เลือกใบสมัครเพื่อดูรายละเอียด</div>}
+        ) : reviewView === "school-groups" && !selectedGroup ? <section className="surface review-group-guide"><span><Icon name="grid" size={22} /></span><p className="eyebrow">ตรวจใบสมัครจากโรงเรียน</p><h2>เลือกกลุ่มรายการสอบ</h2><p>แต่ละกลุ่มรวมใบสมัครตามรายการสอบและปีการศึกษา เมื่อเลือกกลุ่มแล้วจะแสดงรายชื่อผู้สมัคร พร้อมตัวกรองสถานะและค้นหาชื่อ</p></section> : <div className="surface empty-state">เลือกใบสมัครเพื่อดูรายละเอียด</div>}
       </div>
     </div>
   );
 }
 
-function AdminRoundPage({ examCatalog, onUpdateExam, centerLocked, registrationOpen, editWindowOpen, setEditWindowOpen, finalCloseDate, setFinalCloseDate, heatIdsGenerated, onGenerateHeatIds, notify }) {
+const ADMIN_FINAL_COMPETITION = { id: "final", short: "Final", name: "OCEC Final", subject: "Final round", grades: ["Primary 1", "Primary 2", "Primary 3", "Primary 4", "Primary 5", "Primary 6", "Secondary 1", "Secondary 2", "Secondary 3", "Senior Secondary"] };
+
+function AdminApplicationEditPage({ application, onSave, navigate, competitionFees, examCatalog, centerCatalog }) {
+  const editCompetitions = application.kind === "Final" ? [ADMIN_FINAL_COMPETITION] : getFormCompetitions(examCatalog, "HEAT", { year: application.year });
+  const startingOnline = application.format === "Online Exam";
+  const candidateNameParts = application.candidate?.trim().split(/\s+/) || [];
+  const [nameParts, setNameParts] = useState(() => ({ firstName: application.nameParts?.firstName || application.studentInformation?.firstName || candidateNameParts[0] || "", lastName: application.nameParts?.lastName || application.studentInformation?.lastName || candidateNameParts.slice(1).join(" ") }));
+  const [school, setSchool] = useState(application.school || "");
+  const [email, setEmail] = useState(application.contactEmail || "");
+  const [phone, setPhone] = useState(() => getApplicationPhone(application) === "ไม่ระบุ" ? "" : getApplicationPhone(application));
+  const [format, setFormat] = useState(startingOnline ? "Online" : "Paper-Based");
+  const [center, setCenter] = useState(application.center === "Online Exam" ? "" : application.center);
+  const [selectedIds, setSelectedIds] = useState((application.competitions || []).map((item) => item.id));
+  const [grades, setGrades] = useState(Object.fromEntries((application.competitions || []).map((item) => [item.id, item.grade || ""])));
+  const [additionalSlip, setAdditionalSlip] = useState("");
+  const [error, setError] = useState("");
+  const competitions = editCompetitions.filter((item) => selectedIds.includes(item.id));
+  const modeDeltaPerCompetition = 100;
+  const roundType = application.kind === "Final" ? "FINAL" : "HEAT";
+  const feeForFormat = (targetFormat) => {
+    const previous = application.competitions?.[0];
+    if (previous && startingOnline !== (targetFormat === "Online")) return Math.max(0, Number(previous.fee || 0) + (targetFormat === "Paper-Based" ? 100 : -100));
+    return Number(previous?.fee || getCompetitionExamPrice(examCatalog, previous?.id || editCompetitions[0]?.id, roundType, targetFormat, competitionFees, application.year));
+  };
+  const feeForCompetition = (competition) => {
+    const previous = (application.competitions || []).find((item) => item.id === competition.id);
+    if (previous && startingOnline !== (format === "Online")) return Math.max(0, Number(previous.fee || 0) + (format === "Paper-Based" ? 100 : -100));
+    return previous ? Number(previous.fee || getCompetitionExamPrice(examCatalog, competition.id, roundType, format, competitionFees, application.year)) : getCompetitionExamPrice(examCatalog, competition.id, roundType, format, competitionFees, application.year);
+  };
+  const nextRegistrationFee = competitions.reduce((sum, competition) => sum + feeForCompetition(competition), 0);
+  const pastPapersTotal = Number(application.pastPapersTotal || 0);
+  const nextTotal = nextRegistrationFee + pastPapersTotal;
+  const paidTotal = Number(application.totalPayment || 0);
+  const delta = nextTotal - paidTotal;
+  const additionalDue = Math.max(0, delta);
+  const switchedOnlineToOnsite = startingOnline && format === "Paper-Based";
+  const switchedOnsiteToOnline = !startingOnline && format === "Online";
+
+  function toggleCompetition(id) {
+    setSelectedIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  }
+  function submit(event) {
+    event.preventDefault();
+    if (!nameParts.firstName.trim() || !nameParts.lastName.trim()) { setError("กรอกชื่อจริงและนามสกุลภาษาอังกฤษ"); return; }
+    if (!school.trim()) { setError("กรอกชื่อโรงเรียน"); return; }
+    if (!email.trim()) { setError("กรอกอีเมลติดต่อผู้สมัคร"); return; }
+    if (!phone.trim()) { setError("กรอกเบอร์โทรศัพท์ผู้สมัคร"); return; }
+    if (!competitions.length) { setError("เลือกอย่างน้อย 1 รายการสอบ"); return; }
+    if (competitions.some((item) => !grades[item.id])) { setError("เลือกระดับชั้นให้ครบทุกวิชาที่สมัคร"); return; }
+    if (format === "Paper-Based" && !center) { setError("เลือกศูนย์สอบสำหรับการสอบแบบออนไซต์"); return; }
+    if (additionalDue > 0 && !additionalSlip) { setError("แนบสลิปเพิ่มเติมเพื่อบันทึกยอดชำระที่เพิ่มขึ้น"); return; }
+    const candidate = [nameParts.firstName, nameParts.lastName].map((part) => part.trim()).filter(Boolean).join(" ");
+    const updatedCompetitions = competitions.map((item) => ({ ...item, grade: grades[item.id], fee: feeForCompetition(item) }));
+    onSave(application.id, {
+      candidate,
+      nameParts,
+      school: school.trim(),
+      contactEmail: email.trim(),
+      phone: phone.trim(),
+      studentInformation: { ...application.studentInformation, firstName: nameParts.firstName.trim(), lastName: nameParts.lastName.trim(), school: school.trim(), email: email.trim(), phone: phone.trim(), format: format === "Online" ? "Online Exam" : "Paper-Based", center: format === "Online" ? "Online Exam" : center },
+      examIds: updatedCompetitions.map((item) => item.id),
+      competitions: updatedCompetitions,
+      grade: updatedCompetitions.map((item) => `${item.short}: ${item.grade}`).join(" · "),
+      format: format === "Online" ? "Online Exam" : "On-site",
+      center: format === "Online" ? "Online Exam" : center,
+      registrationFee: nextRegistrationFee,
+      totalPayment: Math.max(paidTotal, nextTotal),
+      additionalFee: additionalDue,
+      additionalSlipFileName: additionalSlip || application.additionalSlipFileName || "",
+    });
+  }
+
+  return (
+    <div className="page-stack admin-edit-application-page">
+      <PageHeading eyebrow="งานแอดมิน · ข้อมูล mock" title="แก้ไขใบสมัคร" description={`${application.candidate} · ${application.exam} · ${application.school}`} action={<Button variant="outline" icon="arrow" onClick={() => navigate("admin-review", application.id)}>กลับไปตรวจใบสมัคร</Button>} />
+      <form className="admin-edit-layout" onSubmit={submit}>
+        <div className="admin-edit-main">
+          <section className="surface admin-edit-section"><div className="admin-edit-section-heading"><span>01</span><div><h2>ข้อมูลผู้เข้าสอบ</h2><p>แก้ชื่อ โรงเรียน และข้อมูลติดต่อจากใบสมัคร</p></div></div><div className="admin-edit-person-grid"><Field label="ชื่อจริงภาษาอังกฤษ" required><input value={nameParts.firstName} onChange={(event) => setNameParts((current) => ({ ...current, firstName: event.target.value }))} /></Field><Field label="นามสกุลภาษาอังกฤษ" required><input value={nameParts.lastName} onChange={(event) => setNameParts((current) => ({ ...current, lastName: event.target.value }))} /></Field><Field label="โรงเรียน" required><input value={school} onChange={(event) => setSchool(event.target.value)} /></Field><Field label="อีเมลติดต่อ" required><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></Field><Field label="เบอร์โทรศัพท์" required><input type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="(000) 000-0000" /></Field></div></section>
+          <section className="surface admin-edit-section"><div className="admin-edit-section-heading"><span>02</span><div><h2>รายการสอบและระดับชั้น</h2><p>เลือกเพิ่มรายการสอบ และปรับระดับชั้นของผู้สมัคร</p></div></div>
+            <div className="admin-edit-competition-list">{editCompetitions.map((competition) => { const active = selectedIds.includes(competition.id); return <article className={active ? "admin-edit-competition active" : "admin-edit-competition"} key={competition.id}><label><input type="checkbox" checked={active} onChange={() => toggleCompetition(competition.id)} /><span className="admin-edit-checkbox"><Icon name="check" size={13} /></span><span><strong>{competition.name}</strong><small>{competition.subject}</small></span><span className="admin-edit-fee">฿{feeForCompetition(competition).toLocaleString()}<small> / รายการ</small></span></label>{active ? <Field label={`ระดับชั้น ${competition.short}`} required><select value={grades[competition.id] || ""} onChange={(event) => setGrades((current) => ({ ...current, [competition.id]: event.target.value }))}><option value="">เลือกระดับชั้น</option>{grades[competition.id] && !competition.grades.includes(grades[competition.id]) ? <option value={grades[competition.id]}>{grades[competition.id]} (ปัจจุบัน)</option> : null}{competition.grades.map((grade) => <option key={grade}>{grade}</option>)}</select></Field> : null}</article>; })}</div>
+          </section>
+          <section className="surface admin-edit-section"><div className="admin-edit-section-heading"><span>03</span><div><h2>รูปแบบสอบและศูนย์สอบ</h2><p>ปรับประเภทการสอบแล้วตรวจดูผลต่างยอดเงินก่อนบันทึก</p></div></div>
+            <div className="mode-options admin-edit-mode"><label className={format === "Paper-Based" ? "mode-option mode-option-selected" : "mode-option"}><input type="radio" name="admin-format" checked={format === "Paper-Based"} onChange={() => setFormat("Paper-Based")} /><span><strong>Paper-Based</strong><small>สอบที่สนามสอบ</small></span><b>฿{feeForFormat("Paper-Based").toLocaleString()} <small>/ รายการ</small></b></label><label className={format === "Online" ? "mode-option mode-option-selected" : "mode-option"}><input type="radio" name="admin-format" checked={format === "Online"} onChange={() => setFormat("Online")} /><span><strong>Online Exam</strong><small>สอบออนไลน์</small></span><b>฿{feeForFormat("Online").toLocaleString()} <small>/ รายการ</small></b></label></div>
+            {format === "Paper-Based" ? <Field label="ศูนย์สอบ" required><select value={center} onChange={(event) => setCenter(event.target.value)}><option value="">เลือกศูนย์สอบ</option>{center && !centerCatalog.some((item) => item.name === center) ? <option value={center}>{center} (ปัจจุบัน)</option> : null}{centerCatalog.map((item) => <option key={item.code}>{item.name}</option>)}{FORM_CENTERS.map((item) => <option key={`legacy-${item}`}>{item}</option>)}</select></Field> : <div className="online-device-note"><Icon name="monitor" /><div><strong>Online Exam</strong><span>ศูนย์สอบจะตั้งเป็น Online Exam โดยอัตโนมัติ</span></div></div>}
+          </section>
+          {switchedOnlineToOnsite || switchedOnsiteToOnline || additionalDue > 0 ? <section className={switchedOnsiteToOnline ? "notice notice-amber admin-edit-change-notice" : "notice notice-blue admin-edit-change-notice"}><Icon name={switchedOnsiteToOnline ? "info" : "check"} /><div><strong>{switchedOnlineToOnsite ? `เปลี่ยนจาก Online เป็นออนไซต์ · เพิ่ม ${fmtAdminMoney(modeDeltaPerCompetition)} × ${competitions.length} รายการ = ${fmtAdminMoney(competitions.length * modeDeltaPerCompetition)}` : switchedOnsiteToOnline ? `เปลี่ยนจากออนไซต์เป็น Online · ไม่มีการคืนเงินส่วนต่าง ${fmtAdminMoney(Math.max(0, -delta))}` : `ยอดสมัครเปลี่ยน ${delta > 0 ? "เพิ่ม" : "ลด"} ${fmtAdminMoney(Math.abs(delta))}`}</strong><p>{switchedOnsiteToOnline ? "ผู้สมัครชำระเงินตามยอดเดิมแล้ว ส่วนต่างจะไม่คืน หากมีรายการสอบเพิ่ม ระบบจะแจ้งยอดชำระเฉพาะรายการใหม่" : additionalDue > 0 ? "ยอดที่ต้องจ่ายเพิ่มคำนวณรวมจากรายการสอบและรูปแบบสอบใหม่ แนบสลิปเพิ่มเติมก่อนบันทึก" : "ยอดใหม่คำนวณจากรายการสอบ ระดับชั้น และรูปแบบสอบที่เลือก"}</p></div></section> : null}
+          {additionalDue > 0 ? <label className="file-drop file-drop-inline admin-edit-slip"><input type="file" accept="image/*,.pdf" onChange={(event) => { setAdditionalSlip(event.target.files?.[0]?.name || ""); setError(""); }} /><span className="file-drop-icon"><Icon name="upload" /></span><span className="file-drop-copy"><strong>{additionalSlip || "แนบสลิปเพิ่มเติม"}</strong><small>หลักฐานยอดที่ชำระเพิ่ม · JPG, PNG หรือ PDF</small></span><span className="file-select-label">เลือกไฟล์</span></label> : null}
+          {error ? <p className="inline-error" role="alert"><Icon name="info" size={16} />{error}</p> : null}
+          <div className="admin-edit-footer"><span><Icon name="info" size={15} />บันทึกข้อมูลตัวอย่างในหน้าทดลองนี้เท่านั้น</span><Button variant="outline" onClick={() => navigate("admin-review", application.id)}>ยกเลิก</Button><Button type="submit" icon="check">บันทึกการแก้ไข</Button></div>
+        </div>
+        <aside className="surface admin-edit-summary"><span className="side-note-icon"><Icon name="settings" /></span><p className="eyebrow">ตรวจยอดก่อนบันทึก</p><h2>สรุปยอดเปลี่ยนแปลง</h2><div className="admin-edit-total-row"><span>ยอดเดิมในใบสมัคร</span><strong>{fmtAdminMoney(paidTotal)}</strong></div><div className="admin-edit-total-row"><span>ข้อสอบเก่า</span><strong>{fmtAdminMoney(pastPapersTotal)}</strong></div><div className="admin-edit-total-row"><span>ค่าสมัครใหม่ · {competitions.length} รายการ</span><strong>{fmtAdminMoney(nextRegistrationFee)}</strong></div><div className="admin-edit-total-row admin-edit-new-total"><span>ยอดรวมหลังแก้ไข</span><strong>{fmtAdminMoney(nextTotal)}</strong></div><div className={additionalDue > 0 ? "admin-edit-pay-now due" : "admin-edit-pay-now"}><small>ยอดที่ต้องชำระเพิ่ม</small><strong>{fmtAdminMoney(additionalDue)}</strong></div><p>การลดค่าสมัครเมื่อเปลี่ยนจากออนไซต์เป็นออนไลน์จะไม่คืนเงินส่วนต่าง</p></aside>
+      </form>
+    </div>
+  );
+}
+
+function fmtAdminMoney(value) { return `฿${Number(value || 0).toLocaleString()}`; }
+
+function AdminRoundPage({ examCatalog, onUpdateExam, onAddExam, onRemoveExam, centerLocked, registrationOpen, hasPublishedHeatResults, heatIdsGenerated, onGenerateHeatIds, centerCatalog, setCenterCatalog, pastPaperCatalog, setPastPaperCatalog, notify }) {
+  const roundCarouselRefs = useRef({});
+  const roundCarouselPositions = useRef({});
   const [centerFile, setCenterFile] = useState("");
-  const heatRounds = examCatalog.filter((exam) => exam.year === "2569");
+  const [newCenterCode, setNewCenterCode] = useState("");
+  const [newCenterName, setNewCenterName] = useState("");
+  const [newPaperName, setNewPaperName] = useState("");
+  const [newPaperPrice, setNewPaperPrice] = useState("250");
+  const [newPaperGroup, setNewPaperGroup] = useState("Big Bay Bei Past Papers");
+  const [showNewExamForm, setShowNewExamForm] = useState(false);
+  const [newExamLogo, setNewExamLogo] = useState("");
+  const [newExamError, setNewExamError] = useState("");
+  const paperGroupOptions = [...new Set([
+    ...FORM_PAST_PAPER_GROUPS.map((group) => group.title),
+    ...pastPaperCatalog.map((paper) => paper.group),
+    newPaperGroup,
+  ].filter(Boolean))];
+  const catalogYears = [...new Set(examCatalog.map((exam) => exam.year).filter(Boolean))].sort((left, right) => Number(right) - Number(left));
+  const [yearFilter, setYearFilter] = useState(catalogYears[0] || "2569");
+  const [newExam, setNewExam] = useState({ title: "", roundTypes: [], year: "2569", openDate: "", closeDate: "", examDate: "", editCloseDate: "", isOpen: false, accent: "violet", description: "ตรวจสอบกำหนดการและรายละเอียดการสมัคร", prices: { HEAT: { paperBased: 755, onlineExam: 655 }, FINAL: { paperBased: 1550, onlineExam: 1350 }, FINAL_X: { paperBased: 1550, onlineExam: 1350 } } });
+  const heatRounds = examCatalog.filter((exam) => exam.year === "2569" && getExamRoundType(exam) === "HEAT");
   const canGenerateHeatIds = heatRounds.length > 0 && heatRounds.every((exam) => !exam.isOpen);
-  const centers = [
-    { code: "208", name: "ศูนย์สอบกรุงเทพฯ", applicants: 18 },
-    { code: "305", name: "ศูนย์สอบเชียงใหม่", applicants: 7 },
-    { code: "412", name: "ศูนย์สอบขอนแก่น", applicants: 5 },
-    { code: "888", name: "ศูนย์สอบฮ่องกง", applicants: 3 },
-  ];
+  const visibleExams = examCatalog.filter((exam) => yearFilter === "all" || exam.year === yearFilter);
+  const examGroups = Object.values(visibleExams.reduce((groups, exam) => {
+    const groupId = `${exam.competitionId || exam.title}-${exam.year}`;
+    groups[groupId] ||= { id: groupId, title: exam.title, year: exam.year, rounds: [] };
+    groups[groupId].rounds.push(exam);
+    return groups;
+  }, {})).sort((left, right) => Number(left.rounds.some((exam) => exam.competitionId === "bbb")) - Number(right.rounds.some((exam) => exam.competitionId === "bbb")));
+  function scrollRoundCarousel(groupId, roundCount) {
+    const viewport = roundCarouselRefs.current[groupId];
+    if (!viewport) return;
+    const cards = viewport.querySelectorAll(".admin-round-card");
+    const visibleCount = window.matchMedia("(max-width: 700px)").matches ? 1 : 2;
+    const maxStart = Math.max(0, roundCount - visibleCount);
+    if (!maxStart) return;
+    const current = Math.min(roundCarouselPositions.current[groupId] || 0, maxStart);
+    const next = current >= maxStart ? 0 : current + 1;
+    const styles = window.getComputedStyle(viewport);
+    const gap = Number.parseFloat(styles.columnGap || styles.gap) || 8;
+    const step = (cards[0]?.getBoundingClientRect().width || viewport.clientWidth) + gap;
+    roundCarouselPositions.current[groupId] = next;
+    viewport.scrollTo({ left: next * step, behavior: "smooth" });
+  }
+  const selectedRoundLabels = newExam.roundTypes.map((roundType) => EXAM_ROUND_LABELS[roundType]);
+  function readLogoFile(file, onSuccess) {
+    if (!file) return;
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+      notify("รองรับไฟล์โลโก้ PNG, JPG หรือ WEBP เท่านั้น");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      notify("ไฟล์โลโก้ต้องมีขนาดไม่เกิน 5 MB");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => typeof reader.result === "string" ? onSuccess(reader.result) : notify("อ่านไฟล์โลโก้ไม่สำเร็จ");
+    reader.onerror = () => notify("อ่านไฟล์โลโก้ไม่สำเร็จ ลองเลือกไฟล์อีกครั้ง");
+    reader.readAsDataURL(file);
+  }
+  function updateNewExam(key, value) {
+    setNewExam((current) => ({ ...current, [key]: value }));
+    setNewExamError("");
+  }
+  function toggleNewExamRound(roundType) {
+    updateNewExam("roundTypes", newExam.roundTypes.includes(roundType)
+      ? newExam.roundTypes.filter((item) => item !== roundType)
+      : [...newExam.roundTypes, roundType]);
+  }
+  function slugForCompetition(title) {
+    const normalized = title.trim().toLowerCase();
+    if (normalized.includes("big bay") || normalized === "bbb") return "bbb";
+    if (normalized.includes("hkimo")) return "hkimo";
+    if (normalized.includes("hkiso")) return "hkiso";
+    if (normalized.includes("hkico")) return "hkico";
+    return `custom-${normalized.replace(/[^a-z0-9ก-๙]+/g, "-").replace(/^-|-$/g, "") || Date.now()}`;
+  }
+  function addExam() {
+    if (!newExam.title.trim() || !newExam.roundTypes.length || !newExam.year.trim()) {
+      setNewExamError("กรอกชื่อรายการสอบ เลือกรอบสอบอย่างน้อยหนึ่งรอบ และระบุปีการศึกษา");
+      return;
+    }
+    if (newExam.isOpen && (!newExam.openDate || !newExam.closeDate)) {
+      setNewExamError("รายการที่เปิดรับสมัครต้องระบุวันเริ่มและวันปิดรับสมัคร");
+      return;
+    }
+    const title = newExam.title.trim();
+    const competitionId = slugForCompetition(title);
+    const duplicates = newExam.roundTypes.filter((roundType) => examCatalog.some((exam) => exam.competitionId === competitionId && exam.year === newExam.year.trim() && getExamRoundType(exam) === roundType));
+    if (duplicates.length) {
+      setNewExamError(`${title} ปี ${newExam.year} มี ${duplicates.map((roundType) => EXAM_ROUND_LABELS[roundType]).join(", ")} อยู่แล้ว`);
+      return;
+    }
+    const createdAt = Date.now();
+    newExam.roundTypes.forEach((roundType, index) => onAddExam({
+      id: `exam-${createdAt}-${index}`,
+      competitionId,
+      roundType,
+      title,
+      round: EXAM_ROUND_LABELS[roundType],
+      year: newExam.year.trim(),
+      openDate: newExam.openDate,
+      closeDate: newExam.closeDate,
+      examDate: newExam.examDate,
+      editCloseDate: newExam.editCloseDate,
+      finalConfirmCloseDate: roundType === "HEAT" ? "" : (newExam.closeDate || "2027-01-15"),
+      isOpen: newExam.isOpen,
+      accent: newExam.accent,
+      description: newExam.description.trim(),
+      logoDataUrl: newExamLogo,
+      prices: { ...newExam.prices[roundType] },
+      closes: formatThaiDate(newExam.closeDate),
+    }));
+    setYearFilter(newExam.year.trim());
+    setNewExam({ title: "", roundTypes: [], year: "2569", openDate: "", closeDate: "", examDate: "", editCloseDate: "", isOpen: false, accent: "violet", description: "ตรวจสอบกำหนดการและรายละเอียดการสมัคร", prices: { HEAT: { paperBased: 755, onlineExam: 655 }, FINAL: { paperBased: 1550, onlineExam: 1350 }, FINAL_X: { paperBased: 1550, onlineExam: 1350 } } });
+    setNewExamLogo("");
+    setNewExamError("");
+    setShowNewExamForm(false);
+    notify(`เพิ่ม ${title} ${selectedRoundLabels.filter((_, index) => newExam.roundTypes[index]).join(" · ")} แล้ว · แต่ละรอบเป็นการ์ดแยกกัน`);
+  }
+  function updateCenter(index, key, value) { setCenterCatalog((current) => current.map((center, itemIndex) => itemIndex === index ? { ...center, [key]: value } : center)); }
+  function addCenter() {
+    if (!newCenterCode.trim() || !newCenterName.trim()) return;
+    setCenterCatalog((current) => [...current, { code: newCenterCode.trim(), name: newCenterName.trim(), applicants: 0 }]);
+    setNewCenterCode(""); setNewCenterName(""); notify("เพิ่มศูนย์สอบตัวอย่างแล้ว");
+  }
+  function addPastPaper() {
+    if (!newPaperName.trim()) return;
+    setPastPaperCatalog((current) => [...current, { id: `paper-${Date.now()}`, group: newPaperGroup, name: newPaperName.trim(), price: Number(newPaperPrice) || 0, active: true }]);
+    setNewPaperName(""); notify("เพิ่มรายการข้อสอบเก่าตัวอย่างแล้ว");
+  }
+  function removePastPaper(paper) {
+    setPastPaperCatalog((current) => current.filter((item) => item.id !== paper.id));
+    notify(`ลบ ${paper.title || paper.name} ออกจากรายการข้อสอบเก่าตัวอย่างแล้ว`);
+  }
   return (
     <div className="page-stack">
       <PageHeading eyebrow="จัดการรายการสอบ · ข้อมูล mock" title="รายการสอบและกำหนดการ" description="สถานะที่แก้ที่นี่จะแสดงบนหน้าแรกทันทีในตัวอย่างนี้" action={<span className={registrationOpen ? "schedule-open" : "closed-badge"}>{registrationOpen ? `เปิดรับ ${examCatalog.filter((exam) => exam.isOpen).length} รายการ` : "ปิดรับสมัครทั้งหมด"}</span>} />
       <section className="surface admin-round-catalog">
-        <div className="section-heading"><div><p className="eyebrow">แสดงบนหน้าสมัคร</p><h2>จัดการรายการสอบทั้งหมด</h2></div><span className="admin-data-note"><Icon name="info" size={14} />สถานะเปิดรับเชื่อมกับหน้าแรก</span></div>
-        <div className="admin-round-card-grid">{examCatalog.map((exam) => (
-          <article className={`admin-round-card ${exam.isOpen ? "admin-round-card-open" : ""}`} key={exam.id}>
-            <div className="admin-round-card-head"><span className={`exam-type-mark exam-card-${exam.accent}`}><Icon name="award" size={18} /></span><div><small>{exam.round} · ปีการศึกษา {exam.year}</small><h3>{exam.title}</h3></div><span className={exam.isOpen ? "schedule-open" : "closed-badge"}>{exam.isOpen ? "เปิดรับสมัคร" : "ยังไม่เปิด"}</span></div>
-            <div className="admin-round-fields">
-              <label><span>เริ่มรับสมัคร</span><input type="date" value={exam.openDate || ""} onChange={(event) => onUpdateExam(exam.id, { openDate: event.target.value })} /></label>
-              <label><span>ปิดรับสมัคร</span><input type="date" value={exam.closeDate || ""} onChange={(event) => onUpdateExam(exam.id, { closeDate: event.target.value })} /></label>
-              <label><span>วันสอบ</span><input type="date" value={exam.examDate || ""} onChange={(event) => onUpdateExam(exam.id, { examDate: event.target.value })} /></label>
-              <label><span>ปิดแก้ไขข้อมูล</span><input type="date" value={exam.editCloseDate || ""} onChange={(event) => onUpdateExam(exam.id, { editCloseDate: event.target.value })} /></label>
-            </div>
-            <div className="admin-round-card-foot"><span>{exam.isOpen ? `ปิดรับ ${formatThaiDate(exam.closeDate)}` : `กำหนดการ ${formatThaiDate(exam.examDate)}`}</span><Button variant={exam.isOpen ? "outline" : "primary"} icon={exam.isOpen ? "close" : "check"} onClick={() => { onUpdateExam(exam.id, { isOpen: !exam.isOpen }); notify(exam.isOpen ? `ปิดรับ ${exam.title} ${exam.round} แล้ว` : `เปิดรับ ${exam.title} ${exam.round} แล้ว · หน้าแรกอัปเดตแล้ว`); }}>{exam.isOpen ? "ปิดรับสมัคร" : "เปิดรับสมัคร"}</Button></div>
-          </article>
-        ))}</div>
-        <div className="form-footer admin-round-save"><span><Icon name="info" size={15} />สถานะอยู่ในหน้าทดลองนี้เท่านั้น · ไม่บันทึกลงฐานข้อมูล</span><Button variant="outline" onClick={() => notify("บันทึกกำหนดการตัวอย่างในหน้าทดลองแล้ว")}>บันทึกกำหนดการ</Button></div>
+        <div className="section-heading"><div><p className="eyebrow">แสดงบนหน้าสมัคร</p><h2>จัดการรายการสอบทั้งหมด</h2></div><div className="admin-exam-heading-actions"><span className="admin-data-note"><Icon name="info" size={14} />สถานะเปิดรับเชื่อมกับหน้าแรก</span><Button icon="plus" onClick={() => { setShowNewExamForm((current) => !current); setNewExamError(""); }}>{showNewExamForm ? "ปิดฟอร์ม" : "เพิ่มรายการสอบ"}</Button></div></div>
+        {showNewExamForm ? <form className="admin-exam-create-form" onSubmit={(event) => { event.preventDefault(); addExam(); }}>
+          <div className="admin-exam-create-heading"><span className="admin-exam-create-icon"><Icon name="plus" size={17} /></span><div><strong>เพิ่มรายการสอบใหม่</strong><small>ข้อมูลจะปรากฏเป็นการ์ดในหน้าแรกทันที และอยู่ใน prototype นี้เท่านั้น</small></div></div>
+          <div className="admin-exam-create-fields">
+            <label><span>ชื่อรายการสอบ <b>*</b></span><input value={newExam.title} onChange={(event) => updateNewExam("title", event.target.value)} placeholder="เช่น HKIMO" required /></label>
+            <fieldset className="admin-round-choice"><legend>รอบสอบ <b>*</b></legend><div>{Object.entries(EXAM_ROUND_LABELS).map(([roundType, label]) => <label key={roundType} className={newExam.roundTypes.includes(roundType) ? "admin-round-choice-selected" : ""}><input type="checkbox" checked={newExam.roundTypes.includes(roundType)} onChange={() => toggleNewExamRound(roundType)} /><span>{label}</span></label>)}</div><small>เลือกได้หลายรอบ ระบบจะแยกสร้างเป็นการ์ดคนละใบ</small></fieldset>
+            {newExam.roundTypes.map((roundType) => <fieldset className="admin-round-price-set" key={roundType}><legend>ราคาสมัคร · {EXAM_ROUND_LABELS[roundType]}</legend><label><span>Paper-Based</span><div><input aria-label={`${EXAM_ROUND_LABELS[roundType]} ราคา Paper-Based`} type="number" min="0" value={newExam.prices[roundType].paperBased} onChange={(event) => updateNewExam("prices", { ...newExam.prices, [roundType]: { ...newExam.prices[roundType], paperBased: Math.max(0, Number(event.target.value) || 0) } })} /><b>บาท</b></div></label><label><span>Online Exam</span><div><input aria-label={`${EXAM_ROUND_LABELS[roundType]} ราคา Online Exam`} type="number" min="0" value={newExam.prices[roundType].onlineExam} onChange={(event) => updateNewExam("prices", { ...newExam.prices, [roundType]: { ...newExam.prices[roundType], onlineExam: Math.max(0, Number(event.target.value) || 0) } })} /><b>บาท</b></div></label></fieldset>)}
+            <label><span>ปีการศึกษา <b>*</b></span><input inputMode="numeric" value={newExam.year} onChange={(event) => updateNewExam("year", event.target.value)} placeholder="2569" required /></label>
+            <label><span>โทนสีการ์ด</span><select value={newExam.accent} onChange={(event) => updateNewExam("accent", event.target.value)}><option value="violet">ม่วง</option><option value="blue">น้ำเงิน</option><option value="coral">ชมพู</option><option value="yellow">เหลือง</option></select></label>
+            <fieldset className="admin-exam-schedule-fields"><legend>กำหนดวันสำคัญ</legend><div className="admin-exam-schedule-grid">
+              <label><span>เริ่มรับสมัคร</span><input type="date" value={newExam.openDate} onChange={(event) => updateNewExam("openDate", event.target.value)} /></label>
+              <label><span>ปิดรับสมัคร</span><input type="date" value={newExam.closeDate} onChange={(event) => updateNewExam("closeDate", event.target.value)} /></label>
+              <label><span>วันสอบ</span><input type="date" value={newExam.examDate} onChange={(event) => updateNewExam("examDate", event.target.value)} /></label>
+              <label><span>ปิดแก้ไขข้อมูล</span><input type="date" value={newExam.editCloseDate} onChange={(event) => updateNewExam("editCloseDate", event.target.value)} /></label>
+            </div></fieldset>
+            <label className="admin-exam-description"><span>คำอธิบายบนการ์ด</span><input value={newExam.description} onChange={(event) => updateNewExam("description", event.target.value)} placeholder="รายละเอียดสั้นๆ ของรายการสอบ" /></label>
+            <label className="admin-exam-open-toggle"><input type="checkbox" checked={newExam.isOpen} onChange={(event) => updateNewExam("isOpen", event.target.checked)} /><span><strong>เปิดรับสมัครทันที</strong><small>รายการที่เปิดรับจะแสดงปุ่มสมัครบนหน้าแรก</small></span></label>
+            <div className="admin-exam-form-logo"><span className="admin-exam-field-label">โลโก้ประจำรายการ</span><div className="admin-exam-logo-control"><ExamLogo exam={{ ...newExam, logoDataUrl: newExamLogo }} iconSize={19} /><label className="admin-exam-logo-button"><Icon name="upload" size={15} />{newExamLogo ? "เปลี่ยนรูปโลโก้" : "เลือกรูปโลโก้"}<input type="file" accept="image/png,image/jpeg,image/webp" aria-label="เลือกรูปโลโก้รายการสอบใหม่" onChange={(event) => { readLogoFile(event.target.files?.[0], setNewExamLogo); event.target.value = ""; }} /></label><small>PNG, JPG หรือ WEBP · ไม่เกิน 5 MB</small>{newExamLogo ? <button type="button" className="admin-exam-remove-logo" onClick={() => setNewExamLogo("")}>เอารูปออก</button> : null}</div></div>
+          </div>
+          {newExamError ? <p className="admin-exam-error" role="alert"><Icon name="info" size={14} />{newExamError}</p> : null}
+          <div className="admin-exam-form-footer"><span><Icon name="info" size={14} />เลือก {newExam.roundTypes.length || 0} รอบ · ระบบสร้างเป็นการ์ดแยกกัน โลโก้และข้อมูลอยู่ใน prototype นี้</span><div><Button type="button" variant="outline" onClick={() => { setShowNewExamForm(false); setNewExamError(""); }}>ยกเลิก</Button><Button type="submit" icon="check">เพิ่ม {newExam.roundTypes.length || "รายการ"} การ์ด</Button></div></div>
+        </form> : null}
+        <div className="admin-round-catalog-toolbar"><div><strong>{visibleExams.length} การ์ดรายการสอบ</strong><span>· {visibleExams.filter((exam) => exam.isOpen).length} รอบกำลังเปิดรับ</span></div><label>ปีการศึกษา<select value={yearFilter} onChange={(event) => setYearFilter(event.target.value)}><option value="all">ทุกปี</option>{catalogYears.map((year) => <option key={year} value={year}>{year}</option>)}</select></label></div>
+        <div className="admin-round-groups">{examGroups.map((group) => <section className="admin-round-group" key={group.id}>
+          <div className="admin-round-group-heading"><span className="admin-round-group-mark"><Icon name="award" size={17} /></span><div><strong>{group.title}</strong><small>ปีการศึกษา {group.year}</small></div><span className="admin-round-group-count">{group.rounds.length} รอบ</span></div>
+          <div className={`admin-round-carousel ${group.rounds.length > 2 ? "admin-round-carousel-has-controls" : ""}`}>
+          <div className={`admin-round-card-grid ${group.rounds.length > 2 ? "admin-round-card-grid-with-controls" : ""}`} ref={(node) => { roundCarouselRefs.current[group.id] = node; }} onScroll={(event) => { const viewport = event.currentTarget; const card = viewport.querySelector(".admin-round-card"); if (card) { const styles = window.getComputedStyle(viewport); const gap = Number.parseFloat(styles.columnGap || styles.gap) || 8; roundCarouselPositions.current[group.id] = Math.round(viewport.scrollLeft / (card.getBoundingClientRect().width + gap)); } }}>{group.rounds.map((exam) => {
+          const prices = exam.prices || (getExamRoundType(exam) === "HEAT" ? { paperBased: 755, onlineExam: 655 } : { paperBased: 1550, onlineExam: 1350 });
+          return <article className={`admin-round-card ${exam.isOpen ? "admin-round-card-open" : ""}`} key={exam.id}>
+            <div className="admin-round-card-head"><ExamLogo exam={exam} className={`exam-type-mark exam-card-${exam.accent}`} iconSize={18} /><div><small>{exam.round || EXAM_ROUND_LABELS[getExamRoundType(exam)]} · ปี {exam.year}</small><div className="admin-round-card-title-row"><h3>{exam.title}</h3><span className={exam.isOpen ? "schedule-open" : "closed-badge"}>{exam.isOpen ? "เปิดรับ" : "ยังไม่เปิด"}</span></div></div></div>
+            <div className="admin-round-price-summary"><span><small>Paper-Based</small><strong>฿{Number(prices.paperBased || 0).toLocaleString()}</strong></span><span><small>Online Exam</small><strong>฿{Number(prices.onlineExam || 0).toLocaleString()}</strong></span></div>
+            <div className="admin-round-card-foot"><span>{exam.isOpen ? `ปิดรับ ${formatThaiDate(exam.closeDate)}` : `สอบ ${formatThaiDate(exam.examDate)}`}</span><div className="admin-round-card-actions"><Button variant={exam.isOpen ? "outline" : "primary"} icon={exam.isOpen ? "close" : "check"} onClick={() => { onUpdateExam(exam.id, { isOpen: !exam.isOpen }); notify(exam.isOpen ? `ปิดรับ ${exam.title} ${exam.round} แล้ว` : `เปิดรับ ${exam.title} ${exam.round} แล้ว · หน้าแรกอัปเดตแล้ว`); }}>{exam.isOpen ? "ปิดรับ" : "เปิดรับ"}</Button><Button variant="outline" className="admin-round-delete" icon="trash" ariaLabel={`ลบ ${exam.title} ${exam.round || ""} ปี ${exam.year}`} title="ลบการ์ดรายการสอบนี้" onClick={() => { onRemoveExam(exam.id); notify(`ลบการ์ด ${exam.title} ${exam.round} ปี ${exam.year} จากข้อมูลตัวอย่างแล้ว`); }}>ลบ</Button></div></div>
+            {getExamRoundType(exam) === "FINAL" ? <label className="admin-final-confirm-inline"><span>ปิดยืนยันสิทธิ์</span><input type="date" aria-label={`วันปิดยืนยันสิทธิ์ ${exam.title} ${exam.year}`} value={exam.finalConfirmCloseDate || ""} onChange={(event) => onUpdateExam(exam.id, { finalConfirmCloseDate: event.target.value })} /></label> : null}
+            <details className="admin-round-card-details"><summary><Icon name="settings" size={14} />แก้วันสอบ ราคา และโลโก้</summary>
+              <div className="admin-round-fields">
+                <label><span>เริ่มรับสมัคร</span><input type="date" value={exam.openDate || ""} onChange={(event) => onUpdateExam(exam.id, { openDate: event.target.value })} /></label>
+                <label><span>ปิดรับสมัคร</span><input type="date" value={exam.closeDate || ""} onChange={(event) => onUpdateExam(exam.id, { closeDate: event.target.value, closes: formatThaiDate(event.target.value) })} /></label>
+                <label><span>วันสอบ</span><input type="date" value={exam.examDate || ""} onChange={(event) => onUpdateExam(exam.id, { examDate: event.target.value })} /></label>
+                <label><span>ปิดแก้ไขข้อมูล</span><input type="date" value={exam.editCloseDate || ""} onChange={(event) => onUpdateExam(exam.id, { editCloseDate: event.target.value })} /></label>
+              </div>
+              <div className="admin-round-price-edit"><label><span>Paper-Based</span><div><input type="number" min="0" value={prices.paperBased ?? 0} onChange={(event) => onUpdateExam(exam.id, { prices: { ...prices, paperBased: Math.max(0, Number(event.target.value) || 0) } })} /><b>บาท</b></div></label><label><span>Online Exam</span><div><input type="number" min="0" value={prices.onlineExam ?? 0} onChange={(event) => onUpdateExam(exam.id, { prices: { ...prices, onlineExam: Math.max(0, Number(event.target.value) || 0) } })} /><b>บาท</b></div></label></div>
+              <div className="admin-round-logo-row"><span>โลโก้รายการ</span><label className="admin-exam-logo-button"><Icon name="upload" size={14} />{exam.logoDataUrl ? "เปลี่ยนรูป" : "อัปโหลดรูป"}<input type="file" accept="image/png,image/jpeg,image/webp" aria-label={`อัปโหลดโลโก้ ${exam.title} ${exam.round}`} onChange={(event) => { readLogoFile(event.target.files?.[0], (logoDataUrl) => onUpdateExam(exam.id, { logoDataUrl })); event.target.value = ""; }} /></label><small>PNG · JPG · WEBP ไม่เกิน 5 MB</small></div>
+            </details>
+          </article>;
+          })}</div>
+          {group.rounds.length > 2 ? <div className="admin-round-carousel-controls" aria-label={`เลื่อนรอบสอบ ${group.title}`}><Button type="button" variant="outline" icon="arrow" ariaLabel={`เลื่อนรอบสอบ ${group.title} ไปทางขวา`} onClick={() => scrollRoundCarousel(group.id, group.rounds.length)} /></div> : null}
+          </div>
+        </section>)}{!visibleExams.length ? <div className="empty-inline"><Icon name="calendar" /><span>ยังไม่มีรายการสอบในปีการศึกษานี้</span></div> : null}</div>
+        <div className="form-footer admin-round-save"><span><Icon name="info" size={15} />กำหนดการ ราคา และสถานะเป็นข้อมูลตัวอย่างในหน้าทดลองนี้</span><Button variant="outline" onClick={() => notify("บันทึกกำหนดการและราคาตัวอย่างแล้ว")}>บันทึกกำหนดการ</Button></div>
       </section>
       <div className="round-admin-grid admin-round-operations">
         <section className="surface centers-card">
@@ -1995,58 +2814,108 @@ function AdminRoundPage({ examCatalog, onUpdateExam, centerLocked, registrationO
             <label htmlFor="center-file" className={centerLocked ? "file-drop file-disabled" : "file-drop"}><span className="file-drop-icon"><Icon name="upload" /></span><strong>{centerFile || "เลือกไฟล์ศูนย์สอบ"}</strong><small>Excel/CSV · มีรหัสศูนย์สอบและชื่อ · อัปโหลดทับชุดปัจจุบันได้ก่อนเปิดรับ</small></label>
             {centerFile ? <p className="upload-file-selected"><Icon name="check" size={14} />{centerFile} · ตัวอย่างไฟล์พร้อมนำเข้า</p> : null}
           </div>
-          <div className="centers-table"><div className="center-row center-row-head"><span>รหัส</span><span>ชื่อศูนย์สอบ</span><span>ผู้สมัคร</span></div>{centers.map((center) => <div className="center-row" key={center.code}><strong>{center.code}</strong><span>{center.name}</span><span className="center-status">{center.applicants}</span></div>)}</div>
+          <div className="centers-table"><div className="center-row center-row-head"><span>รหัส</span><span>ชื่อศูนย์สอบ</span><span>ผู้สมัคร</span></div>{centerCatalog.map((center, index) => <div className="center-row center-row-editable" key={center.code}><input aria-label={`รหัสศูนย์สอบ ${center.name}`} value={center.code} disabled={centerLocked} onChange={(event) => updateCenter(index, "code", event.target.value)} /><input aria-label={`ชื่อศูนย์สอบ ${center.code}`} value={center.name} disabled={centerLocked} onChange={(event) => updateCenter(index, "name", event.target.value)} /><span className="center-status">{center.applicants}</span></div>)}</div>
+          <div className="admin-add-center"><input aria-label="รหัสศูนย์สอบใหม่" placeholder="รหัสใหม่" value={newCenterCode} disabled={centerLocked} onChange={(event) => setNewCenterCode(event.target.value)} /><input aria-label="ชื่อศูนย์สอบใหม่" placeholder="ชื่อศูนย์สอบใหม่" value={newCenterName} disabled={centerLocked} onChange={(event) => setNewCenterName(event.target.value)} /><Button variant="outline" disabled={centerLocked || !newCenterCode.trim() || !newCenterName.trim()} onClick={addCenter}>เพิ่มศูนย์</Button></div>
+          <div className="admin-fee-foot"><span>รายการศูนย์ที่แก้ไขได้จะปรากฏในฟอร์มหลังบ้าน · ข้อมูลจำนวนผู้สมัครเป็นตัวอย่าง</span><Button variant="outline" disabled={centerLocked} onClick={() => notify("บันทึกศูนย์สอบตัวอย่างแล้ว")}>บันทึกศูนย์สอบ</Button></div>
         </section>
         <section className="surface round-config-card">
           <div className="section-heading"><div><p className="eyebrow">การดำเนินงานหลังสมัคร</p><h2>เวลาปิดและเลขประจำตัว</h2></div></div>
-          <div className="admin-inline-setting"><div><strong>เปิดให้แก้ข้อมูลใบสมัคร</strong><small>หลังอนุมัติ แก้ได้เฉพาะข้อมูลทั่วไปจนถึงวันปิดแก้ไข</small></div><label className="toggle-control"><span>{editWindowOpen ? "เปิด" : "ปิด"}</span><input type="checkbox" checked={editWindowOpen} onChange={(event) => setEditWindowOpen(event.target.checked)} /><i /></label></div>
-          <Field label="ปิดยืนยันสิทธิ์สมัคร Final"><input type="date" value={finalCloseDate} onChange={(event) => setFinalCloseDate(event.target.value)} /></Field>
+          <div className="admin-auto-rule"><span className="admin-auto-rule-icon"><Icon name="edit" size={17} /></span><div><strong>สิทธิ์แก้ไขใบสมัครทำงานอัตโนมัติ</strong><small>เปิดหลังอนุมัติใบสมัคร และปิดตามวันปิดแก้ไขที่ตั้งไว้ในการ์ดของแต่ละรอบ</small></div><span className="auto-rule-badge">อัตโนมัติ</span></div>
+          <div className="admin-auto-rule"><span className="admin-auto-rule-icon"><Icon name="award" size={17} /></span><div><strong>ยืนยันสิทธิ์ Final</strong><small>{hasPublishedHeatResults ? "ประกาศผล Heat แล้ว · เปิดให้ผู้ผ่านยืนยันสิทธิ์โดยอัตโนมัติ" : "ระบบจะเปิดให้ผู้ผ่านยืนยันสิทธิ์ทันทีหลังประกาศผล Heat"}</small></div><span className={hasPublishedHeatResults ? "schedule-open" : "draft-badge"}>{hasPublishedHeatResults ? "เปิดแล้ว" : "รอประกาศผล"}</span></div>
           <div className="admin-heat-id-summary"><span className="heat-id-icon"><Icon name="hash" /></span><div><strong>สร้างเลขประจำตัว Heat</strong><small>สร้างหลังปิดรอบปี 2569 · ทุกใบสมัคร แม้ยังรอตรวจ · เรียงศูนย์สอบ ระดับชั้น และชื่อ A–Z</small></div></div>
           <Button className="button-full" variant={heatIdsGenerated ? "success" : "outline"} disabled={!canGenerateHeatIds} icon={heatIdsGenerated ? "check" : "settings"} onClick={onGenerateHeatIds}>{heatIdsGenerated ? "สร้างเลข Heat แล้ว" : canGenerateHeatIds ? "สร้างเลข Heat" : "ปิดรอบปี 2569 ก่อนสร้างเลข"}</Button>
         </section>
       </div>
+      <section className="surface admin-papers-catalog">
+        <div className="section-heading"><div><p className="eyebrow">ข้อมูลตัวเลือกในฟอร์ม</p><h2>ข้อสอบเก่าและราคา</h2></div><span className="admin-data-note"><Icon name="book" size={14} />{pastPaperCatalog.length} รายการ</span></div>
+        <div className="admin-paper-table-wrap"><table className="admin-paper-table"><thead><tr><th>กลุ่ม / รายการ</th><th>ราคา</th><th>สถานะ</th><th>จัดการ</th></tr></thead><tbody>{pastPaperCatalog.length ? pastPaperCatalog.map((paper) => <tr key={paper.id}><td><small>{paper.group}</small><strong>{paper.name}</strong></td><td><label className="admin-paper-price"><span>฿</span><input aria-label={`ราคาของ ${paper.name}`} type="number" min="0" value={paper.price} onChange={(event) => setPastPaperCatalog((current) => current.map((item) => item.id === paper.id ? { ...item, price: Math.max(0, Number(event.target.value) || 0) } : item))} /></label></td><td><span className={paper.active ? "schedule-open" : "closed-badge"}>{paper.active ? "เปิดขาย" : "ปิดขาย"}</span></td><td><div className="admin-paper-actions"><Button variant="text" onClick={() => setPastPaperCatalog((current) => current.map((item) => item.id === paper.id ? { ...item, active: !item.active } : item))}>{paper.active ? "ปิดรายการ" : "เปิดรายการ"}</Button><button type="button" className="admin-paper-delete" aria-label={`ลบข้อสอบเก่า ${paper.title || paper.name}`} title={`ลบข้อสอบเก่า ${paper.title || paper.name}`} onClick={() => removePastPaper(paper)}><Icon name="close" size={15} /></button></div></td></tr>) : <tr><td className="admin-paper-empty" colSpan="4">ยังไม่มีรายการข้อสอบเก่า · เพิ่มรายการใหม่ได้ด้านล่าง</td></tr>}</tbody></table></div>
+        <div className="admin-add-paper"><select aria-label="กลุ่มข้อสอบเก่า" value={newPaperGroup} onChange={(event) => setNewPaperGroup(event.target.value)}>{paperGroupOptions.map((group) => <option key={group}>{group}</option>)}</select><input aria-label="ชื่อรายการข้อสอบเก่าใหม่" placeholder="ชื่อข้อสอบเก่าใหม่" value={newPaperName} onChange={(event) => setNewPaperName(event.target.value)} /><label><span>ราคา</span><input type="number" min="0" value={newPaperPrice} onChange={(event) => setNewPaperPrice(event.target.value)} /></label><Button variant="outline" disabled={!newPaperName.trim()} onClick={addPastPaper}>เพิ่มข้อสอบเก่า</Button></div>
+        <div className="admin-fee-foot"><span>รายการ ราคา และสถานะในส่วนนี้เป็นตัวอย่างสำหรับต้นแบบ</span><Button variant="outline" onClick={() => notify("บันทึกรายการข้อสอบเก่าตัวอย่างแล้ว")}>บันทึกรายการ</Button></div>
+      </section>
     </div>
   );
 }
 
-function AdminResultsPage({ applications, resultPublished, setResultPublished, draftImported, setDraftImported, conflictResolved, setConflictResolved, notify }) {
-  const [fileName, setFileName] = useState("");
-  const heatApplications = applications.filter((item) => item.kind === "Heat");
-  const candidatesWithIds = heatApplications.filter((item) => item.heatId);
-  const passApplications = heatApplications.filter((item) => item.result === "pass");
-  const notPassedCount = heatApplications.filter((item) => item.result === "not-passed").length;
+function AdminResultsPage({ applications, examCatalog, resultWorkflows, onImportDraft, onResolveConflict, onPublishResult, notify, navigate }) {
+  const [conflictsOpen, setConflictsOpen] = useState(false);
+  const years = [...new Set(examCatalog.map((exam) => exam.year).filter(Boolean))].sort((left, right) => Number(right) - Number(left));
+  const [selectedYear, setSelectedYear] = useState(years.includes("2569") ? "2569" : years[0] || "");
+  const yearExams = examCatalog.filter((exam) => exam.year === selectedYear);
+  const competitions = [...new Map(yearExams.map((exam) => [exam.competitionId, exam.title])).entries()];
+  const [selectedCompetitionId, setSelectedCompetitionId] = useState(() => yearExams.find((exam) => exam.competitionId === "bbb")?.competitionId || yearExams[0]?.competitionId || "");
+  const competitionExams = yearExams.filter((exam) => exam.competitionId === selectedCompetitionId);
+  const [selectedRoundType, setSelectedRoundType] = useState(() => competitionExams.find((exam) => getExamRoundType(exam) === "HEAT") ? "HEAT" : getExamRoundType(competitionExams[0] || {}));
+  const selectedTarget = competitionExams.find((exam) => getExamRoundType(exam) === selectedRoundType) || competitionExams[0];
+  const workflow = selectedTarget ? resultWorkflows[selectedTarget.id] || {} : {};
+  const targetApplications = selectedTarget ? getApplicationsForResultTarget(applications, selectedTarget) : [];
+  const rows = workflow.rows || [];
+  const finalEligibleRows = rows.filter((row) => isFinalEligibleAward(row.award));
+  const issueRows = rows.filter((row) => row.matchStatus !== "matched");
+  const hasConflict = issueRows.length > 0;
+  const conflictCount = issueRows.length;
+  const conflictApplication = applications.find((item) => item.id === issueRows[0]?.issueApplicationId) || targetApplications[0];
+  const awardBreakdown = RESULT_AWARDS.map((award) => ({ award, count: rows.filter((row) => row.award === award).length }));
+  const matchedRows = rows.filter((row) => row.matchStatus === "matched");
+  const resultNumberLabel = selectedRoundType === "HEAT" ? "เลขประจำตัว Heat" : "เลขประจำตัว Final";
+  const isPublished = Boolean(workflow.published);
+
+  useEffect(() => {
+    if (!conflictsOpen) return undefined;
+    const closeOnEscape = (event) => { if (event.key === "Escape") setConflictsOpen(false); };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [conflictsOpen]);
+
   return (
     <div className="page-stack">
-      <PageHeading eyebrow="ผลการสอบ · ข้อมูล mock" title="ตรวจสอบและประกาศผล Heat" description="จับคู่ผลสอบด้วยเลข Heat ตรวจแถวที่มีปัญหา และดูตัวอย่างก่อนประกาศผล" action={<span className={resultPublished ? "schedule-open" : "draft-badge"}>{resultPublished ? "ประกาศแล้ว · ล็อกข้อมูล" : draftImported ? "ฉบับร่าง" : "ยังไม่ได้นำเข้า"}</span>} />
-      {resultPublished ? (
-        <div className="notice notice-green"><Icon name="check" /><div><strong>ประกาศผลเรียบร้อยแล้ว</strong><p>รายชื่อผู้ผ่านแสดงในหน้าประกาศผลสาธารณะ ผลสอบที่ประกาศแล้วไม่สามารถแก้ไขได้</p></div></div>
-      ) : null}
-      <div className="results-admin-grid">
-        <section className="surface import-card">
-          <div className="section-heading"><div><p className="eyebrow">ไฟล์ผลสอบ</p><h2>นำเข้าผลสอบฉบับร่าง</h2></div><span className="draft-badge">{draftImported ? "ฉบับร่าง" : "รอไฟล์"}</span></div>
-          <label className={`file-drop file-drop-inline ${resultPublished ? "file-disabled" : ""}`}><input type="file" accept=".xlsx,.xls,.csv" disabled={resultPublished} onChange={(event) => { const file = event.target.files?.[0]; if (file) { setFileName(file.name); setDraftImported(true); setConflictResolved(false); notify(`อ่านไฟล์ ${file.name} ในโหมดตัวอย่างแล้ว`); } }} /><span className="file-drop-icon"><Icon name="upload" /></span><span className="file-drop-copy"><strong>{fileName || (draftImported ? "heat-results-draft.xlsx" : "เลือกไฟล์ Excel ผลสอบ")}</strong><small>จับคู่ด้วยเลขประจำตัว Heat · เปลี่ยนฉบับร่างได้จนกว่าจะประกาศผล</small></span><span className="file-select-label">เลือกไฟล์</span></label>
-          {draftImported ? <div className="import-summary"><span className="summary-icon summary-green"><Icon name="check" /></span><div><strong>เตรียมฉบับร่างสำเร็จ</strong><small>ใบสมัคร Heat ที่มีเลขสอบ {candidatesWithIds.length} รายการ</small></div><span className="summary-pill">ผ่าน {passApplications.length} ราย</span></div> : null}
-          <div className="results-count-strip"><span><strong>{heatApplications.length}</strong> ผู้เข้าสอบ Heat</span><span><strong>{passApplications.length}</strong> ผ่าน</span><span><strong>{notPassedCount}</strong> ไม่ผ่าน</span><span><strong>{draftImported && !conflictResolved ? 1 : 0}</strong> รายการต้องตรวจ</span></div>
-          <div className="result-preview-heading"><div><strong>ตัวอย่างรายชื่อผู้ผ่าน</strong><small>ตรวจชื่อ โรงเรียน และเลขสอบก่อนประกาศ</small></div><span>{passApplications.length} ราย</span></div>
-          {passApplications.slice(0, 5).map((item) => <div className="mini-result-row" key={item.id}><span className="mono-number">{item.heatId || "รอเลข"}</span><strong>{item.candidate}</strong><span>{item.school}</span><span className="pass-label">ผ่าน</span></div>)}
-          {!passApplications.length ? <div className="empty-inline"><Icon name="info" /><span>ยังไม่มีรายชื่อผู้ผ่านในข้อมูลตัวอย่าง</span></div> : null}
-        </section>
-        <section className="surface conflicts-card">
-          <div className="section-heading"><div><p className="eyebrow">ตรวจสอบข้อมูล</p><h2>รายการที่ต้องตรวจ</h2></div><span className="conflict-count">{draftImported && !conflictResolved ? "1" : "0"} รายการ</span></div>
-          {!draftImported ? <div className="empty-inline"><Icon name="info" /><span>เลือกไฟล์ผลสอบเพื่อดูตัวอย่างและตรวจรายการที่จับคู่ไม่สำเร็จ</span></div> : conflictResolved ? (
-            <div className="resolved-state"><span><Icon name="check" /></span><div><strong>แก้ไขรายการขัดแย้งแล้ว</strong><p>ข้อมูลผลสอบพร้อมสำหรับตรวจครั้งสุดท้าย</p></div></div>
-          ) : (
-            <div className="conflict-item"><div className="conflict-label"><span className="conflict-icon"><Icon name="info" /></span><div><strong>ไม่พบเลขประจำตัวสอบในใบสมัคร</strong><small>แถว 128 · เลขที่พบ 2080999</small></div></div><p>ตรวจสอบว่าเลขผิดในใบสมัครหรือไฟล์ผลสอบ หากข้อมูลใบสมัครผิดให้แก้ในเว็บ หากไฟล์ผิดให้นำไฟล์ Excel ฉบับแก้ไขเข้าซ้ำ</p><div className="conflict-actions"><Button variant="outline" icon="edit" onClick={() => { setConflictResolved(true); notify("ทำเครื่องหมายว่าแก้ข้อมูลใบสมัครแล้ว"); }}>แก้ข้อมูลใบสมัคร</Button><Button variant="text" icon="upload" onClick={() => { setDraftImported(true); setConflictResolved(true); notify("นำเข้าผลสอบฉบับแก้ไขแล้ว"); }}>นำไฟล์ Excel เข้าซ้ำ</Button></div></div>
-          )}
-          <div className="publish-box"><div><strong>ยืนยันประกาศผล</strong><small>เมื่อประกาศแล้ว หน้าแรกจะแสดงผลให้ผู้สมัครค้นหาได้</small></div><Button icon="check" disabled={!draftImported || !conflictResolved || resultPublished} onClick={() => { setResultPublished(true); notify("ประกาศผล Heat ในตัวอย่างแล้ว · ผลสอบถูกล็อก"); }}>ประกาศผล</Button></div>
-        </section>
-      </div>
-      <div className="notice notice-amber results-mock-note"><Icon name="info" /><div><strong>โหมด mock</strong><p>เลือกไฟล์เพื่อจำลองสถานะนำเข้าเท่านั้น ยังไม่มีการอ่านข้อมูลหรือบันทึกไฟล์ผลสอบจริง</p></div></div>
+      <PageHeading eyebrow="ผลการสอบ · ข้อมูล mock" title="นำเข้าและประกาศผลสอบ" description="เลือกสนามสอบและรอบก่อนนำเข้าผล ตรวจข้อมูลและรายการจับคู่ผิดปกติ แล้วจึงประกาศผล" action={<span className={isPublished ? "schedule-open" : workflow.draftImported ? "draft-badge" : "closed-badge"}>{isPublished ? "ประกาศแล้ว · ล็อกข้อมูล" : workflow.draftImported ? "ฉบับร่าง" : "รอเลือกไฟล์"}</span>} />
+      <section className="surface results-target-toolbar results-admin-target-toolbar">
+        <label><span>ปีการศึกษา</span><select value={selectedYear} onChange={(event) => { const nextYear = event.target.value; const nextExam = examCatalog.find((exam) => exam.year === nextYear); setSelectedYear(nextYear); if (nextExam) { setSelectedCompetitionId(nextExam.competitionId); setSelectedRoundType(getExamRoundType(nextExam)); } }}>{years.map((year) => <option key={year} value={year}>{year}</option>)}</select></label>
+        <label><span>รายการสอบ</span><select value={selectedCompetitionId} onChange={(event) => { const nextCompetition = examCatalog.find((exam) => exam.year === selectedYear && exam.competitionId === event.target.value); setSelectedCompetitionId(event.target.value); if (nextCompetition) setSelectedRoundType(getExamRoundType(nextCompetition)); }}>{competitions.map(([id, title]) => <option key={id} value={id}>{title}</option>)}</select></label>
+        <label><span>รอบสอบ</span><select value={selectedTarget ? getExamRoundType(selectedTarget) : selectedRoundType} onChange={(event) => setSelectedRoundType(event.target.value)}>{competitionExams.map((exam) => <option key={exam.id} value={getExamRoundType(exam)}>{EXAM_ROUND_LABELS[getExamRoundType(exam)] || exam.round}</option>)}</select></label>
+        {selectedTarget ? <span className={isPublished ? "schedule-open" : "draft-badge"}>{isPublished ? "ประกาศผลแล้ว" : workflow.draftImported ? "มีฉบับร่าง" : "ยังไม่ได้นำเข้า"}</span> : null}
+      </section>
+      {!selectedTarget ? <section className="surface empty-inline"><Icon name="info" /><span>ไม่พบรอบสอบสำหรับรายการที่เลือก กรุณาตรวจสอบรายการสอบในเมนูรอบสอบ</span></section> : <>
+        {isPublished ? <div className="notice notice-green"><Icon name="check" /><div><strong>ประกาศผล {resultTargetLabel(selectedTarget)} แล้ว</strong><p>ผลสอบแสดงในหน้าประกาศผลสาธารณะ และล็อกไม่ให้แก้ไข</p></div></div> : null}
+        <div className="results-admin-grid">
+          <section className="surface import-card">
+            <div className="section-heading"><div><p className="eyebrow">{resultTargetLabel(selectedTarget)}</p><h2>นำเข้าผลสอบฉบับร่าง</h2></div><span className={isPublished ? "schedule-open" : "draft-badge"}>{isPublished ? "ประกาศแล้ว" : workflow.draftImported ? "ฉบับร่าง" : "รอไฟล์"}</span></div>
+            <label className={`file-drop file-drop-inline ${isPublished ? "file-disabled" : ""}`}><input type="file" accept=".xlsx,.xls,.csv" disabled={isPublished} onChange={(event) => { const file = event.target.files?.[0]; if (file) onImportDraft(selectedTarget, file.name); event.target.value = ""; }} /><span className="file-drop-icon"><Icon name="upload" /></span><span className="file-drop-copy"><strong>{workflow.fileName || (workflow.draftImported ? `${selectedTarget.competitionId}-${selectedRoundType.toLowerCase()}-results-draft.xlsx` : "เลือกไฟล์ Excel ผลสอบ")}</strong><small>คอลัมน์ CANDIDATE NO, GRADE, SCHOOL NAME, CANDIDATE NAME และ AWARD · เลือกไฟล์ใหม่เพื่อแทนฉบับร่างได้ก่อนประกาศ</small></span><span className="file-select-label">{workflow.draftImported && !isPublished ? "เปลี่ยนไฟล์" : "เลือกไฟล์"}</span></label>
+            <div className="results-import-actions"><span>หรือทดลองขั้นตอนด้วยข้อมูลตัวอย่าง</span><Button variant="outline" icon="grid" disabled={isPublished} onClick={() => onImportDraft(selectedTarget, "ข้อมูลตัวอย่างผลสอบ.xlsx")}>ใช้ข้อมูลตัวอย่าง</Button></div>
+            {workflow.draftImported ? <div className="import-summary"><span className="summary-icon summary-green"><Icon name="check" /></span><div><strong>{isPublished ? "ประกาศผลแล้ว · ล็อกข้อมูล" : "เตรียมฉบับร่างสำเร็จ"}</strong><small>แสดงรายชื่อผู้เข้าสอบครบ {rows.length} รายการ</small></div><span className="summary-pill">มีสิทธิ์ Final {finalEligibleRows.length} ราย</span></div> : null}
+            <div className="results-count-strip"><span><strong>{rows.length}</strong> ผู้เข้าสอบ</span><span><strong>{finalEligibleRows.length}</strong> มีสิทธิ์ไป Final</span><span><strong>{matchedRows.length}</strong> จับคู่ได้</span><button type="button" className={`results-count-review ${hasConflict ? "has-conflicts" : "all-clear"}`} disabled={!workflow.draftImported} aria-label={`${conflictCount} รายการที่ต้องตรวจ · กดเพื่อเปิดรายการ`} title="กดเพื่อเปิดรายการที่ต้องตรวจ" aria-haspopup="dialog" aria-expanded={conflictsOpen} onClick={() => setConflictsOpen(true)}><strong>{conflictCount}</strong><span className="results-review-action">รายการที่ต้องตรวจ</span><span className="results-review-indicator" aria-hidden="true"><Icon name="cursor" size={18} /></span></button></div>
+            <div className="results-award-breakdown" aria-label="จำนวนผู้เข้าสอบตามรางวัล">{awardBreakdown.map(({ award, count }) => <div className={`results-award-count award-count-${award.toLowerCase().replaceAll(" ", "-")}`} key={award}><span>{award}</span><strong>{count}</strong></div>)}</div>
+            <div className="result-preview-heading"><div><strong>รายชื่อผู้เข้าสอบทั้งหมด</strong><small>ตรวจ Candidate No, ระดับชั้น โรงเรียน ชื่อ และรางวัลก่อนประกาศ</small></div><span>{rows.length} ราย</span></div>
+            {rows.length ? <div className="responsive-table admin-results-table-wrap"><table className="admin-results-table"><thead><tr><th>CANDIDATE NO</th><th>GRADE</th><th>SCHOOL NAME</th><th>CANDIDATE NAME</th><th>AWARD</th><th>จับคู่</th></tr></thead><tbody>{rows.map((row, index) => <tr className={row.matchStatus !== "matched" ? "admin-result-row-unmatched" : ""} key={`${row.applicationId}-${index}`}><td data-label="CANDIDATE NO"><strong className="mono-number">{row.candidateNo || row.examNumber}</strong></td><td data-label="GRADE">{row.grade}</td><td data-label="SCHOOL NAME">{row.schoolName || row.school}</td><td data-label="CANDIDATE NAME">{row.candidateName || row.candidate}</td><td data-label="AWARD"><span className={`award-badge award-${String(row.award || "").toLowerCase().replaceAll(" ", "-")}`}>{row.award}</span></td><td data-label="จับคู่">{row.matchStatus === "school-mismatch" ? <span className="match-status match-wait"><Icon name="info" size={13} />ชื่อโรงเรียนไม่ตรง</span> : row.matchStatus === "unmatched" ? <span className="match-status match-wait"><Icon name="info" size={13} />ไม่พบเลขสอบ</span> : <span className="match-status match-ok"><Icon name="check" size={13} />จับคู่แล้ว</span>}</td></tr>)}</tbody></table></div> : <div className="empty-inline"><Icon name="info" /><span>เลือกไฟล์เพื่อสร้างตัวอย่างผลสอบของรายการนี้</span></div>}
+            <div className="publish-box"><div><strong>{isPublished ? "ประกาศผลแล้ว" : "ยืนยันประกาศผล"}</strong><small>{isPublished ? "ประกาศผลแล้วและล็อกข้อมูล" : hasConflict ? `ยังประกาศไม่ได้ · แก้รายการที่ต้องตรวจให้ครบก่อน (${conflictCount} รายการ)` : selectedRoundType === "HEAT" ? "เมื่อประกาศ Heat ระบบจะเปิดยืนยันสิทธิ์ Final ให้อัตโนมัติ" : "เมื่อประกาศแล้วจะแสดงผลสาธารณะและล็อกข้อมูล"}</small></div><Button icon="check" disabled={!workflow.draftImported || hasConflict || isPublished || !rows.length} onClick={() => onPublishResult(selectedTarget)}>{isPublished ? "ผลสอบถูกล็อก" : "ประกาศผล"}</Button></div>
+          </section>
+        </div>
+        {conflictsOpen ? <div className="results-conflict-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setConflictsOpen(false); }}>
+          <section className="results-conflict-dialog" role="dialog" aria-modal="true" aria-labelledby="results-conflict-title">
+            <div className="results-conflict-dialog-head"><div><p className="eyebrow">ตรวจสอบก่อนประกาศผล</p><h2 id="results-conflict-title">รายการที่ต้องตรวจ</h2><small>แก้ไขรายการที่จับคู่ไม่สำเร็จให้ครบก่อนประกาศผล</small></div><span className={hasConflict ? "conflict-count" : "conflict-count conflict-count-clear"}>{conflictCount} รายการ</span><button type="button" className="results-conflict-close" aria-label="ปิดหน้าต่าง" onClick={() => setConflictsOpen(false)}><Icon name="close" size={18} /></button></div>
+            <div className="results-conflict-dialog-body">
+              {!workflow.draftImported ? <div className="empty-inline"><Icon name="info" /><span>เลือกไฟล์ผลสอบของ {resultTargetLabel(selectedTarget)} เพื่อดูรายการที่จับคู่ไม่สำเร็จ</span></div> : !issueRows.length ? <div className="resolved-state"><span><Icon name="check" /></span><div><strong>ไม่พบรายการผิดปกติ</strong><p>ฉบับร่างพร้อมสำหรับตรวจสอบก่อนประกาศผล</p></div></div> : (
+                <div className="conflict-list">{issueRows.map((row, index) => {
+                  const linkedApplication = applications.find((item) => item.id === row.issueApplicationId || item.id === row.applicationId) || conflictApplication;
+                  const schoolMismatch = row.matchStatus === "school-mismatch";
+                  const issueKey = getResultIssueKey(row);
+                  return <article className="conflict-item" key={issueKey}>
+                    <div className="conflict-label"><span className="conflict-icon"><Icon name="info" /></span><div><strong>{schoolMismatch ? "ชื่อโรงเรียนในไฟล์ผลสอบไม่ตรงกับใบสมัคร" : "ไม่พบเลขประจำตัวสอบในใบสมัคร"}</strong><small>แถว {index + 1} · เลขสอบ {row.candidateNo || row.examNumber} · {row.candidateName || row.candidate}</small></div></div>
+                    <p>{resultTargetLabel(selectedTarget)} · {row.grade}{schoolMismatch ? <><br />โรงเรียนในไฟล์ผลสอบ: {row.schoolName || row.school}<br />โรงเรียนในใบสมัคร: {linkedApplication?.school || row.applicationSchoolName || "ไม่พบข้อมูล"}</> : <><br />โรงเรียน: {row.schoolName || row.school}</>}</p>
+                    <div className="conflict-actions">{schoolMismatch ? <><Button variant="outline" icon="check" onClick={() => { onResolveConflict(selectedTarget.id, "application", issueKey); notify("ใช้ชื่อโรงเรียนจากใบสมัครและจับคู่ข้อมูลตัวอย่างแล้ว"); }}>ใช้ชื่อโรงเรียนจากใบสมัคร</Button><Button variant="outline" icon="upload" onClick={() => { onResolveConflict(selectedTarget.id, "file", issueKey); notify("ใช้ชื่อโรงเรียนจากไฟล์ผลสอบ และอัปเดตใบสมัครตัวอย่างแล้ว"); }}>ใช้ข้อมูลจากไฟล์ผลสอบ</Button></> : <><Button variant="outline" icon="edit" onClick={() => { setConflictsOpen(false); linkedApplication ? navigate("admin-review", linkedApplication.id) : notify("ไม่มีใบสมัครตัวอย่างให้เปิด"); }}>เปิดใบสมัครที่เกี่ยวข้อง</Button><Button variant="text" icon="upload" onClick={() => { onResolveConflict(selectedTarget.id, "application", issueKey); notify("จำลองนำไฟล์ Excel เข้าซ้ำสำหรับรายการนี้แล้ว"); }}>จำลองนำไฟล์ Excel เข้าซ้ำ</Button></>}</div>
+                  </article>;
+                })}</div>
+              )}
+            </div>
+          </section>
+        </div> : null}
+      </>}
+      <div className="notice notice-amber results-mock-note"><Icon name="info" /><div><strong>โหมด mock</strong><p>เลือกไฟล์เพื่อจำลองสถานะนำเข้าเท่านั้น ไม่มีการอ่านข้อมูลหรือบันทึกไฟล์ผลสอบจริง</p></div></div>
     </div>
   );
 }
 
-function AdminFinalIdsPage({ applications, finalIdsImported, onImport, onManualMatch, notify }) {
+function AdminFinalIdsPage({ applications, finalIdsImported, onImport, onManualMatch, notify, navigate }) {
   const [fileName, setFileName] = useState("");
   const finalApplications = applications.filter((item) => item.kind === "Final");
   const matchedCount = finalApplications.filter((item) => item.finalId).length;
@@ -2064,7 +2933,7 @@ function AdminFinalIdsPage({ applications, finalIdsImported, onImport, onManualM
         <div className="responsive-table"><table><thead><tr><th>ชื่อภาษาอังกฤษ</th><th>โรงเรียน</th><th>เลขประจำตัว Final</th><th>สถานะจับคู่</th><th>ดำเนินการ</th></tr></thead><tbody>
           {finalApplications.map((item) => {
             const issue = item.id === "final-03" ? "ไม่พบใบสมัคร Heat ที่ผ่าน" : "พบผู้สมัครชื่อเดียวกัน ต้องตรวจยืนยัน";
-            return <tr key={item.id}><td>{item.candidate}</td><td>{item.school}</td><td className="mono-number">{item.finalId || (finalIdsImported ? "รอตรวจจับคู่" : "รอนำเข้าเลขประจำตัว")}</td><td>{item.finalId ? <span className="match-status match-ok"><Icon name="check" size={13} />จับคู่แล้ว</span> : finalIdsImported ? <span className="match-status match-wait"><Icon name="info" size={13} />{issue}</span> : <span className="match-status match-wait"><Icon name="clock" size={13} />รอไฟล์นำเข้า</span>}</td><td>{item.finalId || !finalIdsImported ? <span className="table-dash">—</span> : <Button variant="outline" onClick={() => onManualMatch(item.id)}>จับคู่ด้วยมือ</Button>}</td></tr>;
+            return <tr key={item.id}><td>{item.candidate}</td><td>{item.school}</td><td className="mono-number">{item.finalId || (finalIdsImported ? "รอตรวจจับคู่" : "รอนำเข้าเลขประจำตัว")}</td><td>{item.finalId ? <span className="match-status match-ok"><Icon name="check" size={13} />จับคู่แล้ว</span> : finalIdsImported ? <span className="match-status match-wait"><Icon name="info" size={13} />{issue}</span> : <span className="match-status match-wait"><Icon name="clock" size={13} />รอไฟล์นำเข้า</span>}</td><td><div className="final-id-row-actions"><Button variant="text" icon="file" onClick={() => navigate("admin-review", item.id)}>ดูใบสมัคร</Button>{!item.finalId && finalIdsImported ? <Button variant="outline" onClick={() => onManualMatch(item.id)}>จับคู่ด้วยมือ</Button> : null}</div></td></tr>;
           })}
         </tbody></table></div>
         {!finalApplications.length ? <div className="empty-inline"><Icon name="info" /><span>ยังไม่มีใบสมัคร Final ในข้อมูลตัวอย่าง</span></div> : null}
@@ -2102,31 +2971,54 @@ function RegistrationLoginGate({ kind }) {
   );
 }
 
+function FinalAccessGate({ navigate }) {
+  return <section className="surface registration-login-gate" aria-labelledby="final-access-title"><span className="registration-login-icon"><Icon name="award" size={22} /></span><p className="eyebrow">OCEC Final 2569</p><h1 id="final-access-title">ยืนยันสิทธิ์ก่อนสมัคร Final</h1><p>เริ่มจากตรวจสอบใบสมัคร Heat ที่ผ่านการคัดเลือก แล้วระบบจะนำข้อมูลเดิมมาเติมในฟอร์ม Final ให้</p><Button icon="arrow" onClick={() => navigate("final-confirm")}>ไปหน้ายืนยันสิทธิ์</Button></section>;
+}
+
 function App() {
   const [page, setPage] = useState(() => window.location.hash.slice(1) || "home");
-  const [persona, setPersona] = useState("coordinator");
+  const [persona, setPersona] = useState(() => window.location.hash.slice(1).startsWith("admin-") ? "admin" : "coordinator");
   const [menuOpen, setMenuOpen] = useState(false);
   const [applications, setApplications] = useState(seedApplications);
   const [examCatalog, setExamCatalog] = useState(demoExamCatalog);
+  const [competitionFees, setCompetitionFees] = useState({ heatOnline: 655, heatOnsite: 755, finalOnline: 1350, finalOnsite: 1550 });
+  const [centerCatalog, setCenterCatalog] = useState(DEMO_CENTER_CATALOG);
+  const [pastPaperCatalog, setPastPaperCatalog] = useState(DEMO_PAST_PAPERS);
   const [activeApplicationId, setActiveApplicationId] = useState("heat-01");
   const [toast, setToast] = useState("");
   const [authProfile, setAuthProfile] = useState(null);
-  const [editWindowOpen, setEditWindowOpen] = useState(true);
-  const [finalCloseDate, setFinalCloseDate] = useState("2027-01-15");
+  const [finalAccess, setFinalAccess] = useState(null);
   const [heatIdsGenerated, setHeatIdsGenerated] = useState(false);
-  const [draftImported, setDraftImported] = useState(false);
-  const [conflictResolved, setConflictResolved] = useState(false);
-  const [resultPublished, setResultPublished] = useState(false);
+  const [resultWorkflows, setResultWorkflows] = useState(() => ({ ...DEMO_PUBLISHED_RESULT_WORKFLOWS, ...DEMO_DRAFT_RESULT_WORKFLOWS }));
   const [finalIdsImported, setFinalIdsImported] = useState(false);
   const [syncFailed, setSyncFailed] = useState(false);
+  const publishedResultRows = Object.entries(resultWorkflows).flatMap(([targetId, workflow]) => {
+    if (!workflow.published) return [];
+    const target = examCatalog.find((exam) => exam.id === targetId);
+    if (!target) return [];
+    return (workflow.rows || []).map((row) => ({
+      ...row,
+      targetId,
+      competitionId: target.competitionId,
+      competitionTitle: target.title,
+      roundType: getExamRoundType(target),
+      round: target.round || EXAM_ROUND_LABELS[getExamRoundType(target)],
+      publishedAt: workflow.publishedAt || "",
+      year: target.year,
+    }));
+  });
+  const publishedHeatResults = publishedResultRows.filter((row) => row.roundType === "HEAT");
+  const resultPublished = publishedHeatResults.length > 0;
   const registrationOpen = examCatalog.some((exam) => exam.isOpen);
   const centerLocked = registrationOpen;
   const activeApplication = applications.find((item) => item.id === activeApplicationId) || applications[0];
   const visibleApplications = persona === "coordinator" || persona === "admin"
     ? applications
-    : applications.filter((item) => item.owner === "candidate" || item.candidate === "Nicha Srisawat");
+    : persona === "guest"
+      ? applications.filter((item) => item.owner === "guest")
+      : applications.filter((item) => item.owner === "candidate" || item.candidate === "Nicha Srisawat");
   const pageTitle = pageLabels[page] || pageLabels.home;
-  const requiresRegistrationLogin = !authProfile && (page === "apply-heat" || page === "apply-final");
+  const requiresRegistrationLogin = !authProfile && page === "apply-heat";
 
   useEffect(() => {
     const handleHash = () => setPage(pageLabels[window.location.hash.slice(1)] ? window.location.hash.slice(1) : "home");
@@ -2171,9 +3063,45 @@ function App() {
     setApplications((current) => current.map((item) => item.id === id ? { ...item, ...updates } : item));
   }
 
+  function saveAdminApplication(id, updates) {
+    const current = applications.find((item) => item.id === id);
+    if (!current) return;
+    const next = { ...current, ...updates };
+    const displayCompetitions = (items = []) => items.map((item) => `${item.short || item.name} (${item.grade || "ไม่ระบุชั้น"})`).join(", ") || "ไม่มีรายการ";
+    const fields = [
+      ["ชื่อภาษาอังกฤษ", current.candidate, next.candidate],
+      ["โรงเรียน", current.school, next.school],
+      ["อีเมลติดต่อ", current.contactEmail, next.contactEmail],
+      ["เบอร์โทรศัพท์", getApplicationPhone(current), getApplicationPhone(next)],
+      ["รายการสอบและระดับชั้น", displayCompetitions(current.competitions), displayCompetitions(next.competitions)],
+      ["รูปแบบสอบ", current.format === "On-site" ? "Paper-Based" : current.format, next.format === "On-site" ? "Paper-Based" : next.format],
+      ["ศูนย์สอบ", current.center, next.center],
+      ["ค่าสมัครสอบ", fmtAdminMoney(current.registrationFee), fmtAdminMoney(next.registrationFee)],
+      ["ยอดชำระรวม", fmtAdminMoney(current.totalPayment), fmtAdminMoney(next.totalPayment)],
+    ];
+    const changes = fields.filter(([, oldValue, newValue]) => oldValue !== newValue).map(([label, oldValue, newValue]) => ({ label, oldValue: oldValue || "—", newValue: newValue || "—" }));
+    if (updates.additionalSlipFileName && updates.additionalSlipFileName !== current.additionalSlipFileName) changes.push({ label: "สลิปค่าใช้จ่ายเพิ่มเติม", oldValue: current.additionalSlipFileName || "ไม่มีไฟล์", newValue: updates.additionalSlipFileName });
+    if (!changes.length) { notify("ไม่มีข้อมูลเปลี่ยนแปลง"); return; }
+    const at = new Intl.DateTimeFormat("th-TH", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date());
+    const entry = { id: `audit-${Date.now()}`, editor: "ผู้ดูแลระบบ · Aommy", at, changes };
+    updateApplication(id, { ...updates, phoneLast4: (updates.phone || "").replace(/\D/g, "").slice(-4), changeHistory: [entry, ...(current.changeHistory || [])] });
+    notify("บันทึกการแก้ไขตัวอย่างแล้ว · เพิ่มประวัติผู้แก้ เวลา และค่าก่อน–หลัง");
+    navigate("admin-review", id);
+  }
+
   function updateExam(id, updates) {
     setExamCatalog((current) => current.map((exam) => exam.id === id ? { ...exam, ...updates } : exam));
     if (updates.isOpen) setHeatIdsGenerated(false);
+  }
+
+  function addExam(exam) {
+    setExamCatalog((current) => [...current, exam]);
+    if (exam.isOpen) setHeatIdsGenerated(false);
+  }
+
+  function removeExam(id) {
+    setExamCatalog((current) => current.filter((exam) => exam.id !== id));
+    setHeatIdsGenerated(false);
   }
 
   function submitApplication(values) {
@@ -2182,20 +3110,21 @@ function App() {
     const records = applicants.map((applicant, index) => {
       const id = batchId ? `${batchId}-${index + 1}` : "new-" + Date.now().toString().slice(-5);
       const examListings = applicant.examListings || [];
+      const examYear = applicant.examYear || examListings[0]?.year || "2569";
       const examLabel = applicant.kind === "Final"
-        ? "OCEC Final 2569"
+        ? `OCEC Final ${examYear}`
         : examListings.length
           ? examListings.map((exam) => `${exam.name} · ${applicant.grades?.[exam.id] || ""}`).join(", ")
           : "OCEC Heat รอบที่ 1";
       return {
         id,
         batchId: batchId || undefined,
-        owner: applicant.source === "school" ? "coordinator" : "candidate",
+        owner: applicant.source === "school" ? "coordinator" : applicant.source === "guest" ? "guest" : "candidate",
         source: applicant.source || "self",
         kind: applicant.kind,
         exam: examLabel,
         examIds: examListings.map((exam) => exam.id),
-        year: "2569",
+        year: examYear,
         candidate: applicant.candidate,
         school: applicant.school,
         grade: applicant.grade,
@@ -2216,8 +3145,9 @@ function App() {
         marketingConsent: Boolean(applicant.marketingConsent),
         submitted: "วันนี้",
         status: "pending",
-        heatId: "",
+        heatId: applicant.kind === "Final" ? (applications.find((item) => item.id === applicant.sourceHeatId)?.heatId || "") : "",
         finalId: "",
+        sourceHeatId: applicant.sourceHeatId || "",
         result: "",
         canEdit: false,
         slipIssue: "",
@@ -2226,7 +3156,7 @@ function App() {
     const id = records[0].id;
     setApplications((current) => [...records, ...current]);
     setActiveApplicationId(id);
-    setPersona(values.source === "school" ? "coordinator" : "candidate");
+    setPersona(values.source === "school" ? "coordinator" : values.source === "guest" ? "guest" : "candidate");
     notify(records.length > 1 ? `ส่งใบสมัคร ${records.length} คนสำเร็จ ระบบส่งอีเมลสรุปแยกไปยังผู้เข้าสอบแต่ละคน` : "ส่งใบสมัครสำเร็จ ระบบส่งอีเมลสรุปไปยัง " + applicants[0].contactEmail);
     navigate("application-detail", id);
   }
@@ -2239,7 +3169,7 @@ function App() {
 
   function approveApplication(id) {
     const item = applications.find((entry) => entry.id === id);
-    updateApplication(id, { status: "confirmed" });
+    updateApplication(id, { status: "confirmed", canEdit: true });
     notify("อนุมัติใบสมัครแล้ว อีเมลแจ้งผลส่งไปยัง " + (item?.contactEmail || "อีเมลผู้เข้าสอบ"));
   }
 
@@ -2291,16 +3221,86 @@ function App() {
     notify(`จับคู่เลข Final ให้ ${target?.candidate || "ผู้เข้าสอบ"} แล้ว`);
   }
 
+  function importResultDraft(target, fileName) {
+    const rows = makeMockResultRows(applications, target);
+    const hasConflict = rows.some((row) => row.matchStatus !== "matched");
+    setResultWorkflows((current) => ({
+      ...current,
+      [target.id]: { ...current[target.id], fileName, rows, draftImported: true, hasConflict, conflictResolved: false, published: false },
+    }));
+    notify(`อ่านไฟล์ ${fileName} สำหรับ ${resultTargetLabel(target)} ในโหมดตัวอย่างแล้ว`);
+  }
+
+  function resolveResultConflict(targetId, schoolSource = "application", issueKey = "") {
+    const target = examCatalog.find((exam) => exam.id === targetId);
+    if (!target) return;
+    const workflow = resultWorkflows[targetId] || {};
+    const schoolUpdates = new Map();
+    const rows = (workflow.rows || []).map((row) => {
+      if (row.matchStatus === "matched" || (issueKey && getResultIssueKey(row) !== issueKey)) return row;
+      const application = applications.find((item) => item.id === row.issueApplicationId || item.id === row.applicationId);
+      const candidateNo = getExamRoundType(target) === "HEAT" ? application?.heatId : application?.finalId;
+      const useFileSchool = row.matchStatus === "school-mismatch" && schoolSource === "file";
+      const schoolName = useFileSchool
+        ? row.schoolName || row.school
+        : application?.school || row.schoolName || row.school;
+      if (useFileSchool && application && schoolName) schoolUpdates.set(application.id, schoolName);
+      return {
+        ...row,
+        candidateNo: row.matchStatus === "unmatched" ? candidateNo || row.candidateNo : row.candidateNo,
+        examNumber: row.matchStatus === "unmatched" ? candidateNo || row.examNumber : row.examNumber,
+        schoolName,
+        school: schoolName,
+        applicationSchoolName: schoolName || row.applicationSchoolName,
+        issueApplicationId: "",
+        matchStatus: "matched",
+      };
+    });
+    if (schoolUpdates.size) {
+      const at = new Intl.DateTimeFormat("th-TH", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date());
+      setApplications((current) => current.map((application) => {
+        const school = schoolUpdates.get(application.id);
+        if (!school || school === application.school) return application;
+        const change = { label: "โรงเรียน (อ้างอิงไฟล์ผลสอบ)", oldValue: application.school || "—", newValue: school };
+        const entry = { id: `audit-result-school-${Date.now()}-${application.id}`, editor: "ผู้ดูแลระบบ · Aommy", at, changes: [change] };
+        return {
+          ...application,
+          school,
+          studentInformation: { ...application.studentInformation, school },
+          changeHistory: [entry, ...(application.changeHistory || [])],
+        };
+      }));
+    }
+    const stillHasConflicts = rows.some((row) => row.matchStatus !== "matched");
+    setResultWorkflows((current) => {
+      const currentWorkflow = current[targetId] || workflow;
+      return { ...current, [targetId]: { ...currentWorkflow, rows, hasConflict: stillHasConflicts, conflictResolved: !stillHasConflicts, fileName: stillHasConflicts ? currentWorkflow.fileName : "ผลสอบฉบับแก้ไข (ตัวอย่าง).xlsx" } };
+    });
+  }
+
+  function publishResults(target) {
+    const currentWorkflow = resultWorkflows[target.id] || {};
+    const unresolvedCount = (currentWorkflow.rows || []).filter((row) => row.matchStatus !== "matched").length;
+    if (!currentWorkflow.draftImported || !currentWorkflow.rows?.length || unresolvedCount) {
+      notify(unresolvedCount ? `ยังประกาศผลไม่ได้ · กรุณาแก้รายการที่ต้องตรวจอีก ${unresolvedCount} รายการ` : "ยังประกาศผลไม่ได้ · กรุณานำเข้าผลสอบฉบับร่างก่อน");
+      return;
+    }
+    setResultWorkflows((current) => ({ ...current, [target.id]: { ...current[target.id], published: true, publishedAt: new Date().toISOString() } }));
+    notify(`ประกาศผล ${resultTargetLabel(target)} ในตัวอย่างแล้ว · ผลสอบถูกล็อก${getExamRoundType(target) === "HEAT" ? " และเปิดยืนยันสิทธิ์ Final อัตโนมัติ" : ""}`);
+  }
+
   const content = (() => {
     switch (page) {
       case "apply-heat":
-        return <ApplicationFormPage key={page} kind="Heat" onSubmit={submitApplication} navigate={navigate} />;
+        return <ApplicationFormPage key={page} kind="Heat" onSubmit={submitApplication} navigate={navigate} competitionFees={competitionFees} examCatalog={examCatalog} centerCatalog={centerCatalog} pastPaperCatalog={pastPaperCatalog} />;
       case "apply-final":
-        return <ApplicationFormPage key={page} kind="Final" prefill={activeApplication} onSubmit={submitApplication} navigate={navigate} />;
+        return finalAccess && finalAccess.heatId === activeApplicationId
+          ? <ApplicationFormPage key={`${page}-${activeApplicationId}`} kind="Final" prefill={activeApplication} applicationMode={finalAccess.mode} allowedRoundIds={finalAccess.allowedRoundIds} onSubmit={submitApplication} navigate={navigate} competitionFees={competitionFees} examCatalog={examCatalog} centerCatalog={centerCatalog} pastPaperCatalog={pastPaperCatalog} />
+          : <FinalAccessGate navigate={navigate} />;
       case "applications":
         return <ApplicationsPage applications={visibleApplications} navigate={navigate} />;
       case "application-detail":
-        return <ApplicationDetailPage application={applications.find((item) => item.id === activeApplicationId)} navigate={navigate} resultPublished={resultPublished} editWindowOpen={editWindowOpen} />;
+        return <ApplicationDetailPage application={applications.find((item) => item.id === activeApplicationId)} navigate={navigate} resultRows={publishedResultRows} examCatalog={examCatalog} />;
       case "check-status":
         return <StatusLookupPage applications={applications} navigate={navigate} />;
       case "lookup-choice":
@@ -2308,23 +3308,27 @@ function App() {
       case "edit-verify":
         return <EditVerifyPage applications={applications} onVerified={(id) => navigate("edit-application", id)} navigate={navigate} />;
       case "edit-application":
-        return <EditApplicationPage key={activeApplicationId} application={activeApplication} onSave={saveApplication} navigate={navigate} editWindowOpen={editWindowOpen} />;
+        return <EditApplicationPage key={activeApplicationId} application={activeApplication} onSave={saveApplication} navigate={navigate} examCatalog={examCatalog} />;
       case "slip-upload":
         return <SlipUploadPage application={activeApplication} onUploaded={(id, fileName) => updateApplication(id, { slipIssue: "", slipFileName: fileName })} onReturn={() => navigate("admin-review", activeApplication?.id)} notify={notify} />;
       case "final-confirm":
-        return <FinalConfirmationPage applications={applications} onContinue={(selected, bindAccount) => { setActiveApplicationId(selected.id); if (bindAccount) setPersona("candidate"); notify(bindAccount ? "ผูกบัญชีตัวอย่างแล้ว" : "ดำเนินการต่อโดยไม่เข้าสู่ระบบ"); navigate("apply-final", selected.id); }} navigate={navigate} resultPublished={resultPublished} />;
+        return <FinalConfirmationPage key={activeApplicationId} applications={applications} applicationHint={activeApplication} onContinue={(selected, mode, profile, finalRounds = []) => { if (mode === "google") signInWithGoogleDemo(profile || demoGoogleProfile); setFinalAccess({ heatId: selected.id, mode, allowedRoundIds: finalRounds.map((round) => round.id) }); setPersona(mode === "guest" ? "guest" : "candidate"); navigate("apply-final", selected.id); }} navigate={navigate} publishedHeatResults={publishedHeatResults} examCatalog={examCatalog} authProfile={authProfile} onSignIn={signInWithGoogleDemo} />;
       case "results":
-        return <PublicResultsPage applications={applications} published={resultPublished} />;
+        return <PublicResultsPage resultRows={publishedResultRows} />;
       case "admin-home":
-        return <AdminHomePage applications={applications} examCatalog={examCatalog} navigate={navigate} resultPublished={resultPublished} syncFailed={syncFailed} />;
+        return <AdminHomePage applications={applications} examCatalog={examCatalog} resultWorkflows={resultWorkflows} navigate={navigate} resultPublished={resultPublished} syncFailed={syncFailed} />;
       case "admin-review":
-        return <AdminReviewPage applications={applications} onApprove={approveApplication} onSlipIssue={notifySlipIssue} notify={notify} navigate={navigate} />;
+        return <AdminReviewPage applications={applications} onApprove={approveApplication} onSlipIssue={notifySlipIssue} notify={notify} navigate={navigate} activeApplicationId={activeApplicationId} />;
+      case "admin-application-edit":
+        return <AdminApplicationEditPage key={activeApplicationId} application={activeApplication} onSave={saveAdminApplication} navigate={navigate} competitionFees={competitionFees} examCatalog={examCatalog} centerCatalog={centerCatalog} />;
+      case "admin-mock-papers":
+        return <AdminMockPapersPage applications={applications} notify={notify} />;
       case "admin-round":
-        return <AdminRoundPage examCatalog={examCatalog} onUpdateExam={updateExam} centerLocked={centerLocked} registrationOpen={registrationOpen} editWindowOpen={editWindowOpen} setEditWindowOpen={setEditWindowOpen} finalCloseDate={finalCloseDate} setFinalCloseDate={setFinalCloseDate} heatIdsGenerated={heatIdsGenerated} onGenerateHeatIds={generateHeatIds} notify={notify} />;
+        return <AdminRoundPage examCatalog={examCatalog} onUpdateExam={updateExam} onAddExam={addExam} onRemoveExam={removeExam} centerLocked={centerLocked} registrationOpen={registrationOpen} hasPublishedHeatResults={publishedHeatResults.length > 0} heatIdsGenerated={heatIdsGenerated} onGenerateHeatIds={generateHeatIds} centerCatalog={centerCatalog} setCenterCatalog={setCenterCatalog} pastPaperCatalog={pastPaperCatalog} setPastPaperCatalog={setPastPaperCatalog} notify={notify} />;
       case "admin-results":
-        return <AdminResultsPage applications={applications} resultPublished={resultPublished} setResultPublished={setResultPublished} draftImported={draftImported} setDraftImported={setDraftImported} conflictResolved={conflictResolved} setConflictResolved={setConflictResolved} notify={notify} />;
+        return <AdminResultsPage applications={applications} examCatalog={examCatalog} resultWorkflows={resultWorkflows} onImportDraft={importResultDraft} onResolveConflict={resolveResultConflict} onPublishResult={publishResults} notify={notify} navigate={navigate} />;
       case "admin-final-ids":
-        return <AdminFinalIdsPage applications={applications} finalIdsImported={finalIdsImported} onImport={importFinalIds} onManualMatch={matchFinalId} notify={notify} />;
+        return <AdminFinalIdsPage applications={applications} finalIdsImported={finalIdsImported} onImport={importFinalIds} onManualMatch={matchFinalId} notify={notify} navigate={navigate} />;
       case "admin-sheets":
         return <AdminSheetsPage applications={applications} syncFailed={syncFailed} setSyncFailed={setSyncFailed} />;
       default:
@@ -2337,19 +3341,20 @@ function App() {
   }
 
   if (persona !== "admin" && !page.startsWith("admin-")) {
-    return <PublicPortalLayout page={page} navigate={navigate} setPersona={setPersona} authProfile={authProfile} onSignIn={signInWithGoogleDemo} onSignOut={signOut} toast={toast} setToast={setToast}>{requiresRegistrationLogin ? <RegistrationLoginGate kind={page === "apply-final" ? "Final" : "Heat"} /> : content}</PublicPortalLayout>;
+    return <PublicPortalLayout page={page} navigate={navigate} setPersona={setPersona} authProfile={authProfile} onSignIn={signInWithGoogleDemo} onSignOut={signOut} toast={toast} setToast={setToast}>{requiresRegistrationLogin ? <RegistrationLoginGate kind="Heat" /> : content}</PublicPortalLayout>;
   }
 
+  const shellPersona = page.startsWith("admin-") ? "admin" : persona;
   return (
-    <div className="app-shell">
+    <div className={"app-shell " + (shellPersona === "admin" ? "admin-shell" : "")}>
       <a className="skip-link" href="#main-content">ข้ามไปยังเนื้อหาหลัก</a>
-      <Sidebar page={page} persona={persona} applications={applications} navigate={navigate} open={menuOpen} onClose={() => setMenuOpen(false)} notify={notify} />
+      <Sidebar page={page} persona={shellPersona} applications={applications} navigate={navigate} open={menuOpen} onClose={() => setMenuOpen(false)} notify={notify} />
       <main className="main-column" id="main-content" tabIndex="-1">
-        <Topbar title={pageTitle} persona={persona} setPersona={(next) => { setPersona(next); if (next === "admin") navigate("admin-home"); else if (page.indexOf("admin-") === 0) navigate("home"); }} menuOpen={menuOpen} setMenuOpen={setMenuOpen} navigate={navigate} />
+        <Topbar title={pageTitle} persona={shellPersona} setPersona={(next) => { setPersona(next); if (next === "admin") navigate("admin-home"); else if (page.startsWith("admin-")) navigate("home"); }} menuOpen={menuOpen} setMenuOpen={setMenuOpen} navigate={navigate} />
         <div className="content-wrap">
           <div className="prototype-banner"><Icon name="info" size={15} /><span>ต้นแบบสำหรับทดลองใช้งาน · ข้อมูลและการเชื่อมต่อภายนอกเป็นข้อมูลจำลอง</span><button onClick={(event) => event.currentTarget.parentElement.remove()} aria-label="ปิดข้อความ"><Icon name="close" size={14} /></button></div>
           {content}
-          <footer className="page-footer"><span>© 2569 OCEC Portal</span><span>สำหรับการสอบถาม ติดต่อฝ่ายประสานงานโครงการ</span><a href="#help" onClick={(event) => { event.preventDefault(); notify("ศูนย์ช่วยเหลือเป็นตัวอย่างสำหรับ prototype"); }}>ศูนย์ช่วยเหลือ</a></footer>
+          <footer className="page-footer"><span>© 2569 OCEC Portal</span><span>สำหรับการสอบถาม ติดต่อฝ่ายประสานงานโครงการ</span><a href="#help" onClick={(event) => { event.preventDefault(); notify("ศูนย์ช่วยเหลือเป็นตัวอย่างสำหรับ prototype"); }}>ศูนย์ช่วยเหลือ</a><a className="flaticon-attribution" href="https://www.flaticon.com/uicons" target="_blank" rel="noreferrer">UIcons by Flaticon</a></footer>
         </div>
       </main>
       {toast ? <div className="toast" role="status" aria-live="polite"><span><Icon name="check" size={16} /></span><p>{toast}</p><button aria-label="ปิดการแจ้งเตือน" onClick={() => setToast("")}><Icon name="close" size={16} /></button></div> : null}
