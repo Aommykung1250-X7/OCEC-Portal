@@ -37,7 +37,7 @@ Keep centers in one shared catalog with stable IDs, codes, names, and active sta
 
 - After an administrator changes an application to approved, show an optional certificate-photo section on that application detail. Pending applications do not show the upload control.
 - Store one portrait per application, with preview, replace, and remove actions. Accept JPG, PNG, or WebP up to 10 MB. Explain that OCEC may use the photo on the applicant's award certificate; uploading is optional and does not change eligibility or results.
-- For school batches, the coordinator can upload separately for each approved student's application. For individual applications, the applicant uploads on their own application.
+- For school batches, both the school coordinator and the individual applicant can access the same approved application and upload its photo. The photo belongs to the application, so replacing it from either account updates the same preview. For individual applications, the applicant uploads on their own application.
 - The photo is local mock state and is not persisted to a real storage service. The prototype does not generate certificates.
 
 ## Data shape
@@ -61,7 +61,7 @@ Keep centers in one shared catalog with stable IDs, codes, names, and active sta
 - Submit 50–60 manual applicants with one combined amount and one slip; confirm each application remains independently reviewable.
 - Download the workbook template, fill and import multiple applicants with multiple competition selections, fix a row error, replace the file, and submit one batch invoice.
 - Close an exam card and verify its summary includes all application statuses grouped by center and grade; verify no download action appears while it is open.
-- Confirm a pending applicant has no photo uploader; after approval, upload, replace, and remove a photo, including one application inside a school batch.
+- Confirm a pending applicant has no photo uploader; after approval, verify both the school coordinator and applicant can view and update the same photo on a school-submitted application, and upload, replace, and remove a photo on an individual application.
 
 ## Scope boundaries
 
