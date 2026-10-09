@@ -700,10 +700,10 @@ a { color: inherit; }
 .timeline-card h2 { margin: 0; color: #30445f; font-size: 15px; }
 .timeline { display: grid; gap: 0; margin: 20px 0 15px; }
 .timeline-item { min-height: 54px; position: relative; display: flex; align-items: flex-start; gap: 9px; }
-.timeline-item:not(:last-child)::after { width: 1px; height: 31px; position: absolute; top: 20px; left: 9px; background: #e3e8ef; content: ""; }
-.timeline-item > span { width: 19px; height: 19px; position: relative; z-index: 1; display: grid; place-items: center; flex: 0 0 19px; border: 1px solid #d9e0e9; border-radius: 50%; color: #8391a4; background: #fff; font-size: 12px; }
+.timeline-item:not(:last-child)::after { width: 1px; height: 31px; position: absolute; top: 20px; left: 9.5px; background: #e3e8ef; content: ""; }
+.timeline-item > span { width: 20px; height: 20px; box-sizing: border-box; position: relative; z-index: 1; display: grid; place-items: center; flex: 0 0 20px; border: 1px solid #d9e0e9; border-radius: 50%; color: #8391a4; background: #fff; font-size: 12px; line-height: 1; text-align: center; }
 .timeline-done > span { border-color: #188553; color: #fff; background: #188553; }
-.timeline-current > span { border: 4px solid #e1def3; color: #fff; background: var(--primary); }
+.timeline-current > span { border: 4px solid #e1def3; color: #fff; background: var(--primary); font-size: 11px; line-height: 1; }
 .timeline-item div { display: flex; flex-direction: column; gap: 3px; padding-top: 1px; }
 .timeline-item strong { color: #465971; font-size: 12px; font-weight: 650; }
 .timeline-item small { color: #8a97a8; font-size: 12px; }

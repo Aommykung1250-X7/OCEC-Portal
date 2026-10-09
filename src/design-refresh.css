@@ -1019,6 +1019,17 @@ body { color: var(--foreground); background: var(--background); }
 .admin-edit-person-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .admin-edit-person-grid .field { margin: 0; }
 .admin-edit-person-grid .field input { min-height: 41px; }
+.user-edit-form { display: grid; gap: 14px; }
+.user-edit-application-page > .notice { margin: 0; }
+.user-edit-locked-section .locked-chip-row { margin-top: 0; }
+.user-edit-locked-section .locked-chip-row span { line-height: 1.6; }
+.user-edit-support-note { align-items: flex-start; margin: 0; }
+.user-edit-support-note > .ocec-icon { flex: 0 0 auto; margin-top: 1px; }
+.user-edit-support-note > div { display: grid; gap: 5px; }
+.user-edit-support-note p { margin: 0; line-height: 1.65; }
+.user-edit-support-note a { width: fit-content; display: inline-flex; align-items: center; gap: 5px; color: #4d488f; font-size: 11px; font-weight: 750; text-decoration: none; }
+.user-edit-support-note a:hover { color: #d93972; text-decoration: underline; }
+.user-edit-footer { margin-top: 0; }
 @media (max-width: 900px) { .admin-fee-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 700px) {
   .admin-shell .admin-fee-catalog, .admin-shell .admin-papers-catalog, .admin-exception-queue { padding: 15px; }

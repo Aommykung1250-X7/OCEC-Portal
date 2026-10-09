@@ -1468,43 +1468,95 @@ function EditVerifyPage({ applications, onVerified, navigate }) {
   );
 }
 
+function getApplicantEditValues(application) {
+  const studentInformation = application?.studentInformation || {};
+  const nameParts = application?.nameParts || {};
+  const candidateParts = application?.candidate?.trim().split(/\s+/) || [];
+  const phone = studentInformation.phone || application?.phone || (application?.phoneLast4 ? `08X-XXX-${application.phoneLast4}` : "");
+  return {
+    firstName: nameParts.firstName || studentInformation.firstName || candidateParts[0] || "",
+    lastName: nameParts.lastName || studentInformation.lastName || candidateParts.slice(1).join(" "),
+    school: application?.school || studentInformation.school || "",
+    email: application?.contactEmail || studentInformation.email || "",
+    phone,
+    address1: studentInformation.address1 || "",
+    address2: studentInformation.address2 || "",
+    city: studentInformation.city || "",
+    province: studentInformation.province || "",
+    postalCode: studentInformation.postalCode || "",
+  };
+}
+
+function ApplicantProfileFields({ values, onChange, disabled = false }) {
+  const field = (key) => (event) => onChange(key, event.target.value);
+  return (
+    <div className="admin-edit-person-grid">
+      <Field label="ชื่อจริงภาษาอังกฤษ" required><input value={values.firstName} disabled={disabled} autoComplete="given-name" onChange={field("firstName")} /></Field>
+      <Field label="นามสกุลภาษาอังกฤษ" required><input value={values.lastName} disabled={disabled} autoComplete="family-name" onChange={field("lastName")} /></Field>
+      <Field label="โรงเรียน" required><input value={values.school} disabled={disabled} onChange={field("school")} /></Field>
+      <Field label="อีเมลติดต่อผู้เข้าสอบ" required hint="ใช้รับอีเมลสรุปใบสมัครและผลตรวจสลิป"><input type="email" value={values.email} disabled={disabled} autoComplete="email" onChange={field("email")} /></Field>
+      <Field label="เบอร์โทรศัพท์" required><input type="tel" inputMode="tel" autoComplete="tel" value={values.phone} disabled={disabled} onChange={field("phone")} placeholder="(000) 000-0000" /></Field>
+      <Field label="ที่อยู่ (บ้านเลขที่ / หมู่บ้าน / ถนน)"><input value={values.address1} disabled={disabled} autoComplete="street-address" onChange={field("address1")} placeholder="ระบุบ้านเลขที่ หมู่บ้าน และถนน" /></Field>
+      <Field label="อาคาร / ซอย / รายละเอียดเพิ่มเติม"><input value={values.address2} disabled={disabled} onChange={field("address2")} placeholder="ถ้ามี" /></Field>
+      <Field label="เขต / อำเภอ"><input value={values.city} disabled={disabled} onChange={field("city")} /></Field>
+      <Field label="จังหวัด"><input value={values.province} disabled={disabled} autoComplete="address-level1" onChange={field("province")} /></Field>
+      <Field label="รหัสไปรษณีย์"><input value={values.postalCode} disabled={disabled} inputMode="numeric" autoComplete="postal-code" onChange={field("postalCode")} /></Field>
+    </div>
+  );
+}
+
 function EditApplicationPage({ application, onSave, navigate, examCatalog }) {
-  const [form, setForm] = useState(() => ({
-    candidate: application.candidate,
-    school: application.school,
-    contactEmail: application.contactEmail,
-    phone: "08X-XXX-" + application.phoneLast4,
-  }));
+  const [form, setForm] = useState(() => getApplicantEditValues(application));
+  const [error, setError] = useState("");
   const editDeadline = getApplicationEditDeadline(application, examCatalog);
   const editable = isApplicationEditable(application, examCatalog);
-  const updateField = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+  const updateField = (key, value) => { setForm((current) => ({ ...current, [key]: value })); setError(""); };
+  const editReason = application.status === "pending"
+    ? "ใบสมัครอยู่ระหว่างตรวจสอบ สามารถดูสถานะได้ แต่ยังแก้ไขข้อมูลไม่ได้"
+    : !application.canEdit
+      ? "ใบสมัครนี้ไม่ได้เปิดสิทธิ์แก้ข้อมูล"
+      : !editDeadline
+        ? "ยังไม่ได้กำหนดวันปิดแก้ไขของรอบนี้"
+        : "รอบแก้ไขข้อมูลปิดแล้ว";
+
+  function submit(event) {
+    event.preventDefault();
+    if (!form.firstName.trim() || !form.lastName.trim()) { setError("กรุณากรอกชื่อและนามสกุลภาษาอังกฤษ"); return; }
+    if (!form.school.trim()) { setError("กรุณากรอกชื่อโรงเรียน"); return; }
+    if (!form.email.trim()) { setError("กรุณากรอกอีเมลติดต่อ"); return; }
+    if (!form.phone.trim()) { setError("กรุณากรอกเบอร์โทรศัพท์"); return; }
+    const nameParts = { firstName: form.firstName.trim(), lastName: form.lastName.trim() };
+    const studentInformation = { ...application.studentInformation, ...form, ...nameParts, school: form.school.trim(), email: form.email.trim(), phone: form.phone.trim() };
+    onSave(application.id, {
+      candidate: `${nameParts.firstName} ${nameParts.lastName}`,
+      nameParts,
+      school: form.school.trim(),
+      contactEmail: form.email.trim(),
+      phone: form.phone.trim(),
+      phoneLast4: form.phone.replace(/\D/g, "").slice(-4),
+      studentInformation,
+    });
+  }
+
+  const competitionNames = application.competitions?.map((item) => item.short || item.name).filter(Boolean).join(", ");
+  const examNames = [competitionNames, application.kind === "Final" ? "FINAL ROUND" : "HEAT ROUND"].filter(Boolean).join(" · ");
   return (
-    <div className="page-stack">
-      <PageHeading eyebrow="ใบสมัครของฉัน" title="แก้ไขข้อมูลใบสมัคร" description={application.candidate + " · " + application.exam} action={<Button variant="outline" icon="arrow" onClick={() => navigate("application-detail", application.id)}>กลับไปใบสมัคร</Button>} />
-      <div className="form-layout">
-        <section className="surface form-surface">
-          <div className="form-section-heading"><span className="form-section-icon"><Icon name="edit" /></span><div><h2>ข้อมูลผู้เข้าสอบ</h2><p>แก้ไขข้อมูลที่อนุญาตก่อนถึงกำหนดปิดแก้ไข</p></div></div>
-          {!editable ? <div className="notice notice-amber"><Icon name="lock" /><div><strong>ยังไม่สามารถแก้ไขใบสมัครนี้ได้</strong><p>{application.status === "pending" ? "ใบสมัครอยู่ระหว่างตรวจสอบ สามารถดูสถานะได้ แต่ยังแก้ไขข้อมูลไม่ได้" : !application.canEdit ? "ใบสมัครนี้ไม่ได้เปิดสิทธิ์แก้ข้อมูล" : !editDeadline ? "ยังไม่ได้กำหนดวันปิดแก้ไขของรอบนี้" : "รอบแก้ไขข้อมูลปิดแล้ว"}</p></div></div> : null}
-          <div className="form-grid">
-            <Field label="ชื่อภาษาอังกฤษ" required><input value={form.candidate} disabled={!editable} onChange={(event) => updateField("candidate", event.target.value)} /></Field>
-            <Field label="โรงเรียน" required><input value={form.school} disabled={!editable} onChange={(event) => updateField("school", event.target.value)} /></Field>
-            <Field label="อีเมลติดต่อผู้เข้าสอบ" required hint="ใช้รับอีเมลสรุปใบสมัครและผลตรวจสลิป"><input type="email" value={form.contactEmail} disabled={!editable} onChange={(event) => updateField("contactEmail", event.target.value)} /></Field>
-            <Field label="เบอร์โทรศัพท์" required><input value={form.phone} disabled={!editable} onChange={(event) => updateField("phone", event.target.value)} /></Field>
-          </div>
-          <div className="locked-fields">
-            <div className="locked-fields-title"><Icon name="lock" size={16} /><strong>ข้อมูลที่ล็อกหลังอนุมัติ</strong></div>
-            <div className="locked-chip-row"><span>รายการสอบ <b>{application.kind}</b></span><span>ระดับชั้น <b>{application.grade}</b></span><span>รูปแบบ <b>{application.format}</b></span><span>ศูนย์สอบ <b>{application.center}</b></span></div>
-          </div>
-          {editable ? <div className="form-footer"><span>แก้ไขได้ถึง {formatThaiDate(editDeadline)}</span><Button icon="check" onClick={() => onSave(application.id, form)}>บันทึกการแก้ไข</Button></div> : null}
+    <div className="page-stack admin-edit-application-page user-edit-application-page">
+      <PageHeading eyebrow="ใบสมัครของฉัน" title="แก้ไขข้อมูลใบสมัคร" description={`${application.candidate} · ${application.exam}`} action={<Button variant="outline" icon="arrow" onClick={() => navigate("application-detail", application.id)}>กลับไปใบสมัคร</Button>} />
+      {!editable ? <div className="notice notice-amber"><Icon name="lock" /><div><strong>ยังไม่สามารถแก้ไขใบสมัครนี้ได้</strong><p>{editReason}</p></div></div> : null}
+      <form className="user-edit-form" onSubmit={submit}>
+        <section className="surface admin-edit-section">
+          <div className="admin-edit-section-heading"><span><Icon name="edit" size={16} /></span><div><h2>ข้อมูลผู้เข้าสอบ</h2><p>แก้ไขข้อมูลติดต่อและที่อยู่ได้ตามกำหนด</p></div></div>
+          <ApplicantProfileFields values={form} onChange={updateField} disabled={!editable} />
         </section>
-        <aside className="surface side-note">
-          <span className="side-note-icon"><Icon name="info" /></span>
-          <h3>ข้อมูลสำคัญ</h3>
-          <p>การแก้ไขข้อมูลที่อนุญาตจะไม่ทำให้ใบสมัครกลับไปรอตรวจสอบ</p>
-          <hr />
-          <p>อีเมลแจ้งเตือนจะส่งไปยังอีเมลติดต่อในใบสมัคร ไม่ใช่อีเมลบัญชี Google</p>
-        </aside>
-      </div>
+        <section className="surface admin-edit-section user-edit-locked-section">
+          <div className="admin-edit-section-heading"><span><Icon name="lock" size={16} /></span><div><h2>ข้อมูลที่ล็อกหลังอนุมัติ</h2><p>ข้อมูลส่วนนี้ไม่สามารถแก้ไขได้ด้วยตนเอง</p></div></div>
+          <div className="locked-chip-row"><span>รายการสอบ <b>{examNames}</b></span><span>ระดับชั้น <b>{application.grade}</b></span><span>รูปแบบ <b>{application.format === "On-site" ? "Paper-Based" : application.format}</b></span><span>ศูนย์สอบ <b>{application.center}</b></span></div>
+        </section>
+        <section className="notice notice-blue user-edit-support-note"><Icon name="info" /><div><strong>ต้องการแก้ไขข้อมูลที่ล็อกไว้?</strong><p>หากประสงค์แก้ไขรายการสอบ ระดับชั้น รูปแบบการสอบ หรือศูนย์สอบ กรุณาติดต่อผู้ดูแลระบบผ่าน LINE Official Account</p><a href="https://lin.ee/3hzFg1z" target="_blank" rel="noreferrer">OCEC_Thailand <Icon name="arrow" size={14} /></a></div></section>
+        {error ? <p className="inline-error" role="alert"><Icon name="info" size={16} />{error}</p> : null}
+        {editable ? <div className="admin-edit-footer user-edit-footer"><span><Icon name="info" size={15} />แก้ไขได้ถึง {formatThaiDate(editDeadline)} · การแก้ไขจะไม่ทำให้ใบสมัครกลับไปรอตรวจสอบ</span><Button variant="outline" type="button" onClick={() => navigate("application-detail", application.id)}>ยกเลิก</Button><Button type="submit" icon="check">บันทึกการแก้ไข</Button></div> : null}
+      </form>
     </div>
   );
 }
@@ -1514,6 +1566,8 @@ function ApplicationDetailPage({ application, navigate, resultRows = [], examCat
   const canEdit = isApplicationEditable(application, examCatalog);
   const applicationResults = resultRows.filter((result) => result.applicationId === application.id);
   const hasPassedHeat = applicationResults.some((result) => result.roundType === "HEAT" && result.result === "pass");
+  const studentInformation = application.studentInformation || {};
+  const applicantAddress = [studentInformation.address1, studentInformation.address2, studentInformation.city, studentInformation.province, studentInformation.postalCode].filter(Boolean).join(", ");
   const resultSummary = applicationResults.length
     ? applicationResults.map((result) => `${result.competitionTitle} ${EXAM_ROUND_LABELS[result.roundType] || result.roundType}: ${result.result === "pass" ? "ผ่าน" : "ไม่ผ่าน"}`).join(" · ")
     : "ยังไม่ประกาศผล";
@@ -1538,6 +1592,8 @@ function ApplicationDetailPage({ application, navigate, resultRows = [], examCat
               <div><span>รูปแบบการสอบ</span><strong>{application.format}</strong></div>
               <div><span>ศูนย์สอบ</span><strong>{application.center}</strong></div>
               <div><span>อีเมลติดต่อ</span><strong>{application.contactEmail}</strong></div>
+              <div><span>เบอร์โทรศัพท์</span><strong>{getApplicationPhone(application)}</strong></div>
+              <div><span>ที่อยู่</span><strong>{applicantAddress || "ยังไม่ได้ระบุข้อมูลที่อยู่"}</strong></div>
               <div><span>วันที่ส่งใบสมัคร</span><strong>{application.submitted}</strong></div>
               <div><span>สถานะผลสอบ</span><strong>{resultSummary}</strong></div>
             </div>
@@ -2523,11 +2579,10 @@ const ADMIN_FINAL_COMPETITION = { id: "final", short: "Final", name: "OCEC Final
 function AdminApplicationEditPage({ application, onSave, navigate, competitionFees, examCatalog, centerCatalog }) {
   const editCompetitions = application.kind === "Final" ? [ADMIN_FINAL_COMPETITION] : getFormCompetitions(examCatalog, "HEAT", { year: application.year });
   const startingOnline = application.format === "Online Exam";
-  const candidateNameParts = application.candidate?.trim().split(/\s+/) || [];
-  const [nameParts, setNameParts] = useState(() => ({ firstName: application.nameParts?.firstName || application.studentInformation?.firstName || candidateNameParts[0] || "", lastName: application.nameParts?.lastName || application.studentInformation?.lastName || candidateNameParts.slice(1).join(" ") }));
-  const [school, setSchool] = useState(application.school || "");
-  const [email, setEmail] = useState(application.contactEmail || "");
-  const [phone, setPhone] = useState(() => getApplicationPhone(application) === "ไม่ระบุ" ? "" : getApplicationPhone(application));
+  const [profile, setProfile] = useState(() => getApplicantEditValues(application));
+  const { firstName, lastName, school, email, phone } = profile;
+  const nameParts = { firstName, lastName };
+  const updateProfileField = (key, value) => setProfile((current) => ({ ...current, [key]: value }));
   const [format, setFormat] = useState(startingOnline ? "Online" : "Paper-Based");
   const [center, setCenter] = useState(application.center === "Online Exam" ? "" : application.center);
   const [selectedIds, setSelectedIds] = useState((application.competitions || []).map((item) => item.id));
@@ -2577,7 +2632,7 @@ function AdminApplicationEditPage({ application, onSave, navigate, competitionFe
       school: school.trim(),
       contactEmail: email.trim(),
       phone: phone.trim(),
-      studentInformation: { ...application.studentInformation, firstName: nameParts.firstName.trim(), lastName: nameParts.lastName.trim(), school: school.trim(), email: email.trim(), phone: phone.trim(), format: format === "Online" ? "Online Exam" : "Paper-Based", center: format === "Online" ? "Online Exam" : center },
+      studentInformation: { ...application.studentInformation, ...profile, firstName: nameParts.firstName.trim(), lastName: nameParts.lastName.trim(), school: school.trim(), email: email.trim(), phone: phone.trim(), format: format === "Online" ? "Online Exam" : "Paper-Based", center: format === "Online" ? "Online Exam" : center },
       examIds: updatedCompetitions.map((item) => item.id),
       competitions: updatedCompetitions,
       grade: updatedCompetitions.map((item) => `${item.short}: ${item.grade}`).join(" · "),
@@ -2595,7 +2650,7 @@ function AdminApplicationEditPage({ application, onSave, navigate, competitionFe
       <PageHeading eyebrow="งานแอดมิน · ข้อมูล mock" title="แก้ไขใบสมัคร" description={`${application.candidate} · ${application.exam} · ${application.school}`} action={<Button variant="outline" icon="arrow" onClick={() => navigate("admin-review", application.id)}>กลับไปตรวจใบสมัคร</Button>} />
       <form className="admin-edit-layout" onSubmit={submit}>
         <div className="admin-edit-main">
-          <section className="surface admin-edit-section"><div className="admin-edit-section-heading"><span>01</span><div><h2>ข้อมูลผู้เข้าสอบ</h2><p>แก้ชื่อ โรงเรียน และข้อมูลติดต่อจากใบสมัคร</p></div></div><div className="admin-edit-person-grid"><Field label="ชื่อจริงภาษาอังกฤษ" required><input value={nameParts.firstName} onChange={(event) => setNameParts((current) => ({ ...current, firstName: event.target.value }))} /></Field><Field label="นามสกุลภาษาอังกฤษ" required><input value={nameParts.lastName} onChange={(event) => setNameParts((current) => ({ ...current, lastName: event.target.value }))} /></Field><Field label="โรงเรียน" required><input value={school} onChange={(event) => setSchool(event.target.value)} /></Field><Field label="อีเมลติดต่อ" required><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></Field><Field label="เบอร์โทรศัพท์" required><input type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="(000) 000-0000" /></Field></div></section>
+          <section className="surface admin-edit-section"><div className="admin-edit-section-heading"><span>01</span><div><h2>ข้อมูลผู้เข้าสอบ</h2><p>แก้ไขข้อมูลส่วนตัว ที่อยู่ และข้อมูลติดต่อจากใบสมัคร</p></div></div><ApplicantProfileFields values={profile} onChange={updateProfileField} /></section>
           <section className="surface admin-edit-section"><div className="admin-edit-section-heading"><span>02</span><div><h2>รายการสอบและระดับชั้น</h2><p>เลือกเพิ่มรายการสอบ และปรับระดับชั้นของผู้สมัคร</p></div></div>
             <div className="admin-edit-competition-list">{editCompetitions.map((competition) => { const active = selectedIds.includes(competition.id); return <article className={active ? "admin-edit-competition active" : "admin-edit-competition"} key={competition.id}><label><input type="checkbox" checked={active} onChange={() => toggleCompetition(competition.id)} /><span className="admin-edit-checkbox"><Icon name="check" size={13} /></span><span><strong>{competition.name}</strong><small>{competition.subject}</small></span><span className="admin-edit-fee">฿{feeForCompetition(competition).toLocaleString()}<small> / รายการ</small></span></label>{active ? <Field label={`ระดับชั้น ${competition.short}`} required><select value={grades[competition.id] || ""} onChange={(event) => setGrades((current) => ({ ...current, [competition.id]: event.target.value }))}><option value="">เลือกระดับชั้น</option>{grades[competition.id] && !competition.grades.includes(grades[competition.id]) ? <option value={grades[competition.id]}>{grades[competition.id]} (ปัจจุบัน)</option> : null}{competition.grades.map((grade) => <option key={grade}>{grade}</option>)}</select></Field> : null}</article>; })}</div>
           </section>
@@ -3068,11 +3123,13 @@ function App() {
     if (!current) return;
     const next = { ...current, ...updates };
     const displayCompetitions = (items = []) => items.map((item) => `${item.short || item.name} (${item.grade || "ไม่ระบุชั้น"})`).join(", ") || "ไม่มีรายการ";
+    const displayAddress = (information = {}) => [information.address1, information.address2, information.city, information.province, information.postalCode].filter(Boolean).join(" ") || "—";
     const fields = [
       ["ชื่อภาษาอังกฤษ", current.candidate, next.candidate],
       ["โรงเรียน", current.school, next.school],
       ["อีเมลติดต่อ", current.contactEmail, next.contactEmail],
       ["เบอร์โทรศัพท์", getApplicationPhone(current), getApplicationPhone(next)],
+      ["ที่อยู่", displayAddress(current.studentInformation), displayAddress(next.studentInformation)],
       ["รายการสอบและระดับชั้น", displayCompetitions(current.competitions), displayCompetitions(next.competitions)],
       ["รูปแบบสอบ", current.format === "On-site" ? "Paper-Based" : current.format, next.format === "On-site" ? "Paper-Based" : next.format],
       ["ศูนย์สอบ", current.center, next.center],
@@ -3162,7 +3219,7 @@ function App() {
   }
 
   function saveApplication(id, form) {
-    updateApplication(id, { ...form, phoneLast4: form.phone.slice(-4) });
+    updateApplication(id, { ...form, phoneLast4: form.phone.replace(/\D/g, "").slice(-4) });
     notify("บันทึกการแก้ไขแล้ว สถานะใบสมัครยังคงยืนยันใบสมัคร");
     navigate("application-detail", id);
   }
