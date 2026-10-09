@@ -580,6 +580,7 @@ body { color: var(--foreground); background: var(--background); }
 .review-group-copy small { color: #8290a5; font-size: 10px; }
 .review-group-copy strong { overflow: hidden; color: #303d5e; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
 .review-group-copy em { color: #2e8b66; font-size: 10px; font-style: normal; }
+.review-group-copy em.review-group-pending { color: #c23d4b; }
 .review-group-count { min-width: 47px; display: grid; justify-items: center; color: #33337f; font: 700 20px Outfit, sans-serif; }
 .review-group-count small { color: #7e8ba2; font: 500 9px "IBM Plex Sans Thai", sans-serif; }
 .review-group-card > .ocec-icon:last-child { color: #919bb0; transform: rotate(-90deg); }

@@ -2510,6 +2510,7 @@ function AdminReviewPage({ applications, onApprove, onSlipIssue, notify, navigat
   });
   const selected = filteredApplications.find((item) => item.id === selectedId) || filteredApplications[0];
   const pendingCount = applications.filter((item) => item.status === "pending").length;
+  const schoolPendingCount = schoolApplications.filter((item) => item.status === "pending").length;
   const scopedStatusCount = (status) => reviewPool.filter((item) => status === "all" || item.status === status).length;
   const fmtMoney = (value) => `฿${Number(value || 0).toLocaleString()}`;
   return (
@@ -2518,13 +2519,13 @@ function AdminReviewPage({ applications, onApprove, onSlipIssue, notify, navigat
       <div className="review-layout">
         <section className="surface review-queue">
           <div className="admin-review-mode" role="tablist" aria-label="มุมมองคิวใบสมัคร">
-            <button type="button" role="tab" aria-selected={reviewView === "school-groups"} className={reviewView === "school-groups" ? "active" : ""} onClick={() => { setReviewView("school-groups"); setSelectedGroupKey(""); setSearch(""); setSourceFilter("all"); setKindFilter("all"); }}>ส่งผ่านโรงเรียน <span>{schoolApplications.length}</span></button>
+            <button type="button" role="tab" aria-label={`ส่งผ่านโรงเรียน · ${schoolApplications.length} ใบสมัครทั้งหมด`} aria-selected={reviewView === "school-groups"} className={reviewView === "school-groups" ? "active" : ""} onClick={() => { setReviewView("school-groups"); setSelectedGroupKey(""); setSearch(""); setSourceFilter("all"); setKindFilter("all"); }}>ส่งผ่านโรงเรียน <span title={`${schoolApplications.length} ใบสมัครจากโรงเรียนทั้งหมด`}>{schoolApplications.length}</span></button>
             <button type="button" role="tab" aria-selected={reviewView === "all"} className={reviewView === "all" ? "active" : ""} onClick={() => { setReviewView("all"); setSelectedGroupKey(""); setSearch(""); }}>ใบสมัครทั้งหมด <span>{applications.length}</span></button>
           </div>
           {reviewView === "school-groups" && !selectedGroup ? (
             <>
-              <div className="review-queue-head"><div><h2>กลุ่มรายการสอบ</h2><p>เลือกกลุ่มเพื่อเปิดรายชื่อผู้สมัคร</p></div><span className="queue-pill">{schoolGroups.length}</span></div>
-              <div className="review-group-list">{schoolGroups.map((group) => <button type="button" key={group.key} className="review-group-card" onClick={() => { setSelectedGroupKey(group.key); setSelectedId(""); setStatusFilter("pending"); setKindFilter("all"); }}><span className="review-group-mark"><Icon name={group.applications[0]?.kind === "Final" ? "award" : "file"} /></span><span className="review-group-copy"><small>ปีการศึกษา {group.year} · {group.applications[0]?.kind}</small><strong>{group.exam}</strong><em>{group.pending ? `${group.pending} ใบ รอตรวจ` : "ไม่มีงานค้าง"}</em></span><span className="review-group-count">{group.applications.length}<small>ใบสมัคร</small></span><Icon name="chevron" size={18} /></button>)}{schoolGroups.length === 0 ? <div className="review-empty-filter"><Icon name="building" /><strong>ยังไม่มีใบสมัครจากโรงเรียน</strong></div> : null}</div>
+              <div className="review-queue-head"><div><h2>กลุ่มรายการสอบ</h2><p>เลือกกลุ่มเพื่อเปิดรายชื่อผู้สมัคร</p></div><span className="queue-pill" title={`${schoolPendingCount} ใบสมัครจากโรงเรียนรอตรวจ`} aria-label={`${schoolPendingCount} ใบสมัครจากโรงเรียนรอตรวจ`}>{schoolPendingCount}</span></div>
+              <div className="review-group-list">{schoolGroups.map((group) => <button type="button" key={group.key} className="review-group-card" onClick={() => { setSelectedGroupKey(group.key); setSelectedId(""); setStatusFilter("pending"); setKindFilter("all"); }}><span className="review-group-mark"><Icon name={group.applications[0]?.kind === "Final" ? "award" : "file"} /></span><span className="review-group-copy"><small>ปีการศึกษา {group.year} · {group.applications[0]?.kind}</small><strong>{group.exam}</strong><em className={group.pending ? "review-group-pending" : "review-group-clear"}>{group.pending ? `${group.pending} ใบ รอตรวจ` : "ไม่มีงานค้าง"}</em></span><span className="review-group-count">{group.applications.length}<small>ใบสมัคร</small></span><Icon name="chevron" size={18} /></button>)}{schoolGroups.length === 0 ? <div className="review-empty-filter"><Icon name="building" /><strong>ยังไม่มีใบสมัครจากโรงเรียน</strong></div> : null}</div>
             </>
           ) : (
             <>
