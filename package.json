@@ -3,14 +3,29 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "scripts": {
     "dev": "vite --host 0.0.0.0",
+    "api:dev": "node --env-file-if-exists=.env --watch server/start.js",
+    "api:start": "node --env-file-if-exists=.env server/start.js",
+    "start": "npm run api:start",
+    "db:migrate": "node --env-file-if-exists=.env server/migrate.js",
+    "db:seed": "node --env-file-if-exists=.env server/seed.js",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {
+    "@fastify/static": "^10.1.6",
+    "fastify": "^5.12.5",
+    "google-auth-library": "^11.2.0",
+    "pdfjs-dist": "^6.4.299",
+    "pg": "^8.23.1",
     "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "react-dom": "^19.3.0",
+    "tesseract.js": "^7.0.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "vite": "^8.3.1"
