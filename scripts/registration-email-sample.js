@@ -1,0 +1,56 @@
+export const testRegistrationEmail = 'phanuwataom1250@gmail.com';
+
+export const registrationEmailSample = {
+  id: 'TEST-OCEC-EMAIL-20261012',
+  applicant: {
+    firstNameEn: 'Sample',
+    middleNameEn: '',
+    lastNameEn: 'Candidate',
+    firstNameTh: 'ผู้ทดสอบ',
+    lastNameTh: 'ระบบ',
+    gender: 'Prefer not to say',
+    dateOfBirth: '2012-01-01',
+    schoolName: 'OCEC Portal Test School',
+    email: testRegistrationEmail,
+    phone: '0000000000',
+    address: {
+      address1: 'Test address',
+      city: 'Bangkok',
+      province: 'Bangkok',
+      postalCode: '00000',
+    },
+  },
+  items: [
+    {
+      competition: 'Big Bay Bei',
+      short: 'BBB',
+      subject: 'Mathematics',
+      round: 'Heat Round',
+      year: '2569',
+      grade: 'Senior Secondary',
+      format: 'Paper-Based',
+      center: 'Bangkok',
+      examEmail: '',
+      feeSatang: 75500,
+    },
+    {
+      competition: 'HKICO',
+      short: 'HKICO',
+      subject: 'Computer',
+      round: 'Heat Round',
+      year: '2569',
+      grade: 'Senior Secondary — Python',
+      format: 'Online Exam',
+      center: 'Home Base',
+      examEmail: testRegistrationEmail,
+      feeSatang: 65500,
+    },
+  ],
+  papers: [
+    { title: 'Qualifier Round 2025', detail: 'PDF English + Thai', priceSatang: 25000 },
+    { title: 'Qualifier Round 2026', detail: 'PDF English + Thai', priceSatang: 25000 },
+  ],
+  registrationTotalSatang: 141000,
+  paperTotalSatang: 50000,
+  totalSatang: 191000,
+};

@@ -1,5 +1,8 @@
 import pg from 'pg';
 
+// A PostgreSQL DATE has no timezone. Keep its calendar day intact across hosts.
+pg.types.setTypeParser(pg.types.builtins.DATE, (value) => value);
+
 let pool;
 
 export function getPool() {

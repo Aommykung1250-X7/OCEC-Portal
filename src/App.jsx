@@ -1,13 +1,27 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
-import { DEFAULT_CENTER_CATALOG, ONLINE_CENTER_CODE, ONLINE_CENTER_ID, buildCenterSummaryRows, getCommonCenters, getCenterByApplication, parseCenterRows } from "./centers.js";
+import { DEFAULT_CENTER_CATALOG, ONLINE_CENTER_CODE, ONLINE_CENTER_ID, buildCenterSummaryRows, getCommonCenters, getCenterByApplication, isOnlineCenter, parseCenterRows } from "./centers.js";
 import { downloadWorkbook, readWorkbook, worksheetRows } from "./excel.js";
 import { downloadSchoolTemplate, parseSchoolWorkbook } from "./schoolBatchWorkbook.js";
-import { detectPaymentAccount } from "./paymentAccounts.js";
+import { getApplicationHeatResultState } from "./application-results.js";
 
 const BACKEND_ENABLED = import.meta.env.VITE_BACKEND_ENABLED === "true";
+const DEMO_AVATAR_SRC = "/demo-google-avatar.svg";
+
+function ProfileAvatar({ src, alt = "", className }) {
+  const [failedSrc, setFailedSrc] = useState("");
+  const imageSrc = src && failedSrc !== src ? src : DEMO_AVATAR_SRC;
+  return <img className={className} src={imageSrc} alt={alt} onError={() => setFailedSrc(src || DEMO_AVATAR_SRC)} />;
+}
 
 const DEFAULT_PAYMENT_ACCOUNTS = [
   { id: "ocec-main-account", bankName: "Kasikorn Bank", accountName: "บจก. โอซีอีซี (ไทยแลนด์)", accountNumber: "219-3-78805-2", category: "president", showInForm: true, active: true },
+];
+const DEFAULT_COMPETITION_CATALOG = [
+  { id: "hkimo", short: "HKIMO", name: "HKIMO", subject: "Mathematics", active: true },
+  { id: "hkiso", short: "HKISO", name: "HKISO", subject: "Science", active: true },
+  { id: "hkico", short: "HKICO", name: "HKICO", subject: "Computer", active: true },
+  { id: "timo", short: "TIMO", name: "TIMO", subject: "Mathematics", active: true },
+  { id: "bbb", short: "BBB", name: "Big Bay Bei (BBB)", subject: "Mathematics", active: true },
 ];
 
 function PaymentAccountCards({ accounts }) {
@@ -19,114 +33,6 @@ function PaymentAccountCards({ accounts }) {
     </div>
   ))}</div> : <div className="payment-account-empty"><Icon name="info" size={15} />ขณะนี้ยังไม่มีบัญชีรับโอนที่เปิดแสดงในฟอร์ม</div>;
 }
-
-const seedApplications = [
-  {
-    id: "bbb-heat-2569-01",
-    owner: "candidate",
-    kind: "Heat",
-    exam: "BBB HEAT ROUND 2569",
-    year: "2569",
-    candidate: "Nicha Srisawat",
-    nameParts: { firstName: "Nicha", lastName: "Srisawat" },
-    school: "Srinakharinwirot Demonstration School",
-    grade: "Primary 5",
-    format: "Paper-Based",
-    center: "Onsite : Bangkok",
-    contactEmail: "nicha.student@example.com",
-    phoneLast4: "4821",
-    studentInformation: { firstName: "Nicha", lastName: "Srisawat", thaiFirstName: "ณิชา", thaiLastName: "ศรีสวัสดิ์", gender: "Female", dateOfBirth: "2010-05-12", email: "nicha.student@example.com", phone: "0812344821", address1: "88 ถนนสุขุมวิท", city: "วัฒนา", province: "กรุงเทพมหานคร", postalCode: "10110" },
-    submitted: "9 ต.ค. 2569",
-    status: "pending",
-    heatId: "",
-    finalId: "",
-    result: "",
-    canEdit: false,
-    slipIssue: "",
-    source: "self",
-    slipFileName: "payment-slip-bbb-heat.pdf",
-    paymentAccountType: "president",
-    transferAmount: 1505,
-    transferDateTime: "9 ต.ค. 2569 · 14:32 น.",
-    competitions: [{ id: "bbb", name: "Big Bay Bei (BBB)", short: "BBB", grade: "Primary 5", fee: 755 }],
-    pastPapers: [
-      { id: "bbb-2024", name: "Qualifier Round 2024 — PDF English + Thai · Thai VDO", fee: 250 },
-      { id: "bbb-2025", name: "Qualifier Round 2025 — PDF English + Thai · Thai VDO", fee: 250 },
-      { id: "bbb-2026", name: "Qualifier Round 2026 — PDF English + Thai · Thai VDO", fee: 250 },
-    ],
-    registrationFee: 755,
-    pastPapersTotal: 750,
-    totalPayment: 1505,
-  },
-  {
-    id: "hkiso-heat-2569-01",
-    owner: "candidate",
-    kind: "Heat",
-    exam: "HKISO HEAT ROUND 2569",
-    year: "2569",
-    candidate: "Thanakorn Wattanakul",
-    nameParts: { firstName: "Thanakorn", lastName: "Wattanakul" },
-    school: "Triam Udom Suksa School",
-    grade: "Secondary 2",
-    format: "Paper-Based",
-    center: "Onsite : Chiang Mai",
-    contactEmail: "thanakorn.w@example.com",
-    phoneLast4: "1936",
-    studentInformation: { firstName: "Thanakorn", lastName: "Wattanakul", thaiFirstName: "ธนกร", thaiLastName: "วัฒนกุล", gender: "Male", dateOfBirth: "2009-08-19", email: "thanakorn.w@example.com", phone: "0815671936", address1: "52 ถนนพญาไท", city: "ปทุมวัน", province: "กรุงเทพมหานคร", postalCode: "10330" },
-    submitted: "9 ต.ค. 2569",
-    status: "pending",
-    heatId: "",
-    finalId: "",
-    result: "",
-    canEdit: false,
-    slipIssue: "",
-    source: "self",
-    slipFileName: "payment-slip-hkiso-heat.pdf",
-    paymentAccountType: "other",
-    transferAmount: 955,
-    transferDateTime: "9 ต.ค. 2569 · 16:08 น.",
-    competitions: [{ id: "hkiso", name: "HKISO", short: "HKISO", grade: "Secondary 2", fee: 755 }],
-    pastPapers: [{ id: "hkiso-2024", name: "HKISO Heat Round 2024–2025", fee: 200 }],
-    registrationFee: 755,
-    pastPapersTotal: 200,
-    totalPayment: 955,
-  },
-  {
-    id: "hkico-heat-2569-01",
-    owner: "candidate",
-    kind: "Heat",
-    exam: "HKICO HEAT ROUND 2569",
-    year: "2569",
-    candidate: "Punnita Wattanapong",
-    nameParts: { firstName: "Punnita", lastName: "Wattanapong" },
-    school: "Satit Kaset School",
-    grade: "Secondary 2 — Python",
-    format: "Online Exam",
-    center: "Online : Home Base",
-    examEmail: "punnita.student@gmail.com",
-    contactEmail: "punnita.student@example.com",
-    phoneLast4: "5920",
-    studentInformation: { firstName: "Punnita", lastName: "Wattanapong", thaiFirstName: "ปุณณิตา", thaiLastName: "วัฒนาพงศ์", gender: "Female", dateOfBirth: "2010-02-09", email: "punnita.student@example.com", phone: "0891235920", address1: "12 ถนนงามวงศ์วาน", city: "จตุจักร", province: "กรุงเทพมหานคร", postalCode: "10900" },
-    submitted: "10 ต.ค. 2569",
-    status: "pending",
-    heatId: "",
-    finalId: "",
-    result: "",
-    canEdit: false,
-    slipIssue: "",
-    source: "school",
-    batchId: "school-batch-2569-01",
-    slipFileName: "school-bill-hkico-heat.pdf",
-    paymentAccountType: "other",
-    transferAmount: 905,
-    transferDateTime: "10 ต.ค. 2569 · 09:12 น.",
-    competitions: [{ id: "hkico", name: "HKICO", short: "HKICO", grade: "Secondary 2 — Python", fee: 655 }],
-    pastPapers: [{ id: "hkico-2024", name: "HKICO Heat Round 2024–2025", fee: 250 }],
-    registrationFee: 655,
-    pastPapersTotal: 250,
-    totalPayment: 905,
-  },
-];
 
 function getSlipMimeType(file) {
   if (["application/pdf", "image/jpeg", "image/png"].includes(file?.type)) return file.type;
@@ -182,14 +88,17 @@ function getExamRoundType(exam) {
 
 function normalizeAwardLabel(award) {
   const normalizedAward = String(award || "").trim().toUpperCase().replace(/\s+/g, " ");
-  const ordinalMatch = normalizedAward.match(/^(1ST|2ND|3RD)(?: (?:AWARD|PLACE))?$/);
+  const medalMatch = normalizedAward.match(/^(GOLD|SILVER|BRONZE)(?: (?:MEDAL|AWARD))?$/);
+  if (medalMatch) return `${medalMatch[1]} AWARD`;
+  const ordinalMatch = normalizedAward.match(/^(1ST|2ND|3RD)(?: (?:AWARD|PLACE|PRIZE))?$/);
   return ordinalMatch ? ordinalMatch[1] : normalizedAward;
 }
 
 function isFinalEligibleAward(award, competitionId = "") {
   const normalizedAward = normalizeAwardLabel(award);
+  if (competitionId === "bbb") return ["1ST", "2ND", "3RD"].includes(normalizedAward);
   if (FINAL_ELIGIBLE_AWARDS.has(normalizedAward)) return true;
-  return competitionId === "bbb" && ["1ST", "2ND", "3RD"].includes(normalizedAward);
+  return false;
 }
 
 function getPublicResultStatus(row) {
@@ -201,15 +110,21 @@ function getPublicResultStatus(row) {
   return { label: "ประกาศผลแล้ว", tone: "published" };
 }
 
-function getResultIssueKey(row) {
-  return `${row.applicationId || ""}::${row.candidateNo || row.examNumber || ""}::${row.candidateName || row.candidate || ""}`;
-}
-
-function getActiveExamYear(examCatalog, roundType, fallbackYear = "2569") {
+function getActiveExamYear(examCatalog, roundType, fallbackYear = "") {
   const roundExams = (examCatalog || []).filter((item) => getExamRoundType(item) === roundType);
   const openYears = [...new Set(roundExams.filter((item) => item.isOpen).map((item) => item.year).filter(Boolean))];
   const years = openYears.length ? openYears : [...new Set(roundExams.map((item) => item.year).filter(Boolean))];
   return years.sort((left, right) => Number(right) - Number(left))[0] || fallbackYear;
+}
+
+function selectedExamDateText(examCatalog, roundType, year, competitionIds) {
+  const ids = new Set(competitionIds || []);
+  const dates = [...new Set((examCatalog || [])
+    .filter((exam) => getExamRoundType(exam) === roundType && exam.year === year && ids.has(exam.competitionId))
+    .map((exam) => exam.examDate).filter(Boolean))];
+  if (dates.length === 1) return formatThaiDate(dates[0]);
+  if (dates.length > 1) return "หลายวัน · ตรวจสอบแยกตามรายการสอบ";
+  return "ตรวจสอบกำหนดการของรายการสอบ";
 }
 
 function getCompetitionExamPrice(examCatalog, competitionId, roundType, format, competitionFees, year = "2569") {
@@ -268,14 +183,14 @@ function getApplicationCenterSummary(application) {
   return centers.length ? centers.join(" · ") : application?.center || "—";
 }
 
-function CompetitionFormatPicker({ competitionId, format, paperPrice, onlinePrice, onChange, prefix = "form" }) {
+function CompetitionFormatPicker({ competitionId, format, paperPrice, onlinePrice, onChange, prefix = "form", disabled = false }) {
   return <fieldset className="competition-format-picker"><legend>รูปแบบสอบ <span className="required-mark">*</span></legend><div className="competition-format-options">
     <label className={format === "Paper-Based" ? "competition-format-option selected" : "competition-format-option"}>
-      <input type="radio" name={`format-${prefix}-${competitionId}`} checked={format === "Paper-Based"} onChange={() => onChange("Paper-Based")} />
+      <input type="radio" name={`format-${prefix}-${competitionId}`} checked={format === "Paper-Based"} disabled={disabled} onChange={() => onChange("Paper-Based")} />
       <span><strong>Paper-Based</strong></span><b>฿{Number(paperPrice || 0).toLocaleString()}</b>
     </label>
     <label className={format === "Online" ? "competition-format-option selected" : "competition-format-option"}>
-      <input type="radio" name={`format-${prefix}-${competitionId}`} checked={format === "Online"} onChange={() => onChange("Online")} />
+      <input type="radio" name={`format-${prefix}-${competitionId}`} checked={format === "Online"} disabled={disabled} onChange={() => onChange("Online")} />
       <span><strong>Online Exam</strong></span><b>฿{Number(onlinePrice || 0).toLocaleString()}</b>
     </label>
   </div></fieldset>;
@@ -298,6 +213,14 @@ function formatExamSession(exam) {
   return `${formatThaiDate(exam.examDate)} · ${formatExamTime(exam)}`;
 }
 
+function ExamScheduleNotice({ examCatalog = [], navigate }) {
+  const exam = examCatalog.find((item) => getExamRoundType(item) === "HEAT" && item.isOpen && item.examDate)
+    || examCatalog.find((item) => getExamRoundType(item) === "HEAT" && item.examDate);
+  return <div className="landing-note"><Icon name="calendar" size={15} />{exam
+    ? <span>รอบรับสมัครปีการศึกษา {exam.year} · สอบวันที่ {formatThaiDate(exam.examDate)}</span>
+    : <a href="/#open-exams" onClick={(event) => { event.preventDefault(); navigate("home"); window.setTimeout(() => document.getElementById("open-exams")?.scrollIntoView(), 80); }}>ดูรายการสอบที่เปิดรับสมัคร</a>}</div>;
+}
+
 function getBangkokTodayISO() {
   const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
   const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
@@ -312,6 +235,7 @@ function millisecondsUntilBangkokMidnight() {
 }
 
 function getApplicationEditDeadline(application, examCatalog) {
+  if (application?.editDeadline !== undefined) return application.editDeadline || "";
   const roundType = application?.kind === "Final" ? "FINAL" : "HEAT";
   const roundExams = (examCatalog || []).filter((exam) => exam.year === application?.year && getExamRoundType(exam) === roundType);
   const competitionIds = new Set((application?.competitions || []).map((item) => item.id));
@@ -324,6 +248,7 @@ function getApplicationEditDeadline(application, examCatalog) {
 
 function isApplicationEditable(application, examCatalog) {
   if (application?.status !== "confirmed") return false;
+  if (typeof application?.canEdit === "boolean" && !application.canEdit) return false;
   const deadline = getApplicationEditDeadline(application, examCatalog);
   return Boolean(deadline && getBangkokTodayISO() <= deadline);
 }
@@ -341,52 +266,56 @@ function getApplicationPhone(application) {
   return application?.studentInformation?.phone || application?.phone || (application?.phoneLast4 ? `08X-XXX-${application.phoneLast4}` : "ไม่ระบุ");
 }
 
-function makeMockResultRows(applications, target) {
-  if (!target) return [];
-  const roundType = getExamRoundType(target);
-  const targetApplications = getApplicationsForResultTarget(applications, target);
-  const examPrefix = { bbb: "20", hkiso: "42", hkico: "50" }[target.competitionId] || "90";
-  const bbbAwards = ["1ST", "2ND", "3RD", "MERIT AWARD", "PARTICIPATION"];
-  return targetApplications.map((application, index) => {
-    const competition = application.competitions?.find((item) => item.id === target.competitionId);
-    const examNumber = roundType === "HEAT"
-      ? (application.heatId || `${examPrefix}${String(index + 1).padStart(5, "0")}`)
-      : (application.finalId || `F-69${examPrefix}${String(index + 1).padStart(4, "0")}`);
-    const award = target.competitionId === "bbb" ? bbbAwards[index % bbbAwards.length] : RESULT_AWARDS[index % RESULT_AWARDS.length];
-    const finalEligible = isFinalEligibleAward(award, target.competitionId);
-    return {
-      applicationId: application.id,
-      issueApplicationId: "",
-      examNumber,
-      candidateNo: examNumber,
-      grade: competition?.grade || application.grade || "ไม่ระบุ",
-      school: application.school || "ไม่ระบุ",
-      schoolName: application.school || "ไม่ระบุ",
-      applicationSchoolName: application.school || "",
-      candidate: application.candidate,
-      candidateName: application.candidate,
-      award,
-      matchStatus: "matched",
-      result: finalEligible ? "pass" : "not-passed",
-      score: 68 + ((index * 7 + target.competitionId.length * 3) % 31),
-    };
-  });
-}
-
 function resultTargetLabel(target) {
   const title = target?.title || target?.competitionTitle || "รายการสอบ";
   const round = EXAM_ROUND_LABELS[target?.roundType] || target?.round || "รอบสอบ";
   return `${title} · ${round} · ปี ${target?.year || "ไม่ระบุ"}`;
 }
 
+async function parseAdminWorkbook(file, includeAward = false) {
+  const workbook = await readWorkbook(file);
+  const sheet = worksheetRows(workbook, workbook.SheetNames[0]);
+  const normalizeHeader = (value) => String(value || "").normalize("NFKC").toLowerCase().replace(/[^a-z0-9\u0E00-\u0E7F]+/gu, "");
+  const aliases = {
+    candidateNo: ["candidateno", "candidatenumber", "examnumber", "examno", "เลขประจำตัว", "เลขสอบ"],
+    grade: ["grade", "ระดับชั้น", "ชั้น"],
+    schoolName: ["schoolname", "school", "โรงเรียน"],
+    candidateName: ["candidatename", "name", "studentname", "ชื่อผู้สมัคร", "ชื่อ"],
+    award: ["award", "รางวัล"],
+  };
+  const required = includeAward ? ["candidateNo", "grade", "schoolName", "candidateName", "award"] : ["candidateNo", "schoolName", "candidateName"];
+  const fields = includeAward || aliases.grade.some((alias) => sheet.slice(0, 30).some((row) => row.map(normalizeHeader).includes(normalizeHeader(alias)))) ? [...required, ...(required.includes("grade") ? [] : ["grade"])] : required;
+  const headerIndex = sheet.slice(0, 30).findIndex((row) => {
+    const values = row.map(normalizeHeader);
+    return required.filter((key) => aliases[key].some((alias) => values.includes(normalizeHeader(alias)))).length === required.length;
+  });
+  if (headerIndex < 0) throw new Error(`ไม่พบหัวคอลัมน์ ${includeAward ? "CANDIDATE NO, GRADE, SCHOOL NAME, CANDIDATE NAME และ AWARD" : "CANDIDATE NO, GRADE, SCHOOL NAME และ CANDIDATE NAME"}`);
+  const headers = sheet[headerIndex].map(normalizeHeader);
+  const indexes = Object.fromEntries(fields.map((key) => [key, headers.findIndex((header) => aliases[key].some((alias) => header === normalizeHeader(alias)))]));
+  const rows = sheet.slice(headerIndex + 1).map((row) => Object.fromEntries(fields.map((key) => [key, String(row[indexes[key]] ?? "").trim()]))).filter((row) => Object.values(row).some(Boolean));
+  if (!rows.length) throw new Error("ไฟล์ไม่มีแถวข้อมูลผู้สมัคร");
+  return rows;
+}
+
+function isWithinRegistrationWindow(exam, today = getBangkokTodayISO()) {
+  return Boolean(exam?.openDate && exam?.closeDate && today >= exam.openDate && today <= exam.closeDate);
+}
+
 function isFinalConfirmationWindowOpen(exam, today = getBangkokTodayISO()) {
-  return !exam?.finalConfirmCloseDate || today <= exam.finalConfirmCloseDate;
+  return isWithinRegistrationWindow(exam, today) && !exam?.finalManuallyClosed;
 }
 
 function getEligibleFinalRounds(application, examCatalog, publishedHeatResults, today = getBangkokTodayISO()) {
-  const passedCompetitions = new Set(publishedHeatResults
-    .filter((result) => result.applicationId === application?.id && result.year === application?.year && isFinalEligibleAward(result.award, result.competitionId))
-    .map((result) => result.competitionId));
+  const passedCompetitions = new Set((application?.competitions || []).filter((competition) => (publishedHeatResults || []).some((result) => {
+    const matchesItem = !result.applicationItemId || !competition.applicationItemId || result.applicationItemId === competition.applicationItemId;
+    const eligible = typeof result.eligibleForFinal === "boolean" ? result.eligibleForFinal : isFinalEligibleAward(result.award, result.competitionId);
+    return result.applicationId === application?.id
+      && String(result.year) === String(application?.year)
+      && (!result.roundType || result.roundType === "HEAT")
+      && result.competitionId === competition.id
+      && matchesItem
+      && eligible;
+  })).map((competition) => competition.id));
   const applicationCompetitions = new Set((application?.competitions || []).map((competition) => competition.id));
   return (examCatalog || []).filter((exam) => exam.year === application?.year
     && getExamRoundType(exam) === "FINAL"
@@ -398,6 +327,7 @@ function getEligibleFinalRounds(application, examCatalog, publishedHeatResults, 
 
 function getFinalRegistrationCatalog(examCatalog, applications, publishedHeatResults, today = getBangkokTodayISO()) {
   const eligibleFinalIds = new Set();
+  const qualifiedFinalIds = new Set();
   const finalsByCompetitionYear = new Map();
   (examCatalog || []).filter((exam) => getExamRoundType(exam) === "FINAL").forEach((exam) => {
     const key = `${exam.competitionId}::${exam.year}`;
@@ -413,21 +343,19 @@ function getFinalRegistrationCatalog(examCatalog, applications, publishedHeatRes
     if (application?.kind !== "Heat" || application.year !== result.year
       || !(application.competitions || []).some((competition) => competition.id === result.competitionId)) return;
     (finalsByCompetitionYear.get(key) || []).forEach((exam) => {
-      if (!exam.finalManuallyClosed && isFinalConfirmationWindowOpen(exam, today)) eligibleFinalIds.add(exam.id);
+      qualifiedFinalIds.add(exam.id);
+      if (!exam.finalManuallyClosed && isWithinRegistrationWindow(exam, today)) eligibleFinalIds.add(exam.id);
     });
   });
   return (examCatalog || []).map((exam) => {
-    if (getExamRoundType(exam) !== "FINAL") return exam;
+    if (getExamRoundType(exam) !== "FINAL") return { ...exam, isOpen: !exam.finalManuallyClosed && isWithinRegistrationWindow(exam, today) };
     const hasHeatResults = heatResultKeys.has(`${exam.competitionId}::${exam.year}`);
-    const status = exam.finalManuallyClosed
-      ? "closed-manual"
-      : !isFinalConfirmationWindowOpen(exam, today)
-        ? "closed-deadline"
-        : eligibleFinalIds.has(exam.id)
-          ? "open"
-          : hasHeatResults
-            ? "no-eligible-applicants"
-            : "waiting-results";
+    let status = "waiting-results";
+    if (exam.finalManuallyClosed) status = "closed-manual";
+    else if (exam.openDate && today < exam.openDate) status = "not-open-yet";
+    else if (!exam.closeDate || today > exam.closeDate) status = "closed-deadline";
+    else if (eligibleFinalIds.has(exam.id)) status = "open";
+    else if (hasHeatResults || qualifiedFinalIds.has(exam.id)) status = "no-eligible-applicants";
     return { ...exam, isOpen: status === "open", finalRegistrationStatus: status };
   });
 }
@@ -453,8 +381,10 @@ const pageLabels = {
   "edit-verify": "ยืนยันตัวตนเพื่อแก้ไข",
   "edit-application": "แก้ไขใบสมัคร",
   "slip-upload": "อัปโหลดสลิปใหม่",
+  "slip-replacement": "ส่งสลิปชำระเงินใหม่",
   "final-confirm": "ยืนยันสิทธิ์ Final",
   results: "ประกาศผล",
+  "admin-login": "เข้าสู่ระบบแอดมิน",
   "admin-home": "ภาพรวมแอดมิน",
   "admin-review": "ตรวจใบสมัคร",
   "admin-round": "รายการสอบและกำหนดการ",
@@ -466,6 +396,67 @@ const pageLabels = {
   "admin-application-edit": "แก้ไขใบสมัคร (แอดมิน)",
 };
 
+const ADMIN_PORTAL_PATH = "/portal-admin";
+function isAdminPortalPath(pathname = window.location.pathname) {
+  return pathname.replace(/\/+$/, "") === ADMIN_PORTAL_PATH || pathname.startsWith(`${ADMIN_PORTAL_PATH}/`);
+}
+const staticRoutePaths = {
+  home: "/", "apply-heat": "/apply", "apply-final": "/apply/final", applications: "/applications",
+  "lookup-choice": "/lookup", "check-status": "/status", "edit-verify": "/edit/verify",
+  "slip-upload": "/slip-upload", "slip-replacement": "/slip-replacement", "final-confirm": "/final/confirm", results: "/results",
+  "admin-login": ADMIN_PORTAL_PATH, "admin-home": `${ADMIN_PORTAL_PATH}/dashboard`,
+  "admin-review": `${ADMIN_PORTAL_PATH}/review`, "admin-application-edit": `${ADMIN_PORTAL_PATH}/applications`,
+  "admin-round": `${ADMIN_PORTAL_PATH}/exams`, "admin-form-options": `${ADMIN_PORTAL_PATH}/form-options`,
+  "admin-results": `${ADMIN_PORTAL_PATH}/results`, "admin-final-ids": `${ADMIN_PORTAL_PATH}/final-ids`,
+  "admin-sheets": `${ADMIN_PORTAL_PATH}/integrations/sheets`, "admin-mock-papers": `${ADMIN_PORTAL_PATH}/mock-papers`,
+};
+function routeUrlFor(page, applicationId = "") {
+  if (page === "application-detail") return applicationId ? `/applications/${encodeURIComponent(applicationId)}` : "/applications";
+  if (page === "edit-application") return applicationId ? `/applications/${encodeURIComponent(applicationId)}/edit` : "/applications";
+  if (page === "admin-review") return applicationId ? `${ADMIN_PORTAL_PATH}/applications/${encodeURIComponent(applicationId)}` : `${ADMIN_PORTAL_PATH}/review`;
+  if (page === "admin-application-edit") return applicationId ? `${ADMIN_PORTAL_PATH}/applications/${encodeURIComponent(applicationId)}/edit` : `${ADMIN_PORTAL_PATH}/applications`;
+  if (page === "slip-upload") return applicationId ? `/slip-upload/${encodeURIComponent(applicationId)}` : "/slip-upload";
+  if (page === "edit-verify") return applicationId ? `/edit/verify/${encodeURIComponent(applicationId)}` : "/edit/verify";
+  return staticRoutePaths[page] || "/";
+}
+function decodePathSegment(value) {
+  try { return decodeURIComponent(value); } catch { return value; }
+}
+function routeFromLocation() {
+  const pathname = window.location.pathname.replace(/\/+$/, "") || "/";
+  const query = new URLSearchParams(window.location.search);
+  let route = { page: "home", applicationId: "", legacy: false };
+  if (pathname === "/portal-admin") {
+    const oldAdminPage = window.location.hash.slice(1);
+    route = oldAdminPage.startsWith('admin-') && pageLabels[oldAdminPage]
+      ? { page: oldAdminPage, applicationId: '', legacy: true }
+      : { page: "admin-login", applicationId: "" };
+  }
+  else if (pathname.startsWith(`${ADMIN_PORTAL_PATH}/applications/`)) {
+    const match = pathname.match(/^\/portal-admin\/applications\/([^/]+)(\/edit)?$/);
+    if (match) route = { page: match[2] ? "admin-application-edit" : "admin-review", applicationId: decodePathSegment(match[1]) };
+  } else if (pathname.startsWith(`${ADMIN_PORTAL_PATH}/`)) {
+    const pathPage = Object.entries(staticRoutePaths).find(([page, path]) => page.startsWith("admin-") && path === pathname)?.[0];
+    if (pathPage) route = { page: pathPage === "admin-application-edit" ? "admin-review" : pathPage, applicationId: "" };
+  } else if (pathname.startsWith("/applications/")) {
+    const match = pathname.match(/^\/applications\/([^/]+)(\/edit)?$/);
+    if (match) route = { page: match[2] ? "edit-application" : "application-detail", applicationId: decodePathSegment(match[1]) };
+  } else if (pathname.startsWith("/slip-upload/")) {
+    route = { page: "slip-upload", applicationId: decodePathSegment(pathname.slice("/slip-upload/".length)) };
+  } else if (pathname.startsWith("/edit/verify/")) {
+    route = { page: "edit-verify", applicationId: decodePathSegment(pathname.slice("/edit/verify/".length)) };
+  } else {
+    const pathPage = Object.entries(staticRoutePaths).find(([, path]) => path === pathname)?.[0];
+    if (pathPage) route = { page: pathPage, applicationId: "" };
+    if (route.page === "slip-replacement" && !query.has("token") && query.has("slipReplacement")) query.set("token", query.get("slipReplacement"));
+  }
+  if (route.page === "home" && window.location.hash) {
+    const oldPage = window.location.hash.slice(1);
+    if (pageLabels[oldPage]) route = { page: oldPage, applicationId: "", legacy: true };
+  }
+  if (route.page === "home" && pathname !== "/") route.legacy = true;
+  return route;
+}
 const iconGlyphs = {
   home: "home",
   file: "file",
@@ -534,11 +525,12 @@ function Button({ children, variant = "primary", icon, type = "button", onClick,
 }
 
 function StatusBadge({ status }) {
-  const pending = status !== "confirmed";
+  const rejected = status === "rejected";
+  const pending = status !== "confirmed" && !rejected;
   return (
-    <span className={"status-badge " + (pending ? "status-pending" : "status-confirmed")}>
+    <span className={"status-badge " + (rejected ? "status-rejected" : pending ? "status-pending" : "status-confirmed")}>
       <span className="status-dot" aria-hidden="true" />
-      {pending ? "รออนุมัติ/ตรวจสอบสลิป" : "ยืนยันใบสมัคร"}
+      {rejected ? "ไม่อนุมัติ" : pending ? "รออนุมัติ/ตรวจสอบสลิป" : "ยืนยันใบสมัคร"}
     </span>
   );
 }
@@ -668,9 +660,21 @@ function createSchoolApplicant(id, prefill) {
   };
 }
 
-function ApplicationCard({ application, onOpen }) {
+function ApplicationCard({ application, onOpen, resultRows = [], examCatalog = [], today, authProfile, hasFinalApplication = false, onConfirmFinal }) {
+  const resultState = getApplicationHeatResultState(application, resultRows, today);
+  const finalRounds = application.kind === "Heat" ? getEligibleFinalRounds(application, examCatalog, resultRows, today) : [];
+  const isOwnAccountApplication = Boolean(authProfile?.email
+    && !authProfile?.isAdmin
+    && application.source === "self"
+    && application.contactEmail?.toLowerCase() === authProfile.email.toLowerCase());
+  const canConfirmFinal = isOwnAccountApplication && !hasFinalApplication && finalRounds.length > 0 && typeof onConfirmFinal === "function";
+  const hasFinalOpportunity = canConfirmFinal && resultState?.items.some(({ result, competition }) => result
+    && finalRounds.some((round) => round.competitionId === competition.id));
+  const resultStageLabel = resultState?.status === "waiting"
+    ? "รอประกาศผลสอบ"
+    : resultState?.status === "published" ? "ประกาศผลสอบ" : "";
   return (
-    <article className="application-card">
+    <article className={`application-card${hasFinalOpportunity ? " application-card-final-eligible" : ""}`}>
       <div className="application-card-top">
         <div className="candidate-avatar">{application.candidate.split(" ").map((part) => part[0]).slice(0, 2).join("")}</div>
         <div className="application-card-title">
@@ -678,7 +682,10 @@ function ApplicationCard({ application, onOpen }) {
           <h3>{application.candidate}</h3>
           <p>{application.school}</p>
         </div>
-        <StatusBadge status={application.status} />
+        <div className="application-card-status-group">
+          {resultStageLabel ? <span className={`application-result-stage ${resultState.status === "published" ? "is-published" : "is-waiting"}`}><span className="status-dot" aria-hidden="true" />{resultStageLabel}</span> : <StatusBadge status={application.status} />}
+          {hasFinalOpportunity ? <div className="application-final-chip"><Icon name="award" size={15} /><span><strong>ได้รับสิทธิ์สมัครรอบ Final แล้ว</strong></span><Button variant="success" className="application-final-chip-button" onClick={() => onConfirmFinal(application, finalRounds)}>ยืนยัน</Button></div> : null}
+        </div>
       </div>
       <div className="application-meta-grid">
         <div>
@@ -694,6 +701,18 @@ function ApplicationCard({ application, onOpen }) {
           <strong>{application.submitted}</strong>
         </div>
       </div>
+      {resultStageLabel ? <div className="application-card-results" aria-label="ผลสอบรายรายการ">
+        {resultState.items.map(({ competition, result, status }) => {
+          const outcome = result ? (typeof result.eligibleForFinal === "boolean" ? result.eligibleForFinal : result.result ? result.result === "pass" : isFinalEligibleAward(result.award, competition.id)) : null;
+          const competitionName = competition.short || competition.name || competition.id;
+          return <div className="application-card-result-row" key={competition.applicationItemId || competition.id}>
+            <strong>{competitionName}{competition.grade ? ` · ${competition.grade}` : ""}</strong>
+            {result ? <span className="application-card-result-copy"><span className="application-result-published">ประกาศผลสอบ</span><span className={`application-result-outcome ${outcome ? "is-passed" : "is-not-passed"}`}>{outcome ? "ผ่านรอบ HEAT ROUND" : "ไม่ผ่านรอบ HEAT ROUND"}</span></span>
+              : status === "waiting" ? <span className="application-result-outcome is-waiting">รอประกาศผลสอบ</span>
+                : <span className="application-result-upcoming">ยังไม่ถึงวันสอบ</span>}
+          </div>;
+        })}
+      </div> : null}
       <div className="application-card-footer">
         <div className="application-card-footer-meta">
           <span className="muted-inline"><Icon name="building" size={15} />{getApplicationCenterSummary(application)}</span>
@@ -705,12 +724,12 @@ function ApplicationCard({ application, onOpen }) {
   );
 }
 
-function Sidebar({ page, persona, applications = [], navigate, open, onClose, notify }) {
+function Sidebar({ page, persona, applications = [], navigate, open, onClose, notify, activeYear }) {
   const pendingReviewCount = applications.filter((item) => item.status === "pending").length;
   const mainItems = [
     { id: "home", label: "ภาพรวม", icon: "home" },
     { id: "apply-heat", label: "สมัครสอบ", icon: "plus" },
-    { id: "applications", label: "ใบสมัครของฉัน", icon: "file", count: String(applications.filter((item) => persona === "coordinator" || item.owner === "candidate" || item.candidate === "Nicha Srisawat").length) },
+    { id: "applications", label: "ใบสมัครของฉัน", icon: "file", count: String(applications.filter((item) => persona === "coordinator" || item.owner === "candidate").length) },
     { id: "lookup-choice", label: "ค้นหา / แก้ไขใบสมัคร", icon: "search" },
     { id: "final-confirm", label: "ยืนยันสิทธิ์ Final", icon: "award" },
     { id: "results", label: "ประกาศผล", icon: "grid" },
@@ -749,7 +768,7 @@ function Sidebar({ page, persona, applications = [], navigate, open, onClose, no
         </div>
         <div className="round-switch">
           <span className="round-icon"><Icon name="calendar" size={17} /></span>
-          <div><span>รอบการสอบ</span><strong>ประจำปี 2569</strong></div>
+          <div><span>รอบการสอบ</span><strong>{activeYear ? `ประจำปี ${activeYear}` : "ยังไม่กำหนดปี"}</strong></div>
           <span className="round-caret">⌄</span>
         </div>
         <nav aria-label={persona === "admin" ? "จัดการระบบ" : "เมนูหลัก"}>
@@ -766,7 +785,7 @@ function Sidebar({ page, persona, applications = [], navigate, open, onClose, no
             <span className="help-icon"><Icon name="help" size={17} /></span>
             <strong>ต้องการความช่วยเหลือ?</strong>
             <p>ดูคำแนะนำการสมัครและการใช้งาน</p>
-            <a href="#help" onClick={(event) => { event.preventDefault(); notify("ศูนย์ช่วยเหลือเป็นตัวอย่างสำหรับ prototype"); }}>ศูนย์ช่วยเหลือ <Icon name="arrow" size={14} /></a>
+            <a href="https://lin.ee/3hzFg1z" target="_blank" rel="noopener noreferrer">ศูนย์ช่วยเหลือ <Icon name="arrow" size={14} /></a>
           </div>
           <div className="sidebar-version"><span className="online-dot" />ระบบพร้อมใช้งาน <span>v1.0</span></div>
         </div>
@@ -775,7 +794,7 @@ function Sidebar({ page, persona, applications = [], navigate, open, onClose, no
   );
 }
 
-function Topbar({ title, persona, setPersona, menuOpen, setMenuOpen, navigate }) {
+function Topbar({ title, persona, setPersona, menuOpen, setMenuOpen, navigate, authProfile, onSignOut, activeYear }) {
   const roleNames = {
     guest: "บุคคลทั่วไป",
     candidate: "ผู้สมัคร",
@@ -796,16 +815,20 @@ function Topbar({ title, persona, setPersona, menuOpen, setMenuOpen, navigate })
         <div className="breadcrumb"><span>OCEC Portal</span><Icon name="chevron" size={14} /><strong>{title}</strong></div>
       </div>
       <div className="topbar-actions">
-        <span className="topbar-round"><span className="online-dot" />รอบสอบ 2569</span>
-        <label className="persona-control">
+        <span className="topbar-round"><span className="online-dot" />{activeYear ? `รอบสอบ ${activeYear}` : "รอบสอบ"}</span>
+        {BACKEND_ENABLED && persona === "admin" ? (
+          <div className="admin-session-chip">
+            <ProfileAvatar src={authProfile?.picture} alt="" />
+            <span><strong>{authProfile?.name || "ผู้ดูแลระบบ"}</strong><small>{authProfile?.email || ""}</small></span>
+            <button type="button" onClick={onSignOut}>ออกจากระบบ</button>
+          </div>
+        ) : <>
+        {!BACKEND_ENABLED ? <label className="persona-control">
           <span className="sr-only">สลับมุมมองตัวอย่าง</span>
-          <select
-            value={persona}
-            onChange={(event) => setPersona(event.target.value)}
-          >
+          <select value={persona} onChange={(event) => setPersona(event.target.value)}>
             {Object.keys(roleNames).map((key) => <option value={key} key={key}>{roleNames[key]}</option>)}
           </select>
-        </label>
+        </label> : null}
         {persona === "guest" ? (
           <Button variant="outline" icon="shield" onClick={() => { setPersona("candidate"); }}>เข้าสู่ระบบด้วย Google</Button>
         ) : (
@@ -815,6 +838,7 @@ function Topbar({ title, persona, setPersona, menuOpen, setMenuOpen, navigate })
             <span className="profile-caret">⌄</span>
           </button>
         )}
+        </>}
       </div>
     </header>
   );
@@ -1010,7 +1034,7 @@ function PublicPortalHeader({ page, navigate, setPersona, authProfile, onSignIn,
 
   return (
     <header className="landing-header">
-      <a className="landing-brand" href="#home" aria-label="OCEC Portal หน้าแรก">
+      <a className="landing-brand" href="/" aria-label="OCEC Portal หน้าแรก">
         <BrandMark />
         <span><strong>OCEC Portal</strong><small>ระบบสมัครสอบ</small></span>
       </a>
@@ -1033,14 +1057,14 @@ function PublicPortalHeader({ page, navigate, setPersona, authProfile, onSignIn,
               aria-label={`บัญชีผู้ใช้ ${authProfile.name} ${authProfile.email}`}
               onClick={() => setAccountMenuOpen((open) => !open)}
             >
-              <img className="account-avatar" src={authProfile.picture} alt={`รูปโปรไฟล์ ${authProfile.name}`} />
+              <ProfileAvatar className="account-avatar" src={authProfile.picture} alt={`รูปโปรไฟล์ ${authProfile.name}`} />
               <span className="account-profile-copy"><strong>{authProfile.name}</strong><small>{authProfile.email}</small></span>
               <Icon name="chevron" size={16} className="account-chevron" />
             </button>
             {accountMenuOpen ? (
               <div className="account-menu-panel" id="account-menu-panel" aria-label="เมนูบัญชีผู้ใช้">
                 <div className="account-menu-identity">
-                  <img className="account-avatar" src={authProfile.picture} alt="" />
+                  <ProfileAvatar className="account-avatar" src={authProfile.picture} alt="" />
                   <span><strong>{authProfile.name}</strong><small>{authProfile.email}</small></span>
                 </div>
                 <button type="button" onClick={() => { setPersona("candidate"); navigate("applications"); setAccountMenuOpen(false); }}><Icon name="file" size={16} />ใบสมัครของฉัน</button>
@@ -1076,25 +1100,64 @@ function PublicPortalHeader({ page, navigate, setPersona, authProfile, onSignIn,
   );
 }
 
-function PublicPortalFooter({ setPersona, navigate }) {
+function PublicPortalFooter() {
   return (
     <footer className="landing-footer">
-      <a className="landing-footer-brand" href="#home"><BrandMark /><span><strong>OCEC Portal</strong><small>ระบบสมัครสอบ</small></span></a>
-      <span>© 2569 OCEC Portal · หน้าต้นแบบ</span>
+      <a className="landing-footer-brand" href="/"><BrandMark /><span><strong>OCEC Portal</strong><small>ระบบสมัครสอบ</small></span></a>
+      <span>© 2569 OCEC Portal</span>
+      <a href="https://lin.ee/3hzFg1z" target="_blank" rel="noopener noreferrer">ศูนย์ช่วยเหลือ</a>
       <a className="flaticon-attribution" href="https://www.flaticon.com/uicons" target="_blank" rel="noreferrer">UIcons by Flaticon</a>
-      <button onClick={() => { setPersona("admin"); navigate("admin-home"); }}>ดูตัวอย่างหลังบ้าน</button>
     </footer>
   );
 }
 
-function PublicPortalLayout({ page, navigate, setPersona, authProfile, onSignIn, onSignOut, toast, setToast, children }) {
+function AdminLoginPage({ authProfile, authChecked, backendEnabled, onSignIn, onSignOut }) {
+  const isUnauthorized = authProfile && !authProfile.isAdmin;
+  return (
+    <main className="admin-login-page">
+      <a className="admin-login-brand" href="/" aria-label="กลับหน้า OCEC Portal">
+        <BrandMark /><span><strong>OCEC Portal</strong><small>ระบบสมัครสอบ</small></span>
+      </a>
+      <section className="admin-login-card" aria-labelledby="admin-login-title">
+        <span className="admin-login-mark"><Icon name="shield" size={24} /></span>
+        <p className="admin-login-eyebrow">พื้นที่เจ้าหน้าที่</p>
+        <h1 id="admin-login-title">เข้าสู่ระบบแอดมิน</h1>
+        <p className="admin-login-description">ใช้บัญชี Google ที่ได้รับอนุญาตเพื่อจัดการรายการสอบและใบสมัคร</p>
+        {!backendEnabled ? (
+          <div className="admin-login-message admin-login-message-error" role="alert">ระบบล็อกอินยังไม่เปิดใช้งาน · ตั้งค่า <code>VITE_BACKEND_ENABLED=true</code> แล้ว build เว็บใหม่</div>
+        ) : !authChecked ? (
+          <div className="admin-login-message" role="status"><span className="admin-login-spinner" />กำลังตรวจสอบบัญชี…</div>
+        ) : isUnauthorized ? (
+          <>
+            <div className="admin-login-message admin-login-message-error" role="alert">
+              บัญชี {authProfile.email} ไม่มีสิทธิ์เข้าหลังบ้าน กรุณาใช้อีเมลที่กำหนดใน <code>ADMIN_EMAILS</code>
+            </div>
+            <button className="admin-login-button admin-login-secondary" type="button" onClick={onSignOut}>ออกจากระบบเพื่อเลือกบัญชีอื่น</button>
+          </>
+        ) : authProfile?.isAdmin ? (
+          <div className="admin-login-message" role="status">กำลังเปิดหน้าจัดการสำหรับ {authProfile.email}…</div>
+        ) : (
+          <>
+            <button className="admin-login-button" type="button" onClick={onSignIn}>
+              <GoogleMark /><span>เข้าสู่ระบบด้วย Google</span><Icon name="arrow" size={17} />
+            </button>
+            <p className="admin-login-hint">ตั้งอีเมลแอดมินใน <code>.env</code> ที่ <code>ADMIN_EMAILS</code> รองรับหลายอีเมลโดยคั่นด้วย comma</p>
+          </>
+        )}
+      </section>
+      <a className="admin-login-back" href="/">กลับไปหน้าเว็บไซต์</a>
+    </main>
+  );
+}
+
+function PublicPortalLayout({ page, navigate, setPersona, authProfile, onSignIn, onSignOut, toast, setToast, examCatalog, children }) {
   return (
     <div className="public-landing public-portal-page">
       <a className="skip-link" href="#landing-main">ข้ามไปยังเนื้อหาหลัก</a>
-      <div className="landing-note"><Icon name="calendar" size={15} /><span>รอบรับสมัครปีการศึกษา 2569 · สอบวันที่ 13 ธันวาคม 2569</span></div>
+      <ExamScheduleNotice examCatalog={examCatalog} navigate={navigate} />
       <PublicPortalHeader page={page} navigate={navigate} setPersona={setPersona} authProfile={authProfile} onSignIn={onSignIn} onSignOut={onSignOut} />
       <main id="landing-main" className="public-page-main" tabIndex="-1">{children}</main>
-      <PublicPortalFooter setPersona={setPersona} navigate={navigate} />
+      <PublicPortalFooter />
       {toast ? <div className="toast" role="status" aria-live="polite"><span><Icon name="check" size={16} /></span><p>{toast}</p><button aria-label="ปิดการแจ้งเตือน" onClick={() => setToast("")}><Icon name="close" size={16} /></button></div> : null}
     </div>
   );
@@ -1140,7 +1203,7 @@ function LandingPage({ navigate, setPersona, authProfile, onSignIn, onSignOut, o
   return (
     <div className="public-landing">
       <a className="skip-link" href="#landing-main">ข้ามไปยังเนื้อหาหลัก</a>
-      <div className="landing-note"><Icon name="calendar" size={15} /><span>รอบรับสมัครปีการศึกษา 2569 · สอบวันที่ 13 ธันวาคม 2569</span></div>
+      <ExamScheduleNotice examCatalog={examCatalog} navigate={navigate} />
       <PublicPortalHeader page="home" navigate={navigate} setPersona={setPersona} authProfile={authProfile} onSignIn={onSignIn} onSignOut={onSignOut} />
 
       <main id="landing-main" tabIndex="-1">
@@ -1236,7 +1299,7 @@ function LandingPage({ navigate, setPersona, authProfile, onSignIn, onSignOut, o
   );
 }
 
-function ApplicationsPage({ applications, navigate }) {
+function ApplicationsPage({ applications, navigate, resultRows = [], examCatalog = [], today, authProfile, onConfirmFinal }) {
   const [filter, setFilter] = useState("ทั้งหมด");
   const filters = ["ทั้งหมด", "รอตรวจ", "อนุมัติแล้ว"];
   const visible = applications.filter((item) => filter === "ทั้งหมด" || (filter === "รอตรวจ" ? item.status === "pending" : item.status === "confirmed"));
@@ -1245,32 +1308,32 @@ function ApplicationsPage({ applications, navigate }) {
       <PageHeading
         eyebrow="บัญชีของฉัน"
         title="ใบสมัครของฉัน"
-        description="ติดตามสถานะใบสมัคร BBB, HKISO และ HKICO รอบ HEAT ปีการศึกษา 2569"
+        description="ติดตามสถานะและเปิดดูรายละเอียดใบสมัครของคุณ"
       />
       <div className="filter-toolbar">
-        <div className="segmented-control" role="group" aria-label="กรองตามรายการสอบ">
+        <div className="segmented-control" role="group" aria-label="กรองตามสถานะใบสมัคร">
           {filters.map((item) => <button key={item} className={filter === item ? "segment-active" : ""} onClick={() => setFilter(item)}>{item}</button>)}
         </div>
         <span className="result-count">พบ {visible.length} ใบสมัคร</span>
       </div>
-      <section className="application-group">
-        <div className="group-heading"><div><span className="group-mark group-blue">H</span><div><h2>ปีการศึกษา 2569</h2><p>BBB · HKISO · HKICO HEAT ROUND</p></div></div><span>{visible.filter((item) => item.year === "2569").length} ใบ</span></div>
-        <div className="application-card-list">
-          {visible.filter((item) => item.year === "2569").map((application) => (
-            <ApplicationCard key={application.id} application={application} onOpen={() => navigate("application-detail", application.id)} />
-          ))}
-        </div>
-      </section>
-      {visible.some((item) => item.year === "2568") ? (
-        <section className="application-group">
-          <div className="group-heading"><div><span className="group-mark group-gray">H</span><div><h2>ปีการศึกษา 2568</h2><p>ประวัติรายการสอบก่อนหน้า</p></div></div><span>{visible.filter((item) => item.year === "2568").length} ใบ</span></div>
-          <div className="application-card-list">
-            {visible.filter((item) => item.year === "2568").map((application) => (
-              <ApplicationCard key={application.id} application={application} onOpen={() => navigate("application-detail", application.id)} />
-            ))}
-          </div>
-        </section>
-      ) : null}
+      <div className="application-card-list">
+        {visible.map((application) => (
+          <ApplicationCard
+            key={application.id}
+            application={application}
+            onOpen={() => navigate("application-detail", application.id)}
+            resultRows={resultRows}
+            examCatalog={examCatalog}
+            today={today}
+            authProfile={authProfile}
+            hasFinalApplication={applications.some((item) => item.kind === "Final" && item.sourceHeatId === application.id)}
+            onConfirmFinal={onConfirmFinal}
+          />
+        ))}
+        {visible.length === 0 ? (
+          <div className="empty-inline application-list-empty"><Icon name="file" size={17} />{filter === "ทั้งหมด" ? "ยังไม่มีใบสมัครในบัญชีนี้" : "ไม่พบใบสมัครตามสถานะที่เลือก"}</div>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -1278,37 +1341,61 @@ function ApplicationsPage({ applications, navigate }) {
 function StatusLookupPage({ applications, navigate }) {
   const [query, setQuery] = useState("");
   const [searched, setSearched] = useState(false);
-  const results = useMemo(() => {
-    if (!searched || !query.trim()) return [];
-    return applications.filter((item) => item.candidate.toLowerCase().includes(query.trim().toLowerCase()));
-  }, [applications, query, searched]);
+  const [results, setResults] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function search(event) {
+    event.preventDefault();
+    const name = query.trim();
+    setSearched(true);
+    setError("");
+    setBusy(true);
+    try {
+      if (BACKEND_ENABLED) {
+        const response = await fetch("/api/public/applications/status", {
+          method: "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ name }),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || "ค้นหาสถานะไม่สำเร็จ");
+        setResults(result.applications || []);
+      } else {
+        setResults(applications.filter((item) => item.candidate.toLowerCase().includes(name.toLowerCase())));
+      }
+    } catch (requestError) {
+      setResults([]);
+      setError(requestError?.message || "ค้นหาสถานะไม่สำเร็จ");
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <div className="page-stack narrow-page">
       <PageHeading eyebrow="บริการผู้สมัคร" title="ค้นหาสถานะใบสมัคร" description="ตรวจสอบสถานะล่าสุดของใบสมัครได้โดยไม่ต้องเข้าสู่ระบบ" />
       <section className="surface lookup-card">
         <div className="lookup-icon"><Icon name="search" size={22} /></div>
         <h2>ค้นหาด้วยชื่อภาษาอังกฤษ</h2>
-        <p>กรอกชื่อผู้เข้าสอบตามที่ระบุในใบสมัคร ระบบจะแสดงสถานะทั่วไปของใบสมัคร</p>
-        <form onSubmit={(event) => { event.preventDefault(); setSearched(true); }}>
+        <p>กรอกชื่อผู้เข้าสอบตามที่ระบุในใบสมัคร ระบบจะแสดงรายการสอบ สถานะ และเหตุผลสั้น ๆ หากไม่อนุมัติ</p>
+        <form onSubmit={search}>
           <Field label="ชื่อภาษาอังกฤษของผู้เข้าสอบ" required hint="ตัวอย่าง: Nicha Srisawat">
-            <div className="input-with-icon"><Icon name="search" size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="กรอกชื่อและนามสกุลภาษาอังกฤษ" required /></div>
+            <div className="input-with-icon"><Icon name="search" size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="กรอกชื่อและนามสกุลภาษาอังกฤษ" minLength={3} required /></div>
           </Field>
-          <Button type="submit" icon="search" className="button-full">ค้นหาสถานะ</Button>
+          <Button type="submit" icon="search" className="button-full" disabled={busy}>{busy ? "กำลังค้นหา…" : "ค้นหาสถานะ"}</Button>
         </form>
         {searched ? (
           <div className="lookup-results" aria-live="polite">
             <div className="lookup-results-head"><strong>ผลการค้นหา</strong><span>{results.length} รายการ</span></div>
-            {results.length ? results.map((application) => (
-              <div className="status-result" key={application.id}>
-                <div className="status-result-main"><strong>{application.candidate}</strong><span>{application.exam} · {application.school}</span></div>
-                <div className="status-result-side"><StatusBadge status={application.status} /><small>เลขสอบ: {application.kind === "Final" ? (application.finalId || "รอเลขประจำตัว") : (application.heatId || "รอเลขประจำตัว")}</small></div>
+            {error ? <div className="empty-inline"><Icon name="info" /><span>{error}</span></div> : results.length ? results.map((application, index) => (
+              <div className="status-result" key={`${application.id || application.candidate}-${index}`}>
+                <div className="status-result-main"><strong>{application.candidate}</strong><span>{application.exam}</span></div>
+                <div className="status-result-side"><StatusBadge status={application.status} />{application.status === "rejected" && application.reason ? <small className="status-rejected-reason">เหตุผล: {application.reason}</small> : null}</div>
               </div>
             )) : <div className="empty-inline"><Icon name="info" /><span>ไม่พบใบสมัครที่ตรงกับชื่อ กรุณาตรวจการสะกดชื่อภาษาอังกฤษอีกครั้ง</span></div>}
           </div>
         ) : null}
       </section>
-      <section className="info-banner"><Icon name="shield" /><div><strong>ต้องการแก้ไขใบสมัคร?</strong><p>ยืนยันตัวตนด้วยชื่อภาษาอังกฤษและเลข 4 ตัวท้ายของเบอร์โทรศัพท์ก่อนดูข้อมูล</p></div><Button variant="outline" onClick={() => navigate("edit-verify")}>ไปหน้าแก้ไข</Button></section>
-      <p className="privacy-note"><Icon name="lock" size={14} />ระบบแสดงเฉพาะสถานะทั่วไป รายละเอียดปัญหาสลิปจะแจ้งทางอีเมลติดต่อที่ระบุในใบสมัคร</p>
+      <section className="info-banner"><Icon name="shield" /><div><strong>ต้องการแก้ไขใบสมัคร?</strong><p>ยืนยันตัวตนด้วยชื่อภาษาอังกฤษและเลข 4 ตัวท้ายของเบอร์โทรศัพท์ก่อนเปิดข้อมูล</p></div><Button variant="outline" onClick={() => navigate("edit-verify")}>ไปหน้าแก้ไข</Button></section>
+      <p className="privacy-note"><Icon name="lock" size={14} />หน้าค้นหานี้แสดงรายการสอบ สถานะ และเหตุผลสั้น ๆ เมื่อไม่อนุมัติ โดยไม่แสดงบันทึกภายในหรือรายละเอียดการชำระเงิน</p>
     </div>
   );
 }
@@ -1329,7 +1416,7 @@ function LookupChoicePage({ navigate }) {
           <span className="lookup-choice-arrow"><Icon name="arrow" /></span>
         </button>
       </div>
-      <div className="notice notice-blue"><Icon name="lock" /><div><strong>ข้อมูลส่วนตัวได้รับการปกป้อง</strong><p>การค้นหาสถานะจะแสดงเฉพาะชื่อ รายการสอบ เลขประจำตัวเมื่อมี และสถานะทั่วไป</p></div></div>
+      <div className="notice notice-blue"><Icon name="lock" /><div><strong>ข้อมูลส่วนตัวได้รับการปกป้อง</strong><p>การค้นหาสถานะแสดงเฉพาะรายการสอบและสถานะอนุมัติ ส่วนการแก้ไขต้องยืนยันชื่อกับเบอร์โทรศัพท์</p></div></div>
       <button className="back-link" onClick={() => navigate("home")}><Icon name="arrow" size={15} />กลับหน้าภาพรวม</button>
     </div>
   );
@@ -1339,15 +1426,30 @@ function EditVerifyPage({ applications, onVerified, navigate }) {
   const [name, setName] = useState("");
   const [lastFour, setLastFour] = useState("");
   const [error, setError] = useState("");
-  function verify(event) {
+  const [busy, setBusy] = useState(false);
+  async function verify(event) {
     event.preventDefault();
-    const match = applications.find((item) => item.candidate.toLowerCase() === name.trim().toLowerCase() && item.phoneLast4 === lastFour);
-    if (!match) {
-      setError("ไม่พบข้อมูลที่ตรงกัน กรุณาตรวจชื่อภาษาอังกฤษและเลข 4 ตัวท้ายอีกครั้ง");
-      return;
-    }
+    setBusy(true);
     setError("");
-    onVerified(match.id);
+    try {
+      if (BACKEND_ENABLED) {
+        const response = await fetch("/api/public/applications/edit-access", {
+          method: "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ candidateName: name.trim(), phoneLast4: lastFour }),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || "ไม่พบข้อมูลที่ตรงกัน กรุณาตรวจชื่อและเบอร์โทรศัพท์อีกครั้ง");
+        onVerified(result.application, { candidateName: result.application.candidate, phoneLast4: lastFour });
+      } else {
+        const match = applications.find((item) => item.candidate.toLowerCase() === name.trim().toLowerCase() && item.phoneLast4 === lastFour);
+        if (!match) throw new Error("ไม่พบข้อมูลที่ตรงกัน กรุณาตรวจชื่อภาษาอังกฤษและเลข 4 ตัวท้ายอีกครั้ง");
+        onVerified(match, { candidateName: match.candidate, phoneLast4: lastFour });
+      }
+    } catch (requestError) {
+      setError(requestError?.message || "ไม่พบข้อมูลที่ตรงกัน กรุณาตรวจชื่อและเบอร์โทรศัพท์อีกครั้ง");
+    } finally {
+      setBusy(false);
+    }
   }
   return (
     <div className="page-stack narrow-page">
@@ -1356,17 +1458,17 @@ function EditVerifyPage({ applications, onVerified, navigate }) {
         <div className="verify-steps"><span className="verify-step verify-step-active"><b>1</b>ยืนยันตัวตน</span><i /><span className="verify-step"><b>2</b>ตรวจสอบใบสมัคร</span><i /><span className="verify-step"><b>3</b>แก้ไขข้อมูล</span></div>
         <form onSubmit={verify}>
           <Field label="ชื่อภาษาอังกฤษตามใบสมัคร" required hint="กรอกชื่อและนามสกุลให้ตรงกับใบสมัคร">
-            <input value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" placeholder="เช่น Nicha Srisawat" required />
+            <input value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" placeholder="เช่น Nicha Srisawat" minLength={3} required />
           </Field>
           <Field label="เลข 4 ตัวท้ายของเบอร์โทรศัพท์" required hint="เบอร์โทรศัพท์ที่ระบุไว้ในใบสมัคร">
-            <input inputMode="numeric" maxLength={4} value={lastFour} onChange={(event) => setLastFour(event.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="••••" required />
+            <input inputMode="numeric" pattern="[0-9]{4}" maxLength={4} value={lastFour} onChange={(event) => setLastFour(event.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="••••" required />
           </Field>
           {error ? <p className="inline-error" role="alert"><Icon name="info" size={16} />{error}</p> : null}
-          <Button type="submit" icon="shield" className="button-full">ยืนยันและค้นหาใบสมัคร</Button>
+          <Button type="submit" icon="shield" className="button-full" disabled={busy}>{busy ? "กำลังตรวจสอบ…" : "ยืนยันและค้นหาใบสมัคร"}</Button>
         </form>
         <button className="back-link" onClick={() => navigate("lookup-choice")}><Icon name="arrow" size={15} />กลับไปเลือกบริการ</button>
       </section>
-      <div className="privacy-note"><Icon name="lock" size={14} />ข้อมูลที่ใช้ยืนยันตัวตนจะถูกใช้เพื่อค้นหาใบสมัครเท่านั้น</div>
+      <div className="privacy-note"><Icon name="lock" size={14} />ระบบตรวจชื่อและเลข 4 ตัวท้ายกับข้อมูลในใบสมัครโดยตรง และจำกัดการลองซ้ำ</div>
     </div>
   );
 }
@@ -1379,6 +1481,8 @@ function getApplicantEditValues(application) {
   return {
     firstName: nameParts.firstName || studentInformation.firstName || candidateParts[0] || "",
     lastName: nameParts.lastName || studentInformation.lastName || candidateParts.slice(1).join(" "),
+    thaiFirstName: studentInformation.thaiFirstName || "",
+    thaiLastName: studentInformation.thaiLastName || "",
     school: application?.school || studentInformation.school || "",
     email: application?.contactEmail || studentInformation.email || "",
     phone,
@@ -1390,12 +1494,13 @@ function getApplicantEditValues(application) {
   };
 }
 
-function ApplicantProfileFields({ values, onChange, disabled = false }) {
+function ApplicantProfileFields({ values, onChange, disabled = false, showThaiNames = false }) {
   const field = (key) => (event) => onChange(key, event.target.value);
   return (
     <div className="admin-edit-person-grid">
       <Field label="ชื่อจริงภาษาอังกฤษ" required><input value={values.firstName} disabled={disabled} autoComplete="given-name" onChange={field("firstName")} /></Field>
       <Field label="นามสกุลภาษาอังกฤษ" required><input value={values.lastName} disabled={disabled} autoComplete="family-name" onChange={field("lastName")} /></Field>
+      {showThaiNames ? <><Field label="ชื่อภาษาไทย" hint={values.thaiFirstName ? undefined : "ไม่มีข้อมูลเดิมในใบสมัคร กรุณากรอกชื่อภาษาไทย"}><input value={values.thaiFirstName} disabled={disabled} onChange={field("thaiFirstName")} placeholder="ชื่อจริงภาษาไทย" /></Field><Field label="นามสกุลภาษาไทย" hint={values.thaiLastName ? undefined : "ไม่มีข้อมูลเดิมในใบสมัคร กรุณากรอกนามสกุลภาษาไทย"}><input value={values.thaiLastName} disabled={disabled} onChange={field("thaiLastName")} placeholder="นามสกุลภาษาไทย" /></Field></> : null}
       <Field label="โรงเรียน" required><input value={values.school} disabled={disabled} onChange={field("school")} /></Field>
       <Field label="อีเมลติดต่อผู้เข้าสอบ" required hint="ใช้รับอีเมลสรุปใบสมัครและผลตรวจสลิป"><input type="email" value={values.email} disabled={disabled} autoComplete="email" onChange={field("email")} /></Field>
       <Field label="เบอร์โทรศัพท์" required><input type="tel" inputMode="tel" autoComplete="tel" value={values.phone} disabled={disabled} onChange={field("phone")} placeholder="(000) 000-0000" /></Field>
@@ -1408,7 +1513,7 @@ function ApplicantProfileFields({ values, onChange, disabled = false }) {
   );
 }
 
-function EditApplicationPage({ application, onSave, navigate, examCatalog }) {
+function EditApplicationPage({ application, onSave, navigate, examCatalog, publicAccess = false, publicCredentials = null }) {
   const [form, setForm] = useState(() => getApplicantEditValues(application));
   const [error, setError] = useState("");
   const editDeadline = getApplicationEditDeadline(application, examCatalog);
@@ -1438,19 +1543,19 @@ function EditApplicationPage({ application, onSave, navigate, examCatalog }) {
       phone: form.phone.trim(),
       phoneLast4: form.phone.replace(/\D/g, "").slice(-4),
       studentInformation,
-    });
+    }, publicCredentials);
   }
 
   const competitionNames = application.competitions?.map((item) => item.short || item.name).filter(Boolean).join(", ");
   const examNames = [competitionNames, application.kind === "Final" ? "FINAL ROUND" : "HEAT ROUND"].filter(Boolean).join(" · ");
   return (
     <div className="page-stack admin-edit-application-page user-edit-application-page">
-      <PageHeading eyebrow="ใบสมัครของฉัน" title="แก้ไขข้อมูลใบสมัคร" description={`${application.candidate} · ${application.exam}`} action={<Button variant="outline" icon="arrow" onClick={() => navigate("application-detail", application.id)}>กลับไปใบสมัคร</Button>} />
+      <PageHeading eyebrow={publicAccess ? "บริการผู้สมัคร" : "ใบสมัครของฉัน"} title="แก้ไขข้อมูลใบสมัคร" description={`${application.candidate} · ${application.exam}`} action={<Button variant="outline" icon="arrow" onClick={() => navigate(publicAccess ? "check-status" : "application-detail", application.id)}>{publicAccess ? "กลับไปค้นหาสถานะ" : "กลับไปใบสมัคร"}</Button>} />
       {!editable ? <div className="notice notice-amber"><Icon name="lock" /><div><strong>ยังไม่สามารถแก้ไขใบสมัครนี้ได้</strong><p>{editReason}</p></div></div> : null}
       <form className="user-edit-form" onSubmit={submit}>
         <section className="surface admin-edit-section">
           <div className="admin-edit-section-heading"><span><Icon name="edit" size={16} /></span><div><h2>ข้อมูลผู้เข้าสอบ</h2><p>แก้ไขข้อมูลติดต่อและที่อยู่ได้ตามกำหนด</p></div></div>
-          <ApplicantProfileFields values={form} onChange={updateField} disabled={!editable} />
+          <ApplicantProfileFields values={form} onChange={updateField} disabled={!editable} showThaiNames />
         </section>
         <section className="surface admin-edit-section user-edit-locked-section">
           <div className="admin-edit-section-heading"><span><Icon name="lock" size={16} /></span><div><h2>ข้อมูลที่ล็อกหลังอนุมัติ</h2><p>ข้อมูลส่วนนี้ไม่สามารถแก้ไขได้ด้วยตนเอง</p></div></div>
@@ -1459,17 +1564,22 @@ function EditApplicationPage({ application, onSave, navigate, examCatalog }) {
         </section>
         <section className="notice notice-blue user-edit-support-note"><Icon name="info" /><div><strong>ต้องการแก้ไขข้อมูลที่ล็อกไว้?</strong><p>หากประสงค์แก้ไขรายการสอบ ระดับชั้น รูปแบบการสอบ หรือศูนย์สอบ กรุณาติดต่อผู้ดูแลระบบผ่าน LINE Official Account</p><a href="https://lin.ee/3hzFg1z" target="_blank" rel="noreferrer">OCEC_Thailand <Icon name="arrow" size={14} /></a></div></section>
         {error ? <p className="inline-error" role="alert"><Icon name="info" size={16} />{error}</p> : null}
-        {editable ? <div className="admin-edit-footer user-edit-footer"><span><Icon name="info" size={15} />แก้ไขได้ถึง {formatThaiDate(editDeadline)} · การแก้ไขจะไม่ทำให้ใบสมัครกลับไปรอตรวจสอบ</span><Button variant="outline" type="button" onClick={() => navigate("application-detail", application.id)}>ยกเลิก</Button><Button type="submit" icon="check">บันทึกการแก้ไข</Button></div> : null}
+        {editable ? <div className="admin-edit-footer user-edit-footer"><span><Icon name="info" size={15} />แก้ไขได้ถึง {formatThaiDate(editDeadline)} · การแก้ไขจะไม่ทำให้ใบสมัครกลับไปรอตรวจสอบ</span><Button variant="outline" type="button" onClick={() => navigate(publicAccess ? "check-status" : "application-detail", application.id)}>ยกเลิก</Button><Button type="submit" icon="check">บันทึกการแก้ไข</Button></div> : null}
       </form>
     </div>
   );
 }
 
-function ApplicationDetailPage({ application, navigate, resultRows = [], examCatalog, onSaveCertificatePhoto }) {
+function ApplicationDetailPage({ application, navigate, resultRows = [], examCatalog, today, authProfile, hasFinalApplication = false, onConfirmFinal, onSaveCertificatePhoto }) {
   if (!application) return <div className="surface empty-state">ไม่พบใบสมัครที่เลือก</div>;
   const canEdit = isApplicationEditable(application, examCatalog);
   const applicationResults = resultRows.filter((result) => result.applicationId === application.id);
-  const hasPassedHeat = applicationResults.some((result) => result.roundType === "HEAT" && result.result === "pass");
+  const finalRounds = application.kind === "Heat" ? getEligibleFinalRounds(application, examCatalog, resultRows, today) : [];
+  const isOwnAccountApplication = Boolean(authProfile?.email
+    && !authProfile?.isAdmin
+    && application.source === "self"
+    && application.contactEmail?.toLowerCase() === authProfile.email.toLowerCase());
+  const canConfirmFinal = isOwnAccountApplication && !hasFinalApplication && finalRounds.length > 0 && typeof onConfirmFinal === "function";
   const studentInformation = application.studentInformation || {};
   const applicantAddress = [studentInformation.address1, studentInformation.address2, studentInformation.city, studentInformation.province, studentInformation.postalCode].filter(Boolean).join(", ");
   const resultSummary = applicationResults.length
@@ -1491,6 +1601,7 @@ function ApplicationDetailPage({ application, navigate, resultRows = [], examCat
             <div className="section-heading"><div><p className="eyebrow">ข้อมูลใบสมัคร</p><h2>ข้อมูลผู้เข้าสอบ</h2></div>{canEdit ? <Button variant="outline" icon="edit" onClick={() => navigate("edit-application", application.id)}>แก้ไขข้อมูล</Button> : null}</div>
             <div className="detail-info-grid">
               <div><span>ชื่อภาษาอังกฤษ</span><strong>{application.candidate}</strong></div>
+              <div><span>ชื่อภาษาไทย</span><strong>{[studentInformation.thaiFirstName, studentInformation.thaiLastName].filter(Boolean).join(" ") || "ยังไม่ได้ระบุ"}</strong></div>
               <div><span>โรงเรียน</span><strong>{application.school}</strong></div>
               <div><span>ระดับชั้น</span><strong>{application.grade}</strong></div>
               <div><span>รูปแบบการสอบ</span><strong>{getApplicationFormatSummary(application)}</strong></div>
@@ -1503,10 +1614,7 @@ function ApplicationDetailPage({ application, navigate, resultRows = [], examCat
             </div>
             <div className="detail-competition-list">{(application.competitions || []).map((competition) => { const online = getApplicationCompetitionFormat(application, competition) === "Online"; const examEmail = getApplicationCompetitionExamEmail(application, competition); return <div className="detail-competition-item" key={competition.id}><strong>{competition.short || competition.name}</strong><span>{competition.grade || "ไม่ระบุชั้น"}</span><span>{online ? "Online Exam" : "Paper-Based"}</span><small>{getApplicationCompetitionCenter(application, competition) || "—"}</small>{online ? <small>อีเมลเข้าสอบ: {examEmail || "ยังไม่ได้ระบุ"}</small> : null}</div>; })}</div>
           </section>
-          {application.status === "confirmed" ? <CertificatePhotoSection application={application} onSave={(certificatePhoto) => onSaveCertificatePhoto(application.id, certificatePhoto)} /> : null}
-          {hasPassedHeat ? (
-            <div className="final-next-step"><span className="final-next-icon"><Icon name="award" /></span><div><strong>คุณผ่านเข้าสู่รอบ Final</strong><p>ยืนยันสิทธิ์และสมัครสอบ Final ได้ภายในเวลาที่กำหนด</p></div><Button onClick={() => navigate("final-confirm", application.id)}>ยืนยันสิทธิ์ <Icon name="arrow" size={16} /></Button></div>
-          ) : null}
+          {application.status === "confirmed" ? <CertificatePhotoSection application={application} canEdit={canEdit} onSave={(certificatePhoto) => onSaveCertificatePhoto(application.id, certificatePhoto)} /> : null}
         </div>
         <aside className="surface timeline-card">
           <p className="eyebrow">ความคืบหน้า</p><h2>ขั้นตอนใบสมัคร</h2>
@@ -1515,6 +1623,10 @@ function ApplicationDetailPage({ application, navigate, resultRows = [], examCat
             <div className={"timeline-item " + (application.status === "confirmed" ? "timeline-done" : "timeline-current")}><span>{application.status === "confirmed" ? <Icon name="check" size={13} /> : "2"}</span><div><strong>{application.status === "confirmed" ? "ตรวจสอบและยืนยันแล้ว" : "รอตรวจใบสมัครและสลิป"}</strong><small>{application.status === "confirmed" ? "ตรวจสอบเรียบร้อย" : "เจ้าหน้าที่กำลังตรวจสอบ"}</small></div></div>
             <div className={"timeline-item " + (applicationResults.length ? "timeline-done" : "")}><span>{applicationResults.length ? <Icon name="check" size={13} /> : "3"}</span><div><strong>ประกาศผลสอบ</strong><small>{applicationResults.length ? resultSummary : "รอประกาศผล"}</small></div></div>
           </div>
+          {canConfirmFinal ? <div className="detail-final-confirm">
+            <div><span className="detail-final-confirm-icon"><Icon name="award" size={18} /></span><span><strong>ได้รับสิทธิ์สมัครรอบ Final</strong><small>ยืนยันสิทธิ์เพื่อไปสมัครสอบ Final</small></span></div>
+            <Button icon="arrow" onClick={() => onConfirmFinal(application, finalRounds)}>ยืนยันสิทธิ์ Final</Button>
+          </div> : null}
           <div className="timeline-contact"><Icon name="mail" size={16} /><span>แจ้งเตือนส่งไปที่<br /><strong>{application.contactEmail}</strong></span></div>
         </aside>
       </div>
@@ -1522,9 +1634,10 @@ function ApplicationDetailPage({ application, navigate, resultRows = [], examCat
   );
 }
 
-function CertificatePhotoSection({ application, onSave }) {
+function CertificatePhotoSection({ application, canEdit, onSave }) {
   const photo = application.certificatePhoto;
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
   async function choosePhoto(file) {
     setError("");
     if (!file) return;
@@ -1545,68 +1658,156 @@ function CertificatePhotoSection({ application, onSave }) {
       setError(readError.message || "อ่านไฟล์รูปภาพไม่สำเร็จ");
       return "";
     });
-    if (dataUrl) onSave({ name: file.name, type: file.type, dataUrl, uploadedAt: new Date().toISOString() });
+    if (dataUrl) {
+      setBusy(true);
+      try { await onSave({ fileName: file.name, mimeType: file.type, dataBase64: dataUrl.split(",")[1] || "" }); }
+      catch (uploadError) { setError(uploadError?.message || "อัปโหลดรูปไม่สำเร็จ"); }
+      finally { setBusy(false); }
+    }
   }
   return (
     <section className="surface certificate-photo-section">
-      <div className="certificate-photo-copy"><span className="certificate-photo-icon"><Icon name="image" /></span><div><p className="eyebrow">หลังอนุมัติใบสมัคร</p><h2>รูปสำหรับจัดทำเกียรติบัตร</h2><p>อัปโหลดรูปผู้เข้าสอบสำหรับประกอบเกียรติบัตรรางวัลได้ตามต้องการ การอัปโหลดเป็นข้อมูลตัวอย่างในต้นแบบนี้</p><small>รองรับ JPG, PNG หรือ WebP · ไม่เกิน 10 MB</small></div></div>
-      {photo?.dataUrl ? <div className="certificate-photo-preview"><img src={photo.dataUrl} alt={`รูปสำหรับเกียรติบัตรของ ${application.candidate}`} /><span><strong>{photo.name}</strong><small>อัปโหลดแล้ว · เลือกเปลี่ยนหรือลบรูปได้</small></span><label className="button button-outline certificate-photo-change"><Icon name="upload" size={16} /><span>เปลี่ยนรูป</span><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => { choosePhoto(event.target.files?.[0]); event.target.value = ""; }} /></label><Button variant="text" icon="close" className="certificate-photo-remove" onClick={() => onSave(null)}>ลบรูป</Button></div> : <label className="file-drop file-drop-inline certificate-photo-upload"><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => { choosePhoto(event.target.files?.[0]); event.target.value = ""; }} /><span className="file-drop-icon"><Icon name="upload" /></span><span className="file-drop-copy"><strong>เพิ่มรูปสำหรับเกียรติบัตร (ไม่บังคับ)</strong><small>เลือกไฟล์รูปที่ต้องการให้ OCEC ใช้จัดทำใบประกาศรางวัล</small></span><span className="file-select-label">เลือกไฟล์</span></label>}
+      <div className="certificate-photo-copy"><span className="certificate-photo-icon"><Icon name="image" /></span><div><p className="eyebrow">หลังอนุมัติใบสมัคร</p><h2>รูปสำหรับจัดทำเกียรติบัตร</h2><p>ผู้สมัครหรือผู้ประสานงานโรงเรียนอัปโหลดรูปให้ OCEC ใช้จัดทำใบประกาศรางวัลได้ตามต้องการ</p><small>รองรับ JPG, PNG หรือ WebP · ไม่เกิน 10 MB · จัดเก็บใน Google Drive</small></div></div>
+      {photo?.url ? <div className="certificate-photo-preview"><img src={photo.url} alt={`รูปสำหรับเกียรติบัตรของ ${application.candidate}`} /><span><strong>{photo.name}</strong><small>อัปโหลดแล้ว · เลือกเปลี่ยนหรือลบรูปได้</small></span>{canEdit ? <label className="button button-outline certificate-photo-change"><Icon name="upload" size={16} /><span>{busy ? "กำลังอัปโหลด…" : "เปลี่ยนรูป"}</span><input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={(event) => { choosePhoto(event.target.files?.[0]); event.target.value = ""; }} /></label> : null}{canEdit ? <Button variant="text" icon="close" className="certificate-photo-remove" disabled={busy} onClick={() => onSave(null)}>ลบรูป</Button> : null}</div> : canEdit ? <label className="file-drop file-drop-inline certificate-photo-upload"><input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={(event) => { choosePhoto(event.target.files?.[0]); event.target.value = ""; }} /><span className="file-drop-icon"><Icon name="upload" /></span><span className="file-drop-copy"><strong>{busy ? "กำลังอัปโหลดรูป…" : "เพิ่มรูปสำหรับเกียรติบัตร (ไม่บังคับ)"}</strong><small>รูปจะถูกจัดเก็บในโฟลเดอร์ Google Drive ตามรายการสอบและรอบ</small></span><span className="file-select-label">เลือกไฟล์</span></label> : <div className="notice notice-amber"><Icon name="lock" /><div><strong>ปิดรับการแก้ไขรูปแล้ว</strong><p>อัปโหลดหรือเปลี่ยนรูปได้ถึงวันปิดแก้ไข: {application.editDeadline || "—"}</p></div></div>}
       {error ? <p className="inline-error certificate-photo-error" role="alert"><Icon name="info" size={15} />{error}</p> : null}
     </section>
   );
 }
 
-function SlipUploadPage({ application, onUploaded, onReturn, notify }) {
+function SlipReplacementPage() {
+  const tokenParams = new URLSearchParams(window.location.search);
+  const token = tokenParams.get("token") || tokenParams.get("slipReplacement") || "";
+  const [linkStatus, setLinkStatus] = useState("loading");
+  const [details, setDetails] = useState(null);
   const [slipFile, setSlipFile] = useState(null);
   const [fileError, setFileError] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
   const [uploaded, setUploaded] = useState(false);
+
+  useEffect(() => {
+    if (!token || !BACKEND_ENABLED) { setLinkStatus("invalid"); return; }
+    let active = true;
+    fetch("/api/slip-replacements/validate", {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token }),
+    }).then(async (response) => {
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "ลิงก์นี้ใช้ไม่ได้หรือหมดอายุแล้ว");
+      if (active) { setDetails(result); setLinkStatus("valid"); }
+    }).catch((reason) => { if (active) { setError(reason.message || "ลิงก์นี้ใช้ไม่ได้หรือหมดอายุแล้ว"); setLinkStatus("invalid"); } });
+    return () => { active = false; };
+  }, [token]);
+
   async function selectSlip(file) {
     if (!file) return;
-    const fileType = getSlipMimeType(file);
-    if (!fileType) {
-      setSlipFile(null);
-      setFileError("รองรับไฟล์ JPG, PNG หรือ PDF เท่านั้น");
-      return;
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      setSlipFile(null);
-      setFileError("ไฟล์มีขนาดเกิน 10 MB");
-      return;
-    }
-    setSlipFile(null);
-    setFileError("");
-    try {
-      setSlipFile({ name: file.name, type: fileType, dataUrl: await readFileAsDataUrl(file) });
-      setFileError("");
-    } catch (error) {
-      setSlipFile(null);
-      setFileError(error.message || "อ่านไฟล์สลิปไม่สำเร็จ");
-    }
+    const mimeType = getSlipMimeType(file);
+    if (!mimeType) { setSlipFile(null); setFileError("รองรับไฟล์ JPG, PNG หรือ PDF เท่านั้น"); return; }
+    if (file.size > 10 * 1024 * 1024) { setSlipFile(null); setFileError("ไฟล์มีขนาดเกิน 10 MB"); return; }
+    setFileError(""); setError("");
+    try { setSlipFile({ fileName: file.name, mimeType, dataBase64: await readFileAsDataUrl(file) }); }
+    catch (reason) { setSlipFile(null); setFileError(reason.message || "อ่านไฟล์สลิปไม่สำเร็จ"); }
   }
-  return (
-    <div className="page-stack narrow-page">
-      <PageHeading eyebrow="ลิงก์ปลอดภัย" title="อัปโหลดสลิปใหม่" description="ใช้ลิงก์เฉพาะที่ได้รับทางอีเมลเพื่อส่งสลิปที่แก้ไขแล้ว" />
-      <section className="surface upload-card">
-        <div className="upload-token"><span className="upload-token-icon"><Icon name={uploaded ? "check" : "upload"} /></span><div><strong>{uploaded ? "อัปโหลดเรียบร้อยแล้ว" : "ส่งสลิปใบสมัครใหม่"}</strong><small>{application ? `${application.candidate} · ${application.contactEmail}` : "ลิงก์นี้ใช้ได้หนึ่งครั้งและใช้สำหรับแนบสลิปเท่านั้น"}</small></div></div>
-        {!uploaded ? (
-          <>
-            <label className="file-drop">
-              <input type="file" accept="image/jpeg,image/png,application/pdf,.pdf" onChange={(event) => { selectSlip(event.target.files?.[0]); event.target.value = ""; }} />
-              <span className="file-drop-icon"><Icon name="upload" size={22} /></span>
-              <strong>{slipFile?.name || "เลือกไฟล์สลิปเพื่ออัปโหลด"}</strong>
-              <small>รองรับ JPG, PNG หรือ PDF · ขนาดไม่เกิน 10 MB</small>
-            </label>
-            {fileError ? <p className="inline-error" role="alert"><Icon name="info" size={15} />{fileError}</p> : null}
-            <div className="notice notice-blue"><Icon name="info" /><div><strong>ลิงก์นี้แก้ไขได้เฉพาะสลิป</strong><p>ข้อมูลอื่นของใบสมัครจะไม่แสดงในหน้านี้</p></div></div>
-            <Button className="button-full" icon="upload" disabled={!slipFile} onClick={() => { setUploaded(true); if (application) onUploaded?.(application.id, slipFile); notify("อัปโหลดสลิปตัวอย่างแล้ว ใบสมัครกลับเข้าสู่คิวตรวจสอบ"); }}>อัปโหลดสลิป</Button>
-          </>
-        ) : (
-          <div className="upload-success"><p>ขอบคุณที่ส่งสลิปใหม่ เจ้าหน้าที่จะตรวจสอบและส่งผลไปยังอีเมลติดต่อในใบสมัคร</p><Button variant="outline" onClick={() => onReturn ? onReturn() : notify("ลิงก์นี้ถูกใช้แล้ว")}>กลับไปคิวตรวจสอบ</Button></div>
-        )}
-      </section>
-      <div className="privacy-note"><Icon name="lock" size={14} />ลิงก์อัปโหลดไม่เปิดให้แก้ไขข้อมูลส่วนอื่นและจะใช้ได้หลังปิดรับสมัครจนกว่าจะส่งสลิปใหม่</div>
-    </div>
-  );
+
+  async function uploadSlip() {
+    if (!slipFile || !token || busy) return;
+    setBusy(true); setError("");
+    try {
+      const response = await fetch("/api/slip-replacements/submit", {
+        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token, slip: slipFile }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "อัปโหลดสลิปไม่สำเร็จ");
+      setUploaded(true);
+    } catch (reason) { setError(reason.message || "อัปโหลดสลิปไม่สำเร็จ กรุณาลองใหม่"); }
+    finally { setBusy(false); }
+  }
+
+  return <div className="page-stack narrow-page">
+    <PageHeading eyebrow="ลิงก์ปลอดภัย" title="ส่งสลิปชำระเงินใหม่" description="อัปโหลดสลิปเพื่อแทนที่ไฟล์เดิม ใบสมัครที่ยังรอตรวจจะกลับเข้าคิวตรวจสอบ" />
+    <section className="surface upload-card">
+      {linkStatus === "loading" ? <div className="empty-inline"><Icon name="sync" /><span>กำลังตรวจสอบลิงก์…</span></div> : null}
+      {linkStatus === "invalid" ? <div className="notice notice-amber"><Icon name="info" /><div><strong>ลิงก์นี้ใช้ไม่ได้</strong><p>{error || "ลิงก์หมดอายุ ถูกใช้ไปแล้ว หรือยังไม่ได้เปิดใช้งาน backend"}</p></div></div> : null}
+      {linkStatus === "valid" && !uploaded ? <>
+        <div className="upload-token"><span className="upload-token-icon"><Icon name="upload" /></span><div><strong>{details?.schoolName ? `บิลโรงเรียน ${details.schoolName}` : "สลิปใบสมัคร"}</strong><small>{details?.applicationCount || 1} ใบสมัครที่รอการตรวจสลิป · ลิงก์ใช้ได้ครั้งเดียว</small></div></div>
+        <label className="file-drop"><input type="file" accept="image/jpeg,image/png,application/pdf,.pdf" onChange={(event) => { selectSlip(event.target.files?.[0]); event.target.value = ""; }} /><span className="file-drop-icon"><Icon name="upload" size={22} /></span><strong>{slipFile?.fileName || "เลือกไฟล์สลิปใหม่"}</strong><small>รองรับ JPG, PNG หรือ PDF · ขนาดไม่เกิน 10 MB</small></label>
+        {fileError || error ? <p className="inline-error" role="alert"><Icon name="info" size={15} />{fileError || error}</p> : null}
+        <div className="notice notice-blue"><Icon name="lock" /><div><strong>ลิงก์นี้ใช้สำหรับเปลี่ยนสลิปเท่านั้น</strong><p>กรณีชุดโรงเรียน การอัปโหลดครั้งนี้จะแทนสลิปของทั้งบิล ใบสมัครที่อนุมัติแล้วจะคงสถานะเดิม</p></div></div>
+        <Button className="button-full" icon="upload" disabled={!slipFile || busy} onClick={uploadSlip}>{busy ? "กำลังส่งสลิป…" : "ส่งสลิปใหม่"}</Button>
+      </> : null}
+      {uploaded ? <div className="upload-success"><p>ได้รับสลิปใหม่แล้ว ใบสมัครที่ยังรอตรวจกลับเข้าสู่คิวตรวจสอบ และลิงก์นี้ถูกปิดแล้ว</p></div> : null}
+    </section>
+    <div className="privacy-note"><Icon name="lock" size={14} />ลิงก์หมดอายุภายใน 3 วันและใช้งานได้ครั้งเดียว</div>
+  </div>;
+}
+
+function ApiFinalConfirmationPage({ authProfile, onContinue, onSignIn }) {
+  const [path, setPath] = useState("school");
+  const [query, setQuery] = useState("");
+  const [choices, setChoices] = useState([]);
+  const [selectedRoundId, setSelectedRoundId] = useState("");
+  const [lastFour, setLastFour] = useState("");
+  const [authorized, setAuthorized] = useState([]);
+  const [verified, setVerified] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!authProfile) { setAuthorized([]); return undefined; }
+    const controller = new AbortController();
+    fetch("/api/applications/final-eligibility", { credentials: "same-origin", signal: controller.signal })
+      .then(async (response) => { if (!response.ok) throw new Error("โหลดสิทธิ์ Final ไม่สำเร็จ"); return response.json(); })
+      .then((result) => { if (!controller.signal.aborted) setAuthorized(result.choices || []); })
+      .catch((requestError) => { if (!controller.signal.aborted) setError(requestError.message); });
+    return () => controller.abort();
+  }, [authProfile?.id]);
+
+  async function search(event) {
+    event.preventDefault();
+    setBusy(true); setError(""); setChoices([]); setSelectedRoundId(""); setVerified(false);
+    try {
+      const response = await fetch("/api/public/final-eligibility/search", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ candidateName: query.trim() }) });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "ค้นหาสิทธิ์ไม่สำเร็จ");
+      setChoices(result.choices || []);
+    } catch (requestError) { setError(requestError.message || "ค้นหาสิทธิ์ไม่สำเร็จ"); }
+    finally { setBusy(false); }
+  }
+
+  async function verify(event) {
+    event.preventDefault();
+    setBusy(true); setError("");
+    try {
+      const response = await fetch("/api/public/final-eligibility/verify", { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify({ candidateName: query.trim(), finalRoundId: selectedRoundId, phoneLast4: lastFour }) });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "ยืนยันสิทธิ์ไม่สำเร็จ");
+      setVerified(true);
+    } catch (requestError) { setError(requestError.message || "ยืนยันสิทธิ์ไม่สำเร็จ"); }
+    finally { setBusy(false); }
+  }
+
+  const accountChoices = authorized.filter((choice) => !choice.schoolGrant);
+  const schoolChoices = authorized.filter((choice) => choice.schoolGrant);
+  return <div className="page-stack final-rights-page">
+    <PageHeading eyebrow="OCEC Final" title="ยืนยันสิทธิ์สมัคร Final" description="ผู้สมัครเองใช้บัญชี Google เดิม ผู้ที่โรงเรียนสมัครให้ค้นชื่อ เลือกรายการสอบ และยืนยันเบอร์โทรศัพท์ 4 ตัวท้ายก่อนเข้าสู่ระบบ" />
+    <section className="surface final-rights-workspace">
+      <div className="final-rights-paths" role="tablist" aria-label="วิธียืนยันสิทธิ์">
+        <button type="button" role="tab" aria-selected={path === "account"} className={path === "account" ? "final-rights-path selected" : "final-rights-path"} onClick={() => { setPath("account"); setError(""); }}>สมัครด้วยบัญชีตนเอง</button>
+        <button type="button" role="tab" aria-selected={path === "school"} className={path === "school" ? "final-rights-path selected" : "final-rights-path"} onClick={() => { setPath("school"); setError(""); }}>โรงเรียนสมัครให้</button>
+      </div>
+      {error ? <p className="inline-error" role="alert">{error}</p> : null}
+      {path === "account" ? <div role="tabpanel" className="final-rights-account-panel">
+        {!authProfile ? <><p>เข้าสู่ระบบด้วยบัญชี Google ที่ใช้สมัคร Heat</p><Button onClick={() => onSignIn(demoGoogleProfile)}>เข้าสู่ระบบ Google</Button></> :
+          accountChoices.length ? <div className="final-rights-match-list">{accountChoices.map((choice) => <div className="final-rights-match" key={`${choice.sourceHeatApplicationId}-${choice.item.roundId}`}><div><strong>{choice.applicant.firstNameEn} {choice.applicant.lastNameEn}</strong><small>{choice.item.competition} · {choice.item.year}</small></div><Button onClick={() => onContinue(choice)}>สมัคร Final</Button></div>)}</div> : <div className="final-rights-empty">ไม่พบสิทธิ์ Final ที่เปิดอยู่ในบัญชีนี้</div>}
+      </div> : <div role="tabpanel" className="final-rights-school-panel">
+        {schoolChoices.length ? <div className="final-rights-match-list">{schoolChoices.map((choice) => <div className="final-rights-match" key={`${choice.sourceHeatApplicationId}-${choice.item.roundId}`}><div><strong>{choice.applicant.firstNameEn} {choice.applicant.lastNameEn}</strong><small>{choice.item.competition} · {choice.item.year}</small></div><Button onClick={() => onContinue(choice)}>สมัคร Final</Button></div>)}</div> : <>
+          {verified ? <div className="notice notice-blue"><Icon name="check" /><div><strong>ยืนยันเบอร์โทรศัพท์แล้ว</strong><p>เข้าสู่ระบบด้วยบัญชี Google ที่ต้องการเก็บใบสมัคร Final</p><Button onClick={() => window.location.assign(`/api/auth/google/start?flow=final&returnTo=${encodeURIComponent("/final/confirm")}`)}>เข้าสู่ระบบ Google แล้วสมัคร</Button></div></div> : <>
+            <form onSubmit={search}><Field label="ชื่อและนามสกุลภาษาอังกฤษ" required><input value={query} onChange={(event) => setQuery(event.target.value)} minLength={3} maxLength={255} required autoComplete="off" /></Field><Button type="submit" disabled={busy}>ค้นหาสิทธิ์ Final</Button></form>
+            {choices.length ? <form onSubmit={verify}><Field label="เลือกรายการสอบ" required><select value={selectedRoundId} onChange={(event) => setSelectedRoundId(event.target.value)} required><option value="">เลือกรายการสอบ</option>{choices.map((choice) => <option value={choice.finalRoundId} key={choice.finalRoundId}>{choice.competition} · {choice.round} · {choice.year}</option>)}</select></Field><Field label="เลข 4 ตัวท้ายของเบอร์โทรศัพท์" required><input inputMode="numeric" pattern="[0-9]{4}" maxLength={4} value={lastFour} onChange={(event) => setLastFour(event.target.value.replace(/\D/g, "").slice(0, 4))} required /></Field><Button type="submit" disabled={busy || !selectedRoundId}>ยืนยันตัวตน</Button></form> : null}
+          </>}
+        </>}
+      </div>}
+    </section>
+  </div>;
 }
 
 function FinalConfirmationPage({ applications, applicationHint, onContinue, navigate, publishedHeatResults = [], examCatalog, authProfile, onSignIn }) {
@@ -1667,10 +1868,10 @@ function FinalConfirmationPage({ applications, applicationHint, onContinue, navi
 
               {path === "account" ? (
                 <div className="final-rights-account-panel" role="tabpanel">
-                  {authProfile ? <><div className="final-rights-account-identity"><img src={authProfile.picture} alt="" /><div><small>บัญชีที่เข้าสู่ระบบ</small><strong>{authProfile.name}</strong><span>{authProfile.email}</span></div></div>{accountMatches.length ? <div className="final-rights-match-list">{accountMatches.map((item) => <div className="final-rights-match" key={item.id}><span className="final-rights-match-icon"><Icon name="award" /></span><div><strong>{item.candidate}</strong><small>เลขสอบ {item.heatId} · {item.school}</small><small>{finalRoundDeadlineText(item)}</small></div><Button disabled={!canConfirm} icon="arrow" onClick={() => onContinue(item, "account", null, getEligibleFinalRounds(item, examCatalog, publishedHeatResults, localToday))}>ยืนยันสิทธิ์</Button></div>)}</div> : <div className="final-rights-empty"><Icon name="info" /><div><strong>ยังไม่พบใบสมัคร Heat ที่ผ่านในบัญชีนี้</strong><p>หากโรงเรียนเป็นผู้สมัครให้ เลือกแท็บ “โรงเรียนสมัครให้” เพื่อค้นหาด้วยชื่อ</p></div></div>}</> : <div className="final-rights-signin"><span className="final-rights-signin-icon"><GoogleMark /></span><div><strong>เข้าสู่ระบบเพื่อดูใบสมัครของฉัน</strong><p>ผู้ที่สมัคร Heat ด้วยบัญชีตนเองไม่ต้องยืนยันเบอร์โทรศัพท์ซ้ำ</p></div><Button variant="outline" onClick={() => onSignIn(demoGoogleProfile)}>เข้าสู่ระบบตัวอย่าง</Button></div>}
+                  {authProfile ? <><div className="final-rights-account-identity"><ProfileAvatar src={authProfile.picture} alt="" /><div><small>บัญชีที่เข้าสู่ระบบ</small><strong>{authProfile.name}</strong><span>{authProfile.email}</span></div></div>{accountMatches.length ? <div className="final-rights-match-list">{accountMatches.map((item) => <div className="final-rights-match" key={item.id}><span className="final-rights-match-icon"><Icon name="award" /></span><div><strong>{item.candidate}</strong><small>เลขสอบ {item.heatId} · {item.school}</small><small>{finalRoundDeadlineText(item)}</small></div><Button disabled={!canConfirm} icon="arrow" onClick={() => onContinue(item, "account", null, getEligibleFinalRounds(item, examCatalog, publishedHeatResults, localToday))}>ยืนยันสิทธิ์</Button></div>)}</div> : <div className="final-rights-empty"><Icon name="info" /><div><strong>ยังไม่พบใบสมัคร Heat ที่ผ่านในบัญชีนี้</strong><p>หากโรงเรียนเป็นผู้สมัครให้ เลือกแท็บ “โรงเรียนสมัครให้” เพื่อค้นหาด้วยชื่อ</p></div></div>}</> : <div className="final-rights-signin"><span className="final-rights-signin-icon"><GoogleMark /></span><div><strong>เข้าสู่ระบบเพื่อดูใบสมัครของฉัน</strong><p>ผู้ที่สมัคร Heat ด้วยบัญชีตนเองไม่ต้องยืนยันเบอร์โทรศัพท์ซ้ำ</p></div><Button variant="outline" onClick={() => onSignIn(demoGoogleProfile)}>เข้าสู่ระบบตัวอย่าง</Button></div>}
                 </div>
               ) : verified ? (
-                <div className="final-rights-verified" role="tabpanel"><span className="final-rights-verified-icon"><Icon name="check" size={28} /></span><p className="eyebrow">ยืนยันตัวตนสำเร็จ</p><h3>พร้อมสมัคร OCEC Final</h3><p>ข้อมูลจากใบสมัคร Heat ของ <strong>{selected?.candidate}</strong> จะถูกเติมในฟอร์ม Final ให้ตรวจสอบก่อนส่ง</p><div className="final-rights-verified-summary"><span>เลขสอบ Heat <strong>{selected?.heatId}</strong></span><span>โรงเรียน <strong>{selected?.school}</strong></span><span className="final-rights-deadline-list">รอบที่ยืนยันได้<strong>{selectedFinalRounds.map((exam) => `${exam.title} · ปิด ${exam.finalConfirmCloseDate ? formatThaiDate(exam.finalConfirmCloseDate) : "ไม่กำหนด"}`).join(" / ")}</strong></span></div><div className="final-rights-verified-actions"><Button disabled={!canConfirm || !selectedFinalRounds.length} icon="arrow" onClick={() => onContinue(selected, "google", { name: selected?.candidate, email: selected?.contactEmail, picture: demoGoogleProfile.picture }, selectedFinalRounds)}>เข้าสู่ระบบ Google แล้วสมัคร</Button><Button disabled={!canConfirm || !selectedFinalRounds.length} variant="outline" onClick={() => onContinue(selected, "guest", null, selectedFinalRounds)}>สมัครต่อโดยไม่เข้าสู่ระบบ</Button></div><button type="button" className="back-link" onClick={() => { setVerified(false); setSelectedId(""); setLastFour(""); }}><Icon name="arrow" size={15} />ค้นหารายชื่ออื่น</button></div>
+                <div className="final-rights-verified" role="tabpanel"><span className="final-rights-verified-icon"><Icon name="check" size={28} /></span><p className="eyebrow">ตัวอย่างขั้นตอน</p><h3>พร้อมสมัคร OCEC Final</h3><p>ข้อมูลจากใบสมัคร Heat ของ <strong>{selected?.candidate}</strong> จะถูกเติมในฟอร์ม Final ให้ตรวจสอบก่อนส่ง</p><div className="final-rights-verified-summary"><span>เลขสอบ Heat <strong>{selected?.heatId}</strong></span><span>โรงเรียน <strong>{selected?.school}</strong></span><span className="final-rights-deadline-list">รอบที่ยืนยันได้<strong>{selectedFinalRounds.map((exam) => `${exam.title} · ปิด ${exam.finalConfirmCloseDate ? formatThaiDate(exam.finalConfirmCloseDate) : "ไม่กำหนด"}`).join(" / ")}</strong></span></div><div className="final-rights-verified-actions"><Button disabled={!canConfirm || !selectedFinalRounds.length} icon="arrow" onClick={() => onContinue(selected, "google", { name: selected?.candidate, email: selected?.contactEmail, picture: demoGoogleProfile.picture }, selectedFinalRounds)}>เข้าสู่ระบบ Google แล้วสมัคร</Button></div><button type="button" className="back-link" onClick={() => { setVerified(false); setSelectedId(""); setLastFour(""); }}><Icon name="arrow" size={15} />ค้นหารายชื่ออื่น</button></div>
               ) : (
                 <div className="final-rights-school-panel" role="tabpanel"><div className="final-rights-section-label"><span>02</span><div><strong>ค้นหาใบสมัคร Heat</strong><small>ใช้ชื่อภาษาอังกฤษตามใบสมัคร</small></div></div><Field label="ชื่อและนามสกุลภาษาอังกฤษ" required><div className="input-with-icon"><Icon name="search" /><input value={query} onChange={(event) => { setQuery(event.target.value); setSelectedId(""); setLastFour(""); setError(""); }} placeholder="เช่น Thanakorn Wattanakul" autoComplete="off" /></div></Field>{query.trim() ? <div className="final-rights-results" aria-live="polite"><p>{eligible.length ? `พบ ${eligible.length} รายการ · ตรวจเลขสอบและโรงเรียนก่อนเลือก` : "ไม่พบรายชื่อที่ตรงกับคำค้น"}</p>{eligible.map((item) => <button type="button" key={item.id} className={selectedId === item.id ? "final-rights-result selected" : "final-rights-result"} aria-pressed={selectedId === item.id} onClick={() => { setSelectedId(item.id); setLastFour(""); setError(""); }}><span className="final-rights-result-radio" /><span><strong>{item.candidate}</strong><small>เลขสอบ {item.heatId} · {item.school}</small><small>{finalRoundDeadlineText(item)}</small></span><Icon name="chevron" size={18} /></button>)}</div> : <div className="final-rights-search-hint"><Icon name="info" size={16} />เริ่มพิมพ์ชื่อเพื่อดูใบสมัครที่ผ่านรอบ Heat</div>}{selected ? <form onSubmit={verify} className="final-rights-verify-form"><div className="final-rights-section-label"><span>03</span><div><strong>ยืนยันตัวตน</strong><small>ใช้เบอร์โทรศัพท์ในใบสมัคร Heat ที่เลือก</small></div></div><Field label="เลข 4 ตัวท้ายของเบอร์โทรศัพท์" required hint="กรอกเฉพาะตัวเลข 4 หลักสุดท้าย"><input inputMode="numeric" pattern="[0-9]{4}" maxLength={4} value={lastFour} onChange={(event) => { setLastFour(event.target.value.replace(/\D/g, "").slice(0, 4)); setError(""); }} placeholder="••••" required /></Field>{error ? <p className="inline-error" role="alert"><Icon name="info" size={16} />{error}</p> : null}<Button type="submit" disabled={!canConfirm} icon="shield">ยืนยันตัวตน</Button></form> : null}</div>
               )}
@@ -1764,7 +1965,7 @@ function PublicResultsPage({ resultRows = [] }) {
             </div>
           </section>
           <section className="results-hero">
-            <div><span className="result-announced"><span />ประกาศผลอย่างเป็นทางการ</span><h2>ผลสอบผู้เข้าสอบทั้งหมด</h2><p>ผู้ได้ GOLD, SILVER, BRONZE และผู้ได้อันดับ 1st–3rd ของ BBB ผ่านรอบ HEAT ROUND</p></div>
+            <div><span className="result-announced"><span />ประกาศผลอย่างเป็นทางการ</span><h2>ผลสอบผู้เข้าสอบทั้งหมด</h2><p>ผู้ได้ GOLD, SILVER หรือ BRONZE ผ่านรอบ HEAT ROUND ยกเว้น BBB ซึ่งใช้เกณฑ์อันดับ 1st–3rd</p></div>
             <div className="result-total"><strong>{results.length.toString().padStart(2, "0")}</strong><span>รายชื่อที่พบ</span></div>
           </section>
           <section className="surface results-table-card" ref={resultsTableRef}>
@@ -1787,7 +1988,7 @@ function PublicResultsPage({ resultRows = [] }) {
               </tbody>) : <tbody><tr><td colSpan="6"><div className="results-empty-state"><span><Icon name="search" /></span><strong>ไม่พบผลสอบที่ตรงกับคำค้นหาหรือตัวกรอง</strong><small>ลองเปลี่ยนชื่อหรือเลขสอบ หรือเลือกตัวกรองเป็น “ทั้งหมด”</small><Button variant="text" onClick={() => { setQuery(""); setSelectedCompetition("all"); setSelectedRound("all"); setSelectedGrade("all"); setPage(1); }}>ล้างคำค้นและตัวกรอง</Button></div></td></tr></tbody>}
             </table></div>
             {results.length ? <div className="results-pagination"><span>หน้า {currentPage.toLocaleString()} จาก {totalPages.toLocaleString()}</span>{totalPages > 1 ? <nav aria-label="แบ่งหน้าผลสอบ"><button type="button" className="pagination-step" aria-label="หน้าก่อนหน้า" disabled={currentPage <= 1} onClick={() => changePage(currentPage - 1)}>ก่อนหน้า</button>{pageItems.map((item, index) => item === "ellipsis" ? <span className="pagination-ellipsis" key={`ellipsis-${index}`} aria-hidden="true">…</span> : <button type="button" key={item} className={`pagination-page${currentPage === item ? " is-active" : ""}`} aria-label={`หน้า ${item}`} aria-current={currentPage === item ? "page" : undefined} onClick={() => changePage(item)}>{item}</button>)}<button type="button" className="pagination-step" aria-label="หน้าถัดไป" disabled={currentPage >= totalPages} onClick={() => changePage(currentPage + 1)}>ถัดไป</button></nav> : null}</div> : null}
-            <div className="table-footnote"><Icon name="info" size={15} />ผู้ได้ GOLD, SILVER, BRONZE หรืออันดับ 1st–3rd ของ BBB สามารถยืนยันสิทธิ์ Final ได้หลังประกาศผล HEAT</div>
+            <div className="table-footnote"><Icon name="info" size={15} />ผู้ได้ GOLD, SILVER หรือ BRONZE (ยกเว้น BBB) และผู้ได้อันดับ 1st–3rd ของ BBB สามารถยืนยันสิทธิ์ Final ได้หลังประกาศผล HEAT</div>
           </section>
         </>
       )}
@@ -1814,7 +2015,7 @@ function ApplicationFormPage({ kind, prefill, applicationMode, allowedRoundIds, 
     : openCompetitions;
   const pastPaperGroups = groupPastPaperCatalog(pastPaperCatalog);
   const formPaymentAccounts = (paymentAccounts || []).filter((account) => account.active !== false && account.showInForm !== false);
-  const activeCenterCatalog = centerCatalog?.length ? centerCatalog : DEFAULT_CENTER_CATALOG;
+  const activeCenterCatalog = centerCatalog?.length ? centerCatalog : BACKEND_ENABLED ? [] : DEFAULT_CENTER_CATALOG;
   const schools = FORM_SCHOOLS;
   const [applicationSource, setApplicationSource] = useState("self");
   const [schoolBatch, setSchoolBatch] = useState(() => {
@@ -1855,6 +2056,7 @@ function ApplicationFormPage({ kind, prefill, applicationMode, allowedRoundIds, 
   const [fileError, setFileError] = useState("");
   const [selectionError, setSelectionError] = useState("");
   const [paymentError, setPaymentError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const selectedCompetitions = competitions.filter((competition) => form.competitionIds.includes(competition.id));
   const allPastPapers = pastPaperGroups.flatMap((group) => group.items);
   const formatForCompetition = (competitionId, state = form) => normalizeExamFormat(state.formats?.[competitionId], normalizeExamFormat(state.format));
@@ -1907,7 +2109,14 @@ function ApplicationFormPage({ kind, prefill, applicationMode, allowedRoundIds, 
     setSelectionError("");
   }
   function updateCompetitionFormat(competitionId, format) {
-    setForm((current) => ({ ...current, formats: { ...current.formats, [competitionId]: format }, centersByCompetition: format === "Online" ? { ...current.centersByCompetition, [competitionId]: "" } : current.centersByCompetition }));
+    setForm((current) => {
+      const currentCenter = current.centersByCompetition?.[competitionId]
+        || (current.competitionIds?.length === 1 ? current.center : "");
+      const centersByCompetition = format === "Online" || isOnlineCenter(currentCenter)
+        ? { ...current.centersByCompetition, [competitionId]: "" }
+        : current.centersByCompetition;
+      return { ...current, formats: { ...current.formats, [competitionId]: format }, centersByCompetition };
+    });
     setPaymentError("");
   }
   function updateCompetitionCenter(competitionId, centerName) {
@@ -1921,8 +2130,9 @@ function ApplicationFormPage({ kind, prefill, applicationMode, allowedRoundIds, 
   function togglePastPaper(id) {
     setForm((current) => ({ ...current, pastPaperIds: current.pastPaperIds.includes(id) ? current.pastPaperIds.filter((paperId) => paperId !== id) : [...current.pastPaperIds, id] }));
   }
-  function submit(event) {
+  async function submit(event) {
     event.preventDefault();
+    if (isSubmitting) return;
     if (selectedCompetitions.length === 0) {
       setSelectionError("กรุณาเลือกรายการสอบอย่างน้อย 1 รายการ");
       return;
@@ -1961,7 +2171,7 @@ function ApplicationFormPage({ kind, prefill, applicationMode, allowedRoundIds, 
     const examListings = selectedCompetitions.map((competition) => {
       const format = formatForCompetition(competition.id);
       const selectedCenter = format === "Online"
-        ? activeCenterCatalog.find((center) => center.code === ONLINE_CENTER_CODE) || DEFAULT_CENTER_CATALOG.find((center) => center.code === ONLINE_CENTER_CODE)
+        ? activeCenterCatalog.find((center) => center.code === ONLINE_CENTER_CODE) || (!BACKEND_ENABLED ? DEFAULT_CENTER_CATALOG.find((center) => center.code === ONLINE_CENTER_CODE) : null)
         : centersForCompetition(competition.id).find((center) => center.name === centerForCompetition(competition.id));
       const fee = priceForCompetition(competition);
       return { ...competition, grade: form.grades[competition.id], format, examEmail: format === "Online" ? examEmailForCompetition(competition.id).trim() : "", fee, chargedFee: fee, center: selectedCenter?.name || "", centerId: selectedCenter?.id || "", centerCode: selectedCenter?.code || "", centerSnapshot: selectedCenter ? { id: selectedCenter.id, code: selectedCenter.code, name: selectedCenter.name } : null };
@@ -1969,10 +2179,15 @@ function ApplicationFormPage({ kind, prefill, applicationMode, allowedRoundIds, 
     const formats = new Set(examListings.map((listing) => listing.format));
     const centersSummary = [...new Set(examListings.map((listing) => listing.center).filter(Boolean))].join(" · ");
     const legacyCenter = formats.size === 1 && formats.has("Online")
-      ? activeCenterCatalog.find((center) => center.code === ONLINE_CENTER_CODE) || DEFAULT_CENTER_CATALOG[0]
+      ? activeCenterCatalog.find((center) => center.code === ONLINE_CENTER_CODE) || (!BACKEND_ENABLED ? DEFAULT_CENTER_CATALOG[0] : null)
       : examListings[0]?.centerSnapshot || null;
     const legacyFormat = formats.size > 1 ? "Mixed" : formats.has("Online") ? "Online Exam" : "On-site";
-    onSubmit({ ...form, examEmail: examListings.find((listing) => listing.format === "Online")?.examEmail || "", format: legacyFormat, kind, examYear, candidate, school, contactEmail: form.email, grade: selectedCompetitions.map((competition) => `${competition.short}: ${form.grades[competition.id]}`).join(" · "), center: centersSummary, centerId: legacyCenter?.id || "", centerCode: legacyCenter?.code || "", centerSnapshot: legacyCenter || null, examListings, pastPaperSelections: allPastPapers.filter((paper) => form.pastPaperIds.includes(paper.id)), pastPapersTotal, registrationFee, totalPayment, fileName, slipFile, paymentAccountsSnapshot: formPaymentAccounts.map((account) => ({ ...account })), sourceHeatId: prefill?.id || "" });
+    setIsSubmitting(true);
+    try {
+      await onSubmit({ ...form, examEmail: examListings.find((listing) => listing.format === "Online")?.examEmail || "", format: legacyFormat, kind, examYear, candidate, school, contactEmail: form.email, grade: selectedCompetitions.map((competition) => `${competition.short}: ${form.grades[competition.id]}`).join(" · "), center: centersSummary, centerId: legacyCenter?.id || "", centerCode: legacyCenter?.code || "", centerSnapshot: legacyCenter || null, examListings, pastPaperSelections: allPastPapers.filter((paper) => form.pastPaperIds.includes(paper.id)), pastPapersTotal, registrationFee, totalPayment, fileName, slipFile, paymentAccountsSnapshot: formPaymentAccounts.map((account) => ({ ...account })), sourceHeatId: prefill?.id || "" });
+    } finally {
+      setIsSubmitting(false);
+    }
   }
   if (!isFinal && applicationSource === "school") {
     return <SchoolBatchForm kind={kind} prefill={prefill} batch={schoolBatch} setBatch={setSchoolBatch} onSubmit={onSubmit} navigate={navigate} competitionFees={competitionFees} examCatalog={examCatalog} examYear={examYear} centerCatalog={centerCatalog} pastPaperCatalog={pastPaperCatalog} paymentAccounts={paymentAccounts} competitions={competitions} schools={schools} onBack={() => { setApplicationSource("self"); update("source", "self"); }} />;
@@ -2035,7 +2250,7 @@ function ApplicationFormPage({ kind, prefill, applicationMode, allowedRoundIds, 
                   <label className="competition-select"><input type="checkbox" checked={selected} onChange={() => toggleCompetition(competition.id)} /><span className="competition-check-mark" aria-hidden="true" /><span><strong>{competition.name}</strong><small>{competition.subject}</small><small className="competition-session"><Icon name="clock" size={12} />สอบ {formatExamSession(competitionExam)}</small></span><span className="competition-fee">฿{priceForCompetition(competition).toLocaleString()}<small> / รายการ</small></span></label>
                   {selected ? <div className="competition-card-options">
                     <CompetitionFormatPicker competitionId={competition.id} format={format} paperPrice={priceForCompetition(competition, "Paper-Based")} onlinePrice={priceForCompetition(competition, "Online")} onChange={(nextFormat) => updateCompetitionFormat(competition.id, nextFormat)} />
-                    {format === "Paper-Based" ? <Field label={`ศูนย์สอบ ${competition.short}`} required className="competition-center-field"><select value={centerForCompetition(competition.id)} onChange={(event) => updateCompetitionCenter(competition.id, event.target.value)} required><option value="">เลือกศูนย์สอบ</option>{centerForCompetition(competition.id) && !competitionCenters.some((center) => center.name === centerForCompetition(competition.id)) ? <option value={centerForCompetition(competition.id)}>{centerForCompetition(competition.id)} · กรุณาเลือกศูนย์ที่เปิด</option> : null}{competitionCenters.map((center) => <option key={center.id} value={center.name}>{center.name}</option>)}</select>{!competitionCenters.length ? <small className="field-hint-error">รายการนี้ยังไม่มีศูนย์สอบที่เปิดใช้งาน</small> : null}</Field> : <div className="competition-online-fields"><Field label={`อีเมลเข้าสอบ ${competition.short}`} required className="competition-exam-email" hint="ใช้อีเมลเดียวกับรายการอื่นได้ หากใช้บัญชีเดียวกัน"><input type="email" autoComplete="email" value={examEmailForCompetition(competition.id)} onChange={(event) => updateCompetitionExamEmail(competition.id, event.target.value)} placeholder="student@gmail.com" required /></Field></div>}
+                    {format === "Paper-Based" ? <Field label={`ศูนย์สอบ ${competition.short}`} required className="competition-center-field"><select value={centerForCompetition(competition.id)} onChange={(event) => updateCompetitionCenter(competition.id, event.target.value)} required><option value="">เลือกศูนย์สอบ</option>{centerForCompetition(competition.id) && !isOnlineCenter(centerForCompetition(competition.id)) && !competitionCenters.some((center) => center.name === centerForCompetition(competition.id)) ? <option value={centerForCompetition(competition.id)}>{centerForCompetition(competition.id)} · กรุณาเลือกศูนย์ที่เปิด</option> : null}{competitionCenters.map((center) => <option key={center.id} value={center.name}>{center.name}</option>)}</select>{!competitionCenters.length ? <small className="field-hint-error">รายการนี้ยังไม่มีศูนย์สอบที่เปิดใช้งาน</small> : null}</Field> : <div className="competition-online-fields"><Field label={`อีเมลเข้าสอบ ${competition.short}`} required className="competition-exam-email" hint="ใช้อีเมลเดียวกับรายการอื่นได้ หากใช้บัญชีเดียวกัน"><input type="email" autoComplete="email" value={examEmailForCompetition(competition.id)} onChange={(event) => updateCompetitionExamEmail(competition.id, event.target.value)} placeholder="student@gmail.com" required /></Field></div>}
                     <Field label={`ระดับชั้น ${competition.short}`} required className="competition-grade"><select value={form.grades[competition.id] || ""} onChange={(event) => { setForm((current) => ({ ...current, grades: { ...current.grades, [competition.id]: event.target.value } })); setSelectionError(""); }} required><option value="">เลือกระดับชั้น</option>{form.grades[competition.id] && !competition.grades.includes(form.grades[competition.id]) ? <option value={form.grades[competition.id]}>{form.grades[competition.id]} (จาก Heat)</option> : null}{competition.grades.map((grade) => <option key={grade}>{grade}</option>)}</select></Field>
                   </div> : null}
                 </article>;
@@ -2066,7 +2281,7 @@ function ApplicationFormPage({ kind, prefill, applicationMode, allowedRoundIds, 
             <label className="confirm-check"><input type="checkbox" checked={form.confirmDetails} onChange={(event) => { update("confirmDetails", event.target.checked); setSelectionError(""); setPaymentError(""); }} /><span>ข้าพเจ้ารับทราบและตรวจสอบข้อมูลเรียบร้อยแล้ว และต้องการยืนยันส่งแบบฟอร์มนี้ <b>*</b></span></label>
             <label className="confirm-check confirm-check-optional"><input type="checkbox" checked={form.marketingConsent} onChange={(event) => update("marketingConsent", event.target.checked)} /><span>ข้าพเจ้ายินยอมให้ OCEC Thailand เผยแพร่ชื่อผู้สมัคร ผลการแข่งขัน และรางวัล ผ่านช่องทางประชาสัมพันธ์อย่างเป็นทางการของ OCEC Thailand และรายการแข่งขัน</span></label>
             {paymentError ? <p className="inline-error selection-error" role="alert"><Icon name="info" size={16} />{paymentError}</p> : null}
-          <div className="form-footer form-footer-submit"><span><Icon name="lock" size={14} />ข้อมูลถูกใช้เพื่อดำเนินการสมัครสอบ</span><Button type="submit" icon="arrow">ส่งใบสมัคร</Button></div>
+          <div className="form-footer form-footer-submit"><span><Icon name="lock" size={14} />ข้อมูลถูกใช้เพื่อดำเนินการสมัครสอบ</span><Button type="submit" icon={isSubmitting ? undefined : "arrow"} disabled={isSubmitting}>{isSubmitting ? "กำลังส่ง..." : "ส่งใบสมัคร"}</Button></div>
           </section>
         </form>
         <aside className="surface side-note form-side-note">
@@ -2074,7 +2289,7 @@ function ApplicationFormPage({ kind, prefill, applicationMode, allowedRoundIds, 
           <div className="live-total"><span>รายการสอบ</span><strong>{selectedCompetitions.length} รายการ</strong>{selectedCompetitions.map((competition) => <small key={competition.id}>{competition.short}{form.grades[competition.id] ? ` · ${form.grades[competition.id]}` : " · เลือกระดับชั้น"}</small>)}</div>
           <div className="live-total"><span>รูปแบบสอบ</span><strong>{formatSummary}</strong>{selectedCompetitions.map((competition) => <small key={competition.id}>{competition.short} · {formatForCompetition(competition.id) === "Online" ? `Online Exam · ${examEmailForCompetition(competition.id) || "กรอกอีเมลในรายการสอบ"}` : `Paper-Based · ${centerForCompetition(competition.id) || "เลือกศูนย์สอบ"}`}</small>)}</div>
           <div className="live-total live-total-highlight"><span>ยอดรวมปัจจุบัน</span><strong>฿{totalPayment.toLocaleString()}</strong><small>ค่าสอบ ฿{registrationFee.toLocaleString()} + ข้อสอบเก่า ฿{pastPapersTotal.toLocaleString()}</small></div>
-          <hr /><div className="side-deadline"><Icon name="calendar" /><span><small>วันสอบ</small><strong>13 ธันวาคม 2569</strong></span></div>
+          <hr /><div className="side-deadline"><Icon name="calendar" /><span><small>วันสอบ</small><strong>{selectedExamDateText(examCatalog, examRoundType, examYear, form.competitionIds)}</strong></span></div>
           <p className="side-note-small">หลังสมัคร ข้อมูลสรุปและรายละเอียดข้อสอบเก่าจะส่งไปยังอีเมลที่กรอกไว้</p>
         </aside>
       </div>
@@ -2083,6 +2298,7 @@ function ApplicationFormPage({ kind, prefill, applicationMode, allowedRoundIds, 
 }
 
 function SchoolBatchForm({ kind, prefill, batch, setBatch, onSubmit, navigate, onBack, competitionFees, examCatalog, examYear, centerCatalog, pastPaperCatalog, paymentAccounts, competitions, schools }) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
   const [errorSection, setErrorSection] = useState("");
   const [excelPreview, setExcelPreview] = useState(null);
@@ -2091,7 +2307,7 @@ function SchoolBatchForm({ kind, prefill, batch, setBatch, onSubmit, navigate, o
   const pastPaperGroups = groupPastPaperCatalog(pastPaperCatalog);
   const formPaymentAccounts = (paymentAccounts || []).filter((account) => account.active !== false && account.showInForm !== false);
   const allPastPapers = pastPaperGroups.flatMap((group) => group.items);
-  const activeCenterCatalog = centerCatalog?.length ? centerCatalog : DEFAULT_CENTER_CATALOG;
+  const activeCenterCatalog = centerCatalog?.length ? centerCatalog : BACKEND_ENABLED ? [] : DEFAULT_CENTER_CATALOG;
   const activeApplicant = batch.applicants.find((applicant) => applicant.id === batch.activeId) || batch.applicants[0];
   const activeIndex = Math.max(0, batch.applicants.findIndex((applicant) => applicant.id === activeApplicant.id));
   const centersForCompetition = (competitionId) => getCommonCenters([competitionId], examCatalog, activeCenterCatalog, { year: activeExamYear, roundType: "HEAT" });
@@ -2210,7 +2426,15 @@ function SchoolBatchForm({ kind, prefill, batch, setBatch, onSubmit, navigate, o
   }
 
   function updateApplicantFormat(competitionId, format) {
-    setBatch((current) => ({ ...current, applicants: current.applicants.map((applicant) => applicant.id === activeApplicant.id ? { ...applicant, formats: { ...applicant.formats, [competitionId]: format }, centersByCompetition: format === "Online" ? { ...applicant.centersByCompetition, [competitionId]: "" } : applicant.centersByCompetition } : applicant) }));
+    setBatch((current) => ({ ...current, applicants: current.applicants.map((applicant) => {
+      if (applicant.id !== activeApplicant.id) return applicant;
+      const currentCenter = applicant.centersByCompetition?.[competitionId]
+        || (applicant.competitionIds?.length === 1 ? applicant.center : "");
+      const centersByCompetition = format === "Online" || isOnlineCenter(currentCenter)
+        ? { ...applicant.centersByCompetition, [competitionId]: "" }
+        : applicant.centersByCompetition;
+      return { ...applicant, formats: { ...applicant.formats, [competitionId]: format }, centersByCompetition };
+    }) }));
     setFormError("");
     setErrorSection("");
   }
@@ -2244,8 +2468,9 @@ function SchoolBatchForm({ kind, prefill, batch, setBatch, onSubmit, navigate, o
     setErrorSection("");
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
+    if (isSubmitting) return;
     const invalidApplicantIndex = batch.applicants.findIndex((applicant) => applicantIssue(applicant));
     if (invalidApplicantIndex >= 0) {
       const invalidApplicant = batch.applicants[invalidApplicantIndex];
@@ -2282,7 +2507,7 @@ function SchoolBatchForm({ kind, prefill, batch, setBatch, onSubmit, navigate, o
       const examListings = totals.selectedCompetitions.map((competition) => {
         const format = formatForApplicantCompetition(applicant, competition.id);
         const selectedCenter = format === "Online"
-          ? activeCenterCatalog.find((center) => center.code === ONLINE_CENTER_CODE) || DEFAULT_CENTER_CATALOG.find((center) => center.code === ONLINE_CENTER_CODE)
+          ? activeCenterCatalog.find((center) => center.code === ONLINE_CENTER_CODE) || (!BACKEND_ENABLED ? DEFAULT_CENTER_CATALOG.find((center) => center.code === ONLINE_CENTER_CODE) : null)
           : centersForCompetition(competition.id).find((center) => center.name === centerForApplicantCompetition(applicant, competition.id));
         const fee = getCompetitionExamPrice(examCatalog, competition.id, "HEAT", format, competitionFees, activeExamYear);
         return { ...competition, grade: applicant.grades[competition.id], format, examEmail: format === "Online" ? examEmailForApplicantCompetition(applicant, competition.id).trim() : "", fee, chargedFee: fee, center: selectedCenter?.name || "", centerId: selectedCenter?.id || "", centerCode: selectedCenter?.code || "", centerSnapshot: selectedCenter ? { id: selectedCenter.id, code: selectedCenter.code, name: selectedCenter.name } : null };
@@ -2315,15 +2540,20 @@ function SchoolBatchForm({ kind, prefill, batch, setBatch, onSubmit, navigate, o
         batchId,
       };
     });
-    onSubmit({
-      source: "school",
-      kind,
-      batchId,
-      batchApplications,
-      totalPayment: batchTotals.totalPayment,
-      paymentAccountsSnapshot: formPaymentAccounts.map((account) => ({ ...account })),
-      schoolBatch: { source: batch.source || "manual", paymentSlipFileName: batch.paymentSlipFileName, paymentSlipFile: batch.paymentSlipFile, marketingConsent: Boolean(batch.marketingConsent) },
-    });
+    setIsSubmitting(true);
+    try {
+      await onSubmit({
+        source: "school",
+        kind,
+        batchId,
+        batchApplications,
+        totalPayment: batchTotals.totalPayment,
+        paymentAccountsSnapshot: formPaymentAccounts.map((account) => ({ ...account })),
+        schoolBatch: { source: batch.source || "manual", paymentSlipFileName: batch.paymentSlipFileName, paymentSlipFile: batch.paymentSlipFile, marketingConsent: Boolean(batch.marketingConsent) },
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   const fullName = `${activeApplicant.firstName} ${activeApplicant.lastName}`.trim();
@@ -2333,7 +2563,7 @@ function SchoolBatchForm({ kind, prefill, batch, setBatch, onSubmit, navigate, o
   return (
     <div className="page-stack">
       <PageHeading
-        eyebrow="สมัครผ่านโรงเรียน · ปีการศึกษา 2569"
+        eyebrow={`สมัครผ่านโรงเรียน · ปีการศึกษา ${examYear}`}
         title={kind === "Final" ? "สมัครสอบ Final แบบโรงเรียน" : "สมัครสอบแบบโรงเรียน"}
         description="เพิ่มผู้เข้าสอบได้หลายคน กรอกข้อมูลและเลือกรายการสอบแยกสำหรับแต่ละคน"
         action={<div className="school-form-actions" role="group" aria-label="การดำเนินการสมัคร">
@@ -2350,7 +2580,7 @@ function SchoolBatchForm({ kind, prefill, batch, setBatch, onSubmit, navigate, o
               <div className="school-import-copy"><span className="school-import-icon"><Icon name="file" /></span><div><strong id="school-excel-heading">นำเข้ารายชื่อจาก Excel</strong><small>ใช้ชีตเดียว · 1 แถวต่อผู้เข้าสอบ · เลือกรายการสอบ ระดับชั้น รูปแบบสอบ ศูนย์สอบ และอีเมลเข้าสอบออนไลน์แยกตามรายการในแถวเดียวกัน</small></div></div>
               <div className="school-import-actions">
                 <Button variant="outline" icon="download" onClick={() => downloadSchoolTemplate({ centerCatalog: activeCenterCatalog, competitions, pastPaperCatalog, schools }, `ocec-school-registration-${activeExamYear}.xlsx`)}>ดาวน์โหลด Template Excel</Button>
-                <label htmlFor="school-batch-excel-upload" className="button button-outline school-excel-upload-button"><Icon name="upload" size={17} /><span>{excelPreview ? "เปลี่ยนไฟล์ Excel" : "เลือกไฟล์ Excel"}</span><input id="school-batch-excel-upload" type="file" accept=".xlsx,.xls" onChange={(event) => { stageSchoolWorkbook(event.target.files?.[0]); event.target.value = ""; }} /></label>
+                <label htmlFor="school-batch-excel-upload" className="button button-outline school-excel-upload-button"><Icon name="upload" size={17} /><span>{excelPreview ? "เปลี่ยนไฟล์ Excel" : "เลือกไฟล์ Excel"}</span><input id="school-batch-excel-upload" type="file" accept=".xlsx" onChange={(event) => { stageSchoolWorkbook(event.target.files?.[0]); event.target.value = ""; }} /></label>
               </div>
               {excelImportMessage ? <p className={`school-excel-message${excelPreview?.issues.length ? " school-excel-message-error" : ""}`} role="status">{excelImportMessage}</p> : null}
               {excelPreview ? <div className="school-excel-preview"><div className="school-excel-preview-head"><strong>ตัวอย่างข้อมูลจาก {excelPreview.fileName}</strong><span>{excelPreview.applicants.length} คน · {excelPreview.issues.length} จุดที่ต้องแก้</span></div>
@@ -2411,7 +2641,7 @@ function SchoolBatchForm({ kind, prefill, batch, setBatch, onSubmit, navigate, o
                 <label className="competition-select"><input type="checkbox" checked={selected} onChange={() => toggleCompetition(competition.id)} /><span className="competition-check-mark" aria-hidden="true" /><span><strong>{competition.name}</strong><small>{competition.subject}</small><small className="competition-session"><Icon name="clock" size={12} />สอบ {formatExamSession(competitionExam)}</small></span><span className="competition-fee">฿{getCompetitionExamPrice(examCatalog, competition.id, "HEAT", format, competitionFees, activeExamYear).toLocaleString()}<small> / รายการ</small></span></label>
                 {selected ? <div className="competition-card-options">
                   <CompetitionFormatPicker competitionId={competition.id} prefix={activeApplicant.id} format={format} paperPrice={getCompetitionExamPrice(examCatalog, competition.id, "HEAT", "Paper-Based", competitionFees, activeExamYear)} onlinePrice={getCompetitionExamPrice(examCatalog, competition.id, "HEAT", "Online", competitionFees, activeExamYear)} onChange={(nextFormat) => updateApplicantFormat(competition.id, nextFormat)} />
-                  {format === "Paper-Based" ? <Field label={`ศูนย์สอบ ${competition.short}`} required className="competition-center-field"><select value={centerForApplicantCompetition(activeApplicant, competition.id)} onChange={(event) => updateApplicant(activeApplicant.id, "centersByCompetition", { ...activeApplicant.centersByCompetition, [competition.id]: event.target.value })}><option value="">เลือกศูนย์สอบ</option>{centerForApplicantCompetition(activeApplicant, competition.id) && !availableCenters.some((center) => center.name === centerForApplicantCompetition(activeApplicant, competition.id)) ? <option value={centerForApplicantCompetition(activeApplicant, competition.id)}>{centerForApplicantCompetition(activeApplicant, competition.id)} · กรุณาเลือกศูนย์ที่เปิด</option> : null}{availableCenters.map((center) => <option key={center.id} value={center.name}>{center.name}</option>)}</select>{!availableCenters.length ? <small className="field-hint-error">รายการนี้ยังไม่มีศูนย์สอบที่เปิดใช้งาน</small> : null}</Field> : <div className="competition-online-fields"><Field label={`อีเมลเข้าสอบ ${competition.short}`} required className="competition-exam-email" hint="ใช้อีเมลเดียวกับรายการอื่นได้ หากใช้บัญชีเดียวกัน"><input type="email" autoComplete="email" value={examEmailForApplicantCompetition(activeApplicant, competition.id)} onChange={(event) => updateApplicant(activeApplicant.id, "examEmailsByCompetition", { ...activeApplicant.examEmailsByCompetition, [competition.id]: event.target.value })} placeholder="student@gmail.com" required /></Field></div>}
+                  {format === "Paper-Based" ? <Field label={`ศูนย์สอบ ${competition.short}`} required className="competition-center-field"><select value={centerForApplicantCompetition(activeApplicant, competition.id)} onChange={(event) => updateApplicant(activeApplicant.id, "centersByCompetition", { ...activeApplicant.centersByCompetition, [competition.id]: event.target.value })}><option value="">เลือกศูนย์สอบ</option>{centerForApplicantCompetition(activeApplicant, competition.id) && !isOnlineCenter(centerForApplicantCompetition(activeApplicant, competition.id)) && !availableCenters.some((center) => center.name === centerForApplicantCompetition(activeApplicant, competition.id)) ? <option value={centerForApplicantCompetition(activeApplicant, competition.id)}>{centerForApplicantCompetition(activeApplicant, competition.id)} · กรุณาเลือกศูนย์ที่เปิด</option> : null}{availableCenters.map((center) => <option key={center.id} value={center.name}>{center.name}</option>)}</select>{!availableCenters.length ? <small className="field-hint-error">รายการนี้ยังไม่มีศูนย์สอบที่เปิดใช้งาน</small> : null}</Field> : <div className="competition-online-fields"><Field label={`อีเมลเข้าสอบ ${competition.short}`} required className="competition-exam-email" hint="ใช้อีเมลเดียวกับรายการอื่นได้ หากใช้บัญชีเดียวกัน"><input type="email" autoComplete="email" value={examEmailForApplicantCompetition(activeApplicant, competition.id)} onChange={(event) => updateApplicant(activeApplicant.id, "examEmailsByCompetition", { ...activeApplicant.examEmailsByCompetition, [competition.id]: event.target.value })} placeholder="student@gmail.com" required /></Field></div>}
                   <Field label={`ระดับชั้น ${competition.short}`} required className="competition-grade"><select value={activeApplicant.grades[competition.id] || ""} onChange={(event) => updateApplicant(activeApplicant.id, "grades", { ...activeApplicant.grades, [competition.id]: event.target.value })}><option value="">เลือกระดับชั้น</option>{competition.grades.map((grade) => <option key={grade}>{grade}</option>)}</select></Field>
                 </div> : null}
               </article>;
@@ -2461,7 +2691,7 @@ function SchoolBatchForm({ kind, prefill, batch, setBatch, onSubmit, navigate, o
             <label className="confirm-check"><input type="checkbox" checked={batch.confirmDetails} onChange={(event) => { setBatch((current) => ({ ...current, confirmDetails: event.target.checked })); setFormError(""); setErrorSection(""); }} /><span>ข้าพเจ้าตรวจสอบข้อมูลผู้สมัครทุกคน ยอดชำระรวม และสลิปเรียบร้อยแล้ว <b>*</b></span></label>
             <label className="confirm-check confirm-check-optional"><input type="checkbox" checked={batch.marketingConsent} onChange={(event) => setBatch((current) => ({ ...current, marketingConsent: event.target.checked }))} /><span>ข้าพเจ้ายินยอมให้ OCEC Thailand เผยแพร่ชื่อผู้สมัคร ผลการแข่งขัน และรางวัล ผ่านช่องทางประชาสัมพันธ์อย่างเป็นทางการ</span></label>
             {formError && errorSection === "payment" ? <p className="inline-error school-form-error" role="alert"><Icon name="info" size={16} />{formError}</p> : null}
-            <div className="form-footer form-footer-submit"><span><Icon name="lock" size={14} />แยกใบสมัครรายคน · รวมชำระหนึ่งบิล</span><Button type="submit" icon="arrow">ส่งใบสมัคร {batch.applicants.length} คน</Button></div>
+            <div className="form-footer form-footer-submit"><span><Icon name="lock" size={14} />แยกใบสมัครรายคน · รวมชำระหนึ่งบิล</span><Button type="submit" icon={isSubmitting ? undefined : "arrow"} disabled={isSubmitting}>{isSubmitting ? "กำลังส่ง..." : `ส่งใบสมัคร ${batch.applicants.length} คน`}</Button></div>
           </section>
         </form>
         <aside className="surface side-note form-side-note school-batch-summary">
@@ -2472,7 +2702,7 @@ function SchoolBatchForm({ kind, prefill, batch, setBatch, onSubmit, navigate, o
             return <small key={applicant.id}>{index + 1}. {name || "ยังไม่ระบุชื่อ"} · {totals.selectedCompetitions.length} รายการ</small>;
           })}</div>
           <div className="live-total live-total-highlight"><span>ยอดชำระรวม</span><strong>{totalLabel(batchTotals.totalPayment)}</strong><small>ค่าสอบ {totalLabel(batchTotals.registrationFee)} + ข้อสอบเก่า {totalLabel(batchTotals.papersTotal)}</small></div>
-          <div className="side-deadline"><Icon name="calendar" /><span><small>วันสอบ</small><strong>13 ธันวาคม 2569</strong></span></div>
+          <div className="side-deadline"><Icon name="calendar" /><span><small>วันสอบ</small><strong>{selectedExamDateText(examCatalog, kind === "Final" ? "FINAL" : "HEAT", examYear, [...new Set(batch.applicants.flatMap((applicant) => applicant.competitionIds || []))])}</strong></span></div>
           <p className="side-note-small">ใบสมัครแยกตามผู้เข้าสอบ แต่ใช้ยอดชำระรวมและแนบสลิปเพียงไฟล์เดียวต่อชุด</p>
         </aside>
       </div>
@@ -2480,7 +2710,7 @@ function SchoolBatchForm({ kind, prefill, batch, setBatch, onSubmit, navigate, o
   );
 }
 
-function AdminHomePage({ applications, examCatalog, resultWorkflows, navigate, resultPublished, syncFailed }) {
+function AdminHomePage({ applications, examCatalog, resultWorkflows, navigate, resultPublished }) {
   const pendingApps = applications.filter((item) => item.status === "pending");
   const confirmedApps = applications.filter((item) => item.status === "confirmed");
   const heatApps = applications.filter((item) => item.kind === "Heat");
@@ -2499,7 +2729,7 @@ function AdminHomePage({ applications, examCatalog, resultWorkflows, navigate, r
     { id: "admin-results", icon: "info", tone: "violet", title: "รายการผลสอบที่ต้องตรวจ", detail: resultIssueCount ? `${resultIssueCount} รายการจากฉบับร่าง · กดเพื่อตรวจสอบก่อนประกาศ` : "ยังไม่มีรายการจากผลสอบที่ต้องตรวจ", count: resultIssueCount },
     { id: "admin-results", icon: "award", tone: "violet", title: resultPublished ? "ดูผลสอบที่ประกาศแล้ว" : "เตรียมผลสอบ", detail: resultPublished ? "ประกาศแล้ว · ข้อมูลผลสอบล็อก" : "เลือกรายการและรอบ นำเข้าฉบับร่างเพื่อตรวจสอบ", count: resultPublished ? 0 : 1 },
     { id: "admin-final-ids", icon: "users", tone: "blue", title: "นำเข้าเลขประจำตัว Final", detail: `${finalIdsWaiting} รายการยังไม่มีเลข`, count: finalIdsWaiting },
-    { id: "admin-sheets", icon: "sync", tone: syncFailed ? "amber" : "blue", title: "รายการซิงก์ชีต", detail: syncFailed ? "มีรายการรอซิงก์ · ระบบกำลังลองใหม่" : "สถานะตัวอย่างปกติ · ไม่มีรายการค้าง", count: syncFailed ? 1 : 0 },
+    { id: "admin-sheets", icon: "sync", tone: "blue", title: "คิวอีเมลและ Google Sheets", detail: "ตรวจสถานะงานจริงและเริ่มงานที่ล้มเหลวใหม่", count: "↗" },
   ];
   const byYear = Object.values(examCatalog.reduce((groups, item) => {
     groups[item.year] ||= { year: item.year, total: 0, open: 0 };
@@ -2511,7 +2741,7 @@ function AdminHomePage({ applications, examCatalog, resultWorkflows, navigate, r
 
   return (
     <div className="page-stack admin-home-page">
-      <PageHeading eyebrow="พื้นที่เจ้าหน้าที่ · ข้อมูลตัวอย่าง" title="ภาพรวมแอดมิน" description="เห็นคิวตรวจใบสมัคร รอบสอบ และงานประกาศผลในจุดเดียว" action={<Button icon="calendar" onClick={() => navigate("admin-round")}>จัดการรายการสอบ</Button>} />
+      <PageHeading eyebrow={BACKEND_ENABLED ? "พื้นที่เจ้าหน้าที่ · ฐานข้อมูล Portal" : "พื้นที่เจ้าหน้าที่ · โหมดตัวอย่าง"} title="ภาพรวมแอดมิน" description="เห็นคิวตรวจใบสมัคร รอบสอบ และงานประกาศผลในจุดเดียว" action={<Button icon="calendar" onClick={() => navigate("admin-round")}>จัดการรายการสอบ</Button>} />
       <div className="admin-stat-grid">
         <div className="admin-stat-card"><span className="admin-stat-icon stat-blue"><Icon name="file" /></span><div><span>ใบสมัครทั้งหมด</span><strong>{applications.length}</strong><small>Heat {heatApps.length} · Final {finalApps.length}</small></div><span className="stat-ok"><Icon name="users" size={13} />{applications.filter((item) => item.source === "school").length} ผ่านโรงเรียน</span></div>
         <div className="admin-stat-card"><span className="admin-stat-icon stat-amber"><Icon name="clock" /></span><div><span>รอตรวจสลิป</span><strong>{pendingApps.length}</strong><small>ยอดรอตรวจ ฿{totalDue.toLocaleString()}</small></div><button className="stat-link" onClick={() => navigate("admin-review")}>เปิดคิว <Icon name="arrow" size={14} /></button></div>
@@ -2533,8 +2763,8 @@ function AdminHomePage({ applications, examCatalog, resultWorkflows, navigate, r
         </section>
       </div>
       <section className="surface admin-exception-queue"><div className="section-heading"><div><p className="eyebrow">ต้องติดตามเป็นพิเศษ</p><h2>คิวปัญหาใบสมัคร</h2></div><span className="conflict-count">{issueApps.length} รายการ</span></div>{issueApps.length ? <div className="admin-exception-list">{issueApps.map((item) => <button type="button" className="admin-exception-row" key={item.id} onClick={() => navigate("admin-review", item.id)}><span className="task-icon task-amber"><Icon name="file" /></span><span><strong>{item.candidate}</strong><small>{item.exam} · {item.school}</small><em>{item.slipIssue}</em></span><span>เปิดใบสมัคร <Icon name="arrow" size={14} /></span></button>)}</div> : <div className="admin-clear-state"><span><Icon name="check" /></span><div><strong>ไม่มีใบสมัครที่มีปัญหา</strong><small>ความผิดปกติของชื่อโรงเรียนในไฟล์ผลสอบจะแสดงในหน้านำเข้าผลสอบ</small></div></div>}</section>
-      <section className="surface admin-competition-summary"><div><p className="eyebrow">ภาพรวมตามรายการสอบ</p><h2>รายการที่ผู้สมัครเลือก</h2><p>นับรายการแข่งขันที่เลือกในใบสมัครตัวอย่าง</p></div><div className="admin-competition-chips">{Object.entries(competitionCounts).map(([name, count]) => <span key={name}><strong>{count}</strong>{name}</span>)}</div><span className="admin-data-note"><Icon name="info" size={14} />ข้อมูล mock · ใช้ทดลองหน้าจอเท่านั้น</span></section>
-      <section className={`surface sync-banner ${syncFailed ? "sync-banner-failed" : ""}`}><span className="sync-banner-icon"><Icon name={syncFailed ? "clock" : "sync"} /></span><div><strong>{syncFailed ? "กำลังรอซิงก์ข้อมูล" : "สถานะซิงก์ตัวอย่าง: ปกติ"}</strong><p>{syncFailed ? "ระบบจะลองใหม่อัตโนมัติทุก 2–3 นาที · ดูสถานะรายการได้ในหน้าซิงก์" : `${confirmedApps.length} ใบสมัครที่อนุมัติแล้ว · เชื่อมต่อจริงยังไม่เปิดใช้งาน`}</p></div><Button variant="text" onClick={() => navigate("admin-sheets")}>ดูสถานะ</Button></section>
+      <section className="surface admin-competition-summary"><div><p className="eyebrow">ภาพรวมตามรายการสอบ</p><h2>รายการที่ผู้สมัครเลือก</h2><p>{BACKEND_ENABLED ? "นับจำนวนจากใบสมัครที่บันทึกใน Portal" : "นับจากข้อมูลตัวอย่างใน browser"}</p></div><div className="admin-competition-chips">{Object.entries(competitionCounts).map(([name, count]) => <span key={name}><strong>{count}</strong>{name}</span>)}</div>{!BACKEND_ENABLED ? <span className="admin-data-note"><Icon name="info" size={14} />ข้อมูล mock · ใช้ทดลองหน้าจอเท่านั้น</span> : null}</section>
+      <section className="surface sync-banner"><span className="sync-banner-icon"><Icon name="sync" /></span><div><strong>คิวงานระบบ</strong><p>ดูผลการส่งอีเมลและการซิงก์ Google Sheets จากข้อมูลจริงในหน้าสถานะ</p></div><Button variant="text" onClick={() => navigate("admin-sheets")}>ดูสถานะ</Button></section>
     </div>
   );
 }
@@ -2582,10 +2812,27 @@ function AdminMockPapersPage({ applications, notify }) {
     return groups;
   }, {}));
   const filterReset = () => { setSearch(""); setExamFilter("all"); setYearFilter("all"); setSchoolFilter("all"); setGradeFilter("all"); setPaperFilter("all"); };
+  async function exportReport() {
+    if (!BACKEND_ENABLED) {
+      notify("เปิด VITE_BACKEND_ENABLED และเชื่อมฐานข้อมูลก่อนส่งออกรายงานจริง");
+      return;
+    }
+    const rows = tab === "mock"
+      ? [["APPLICATION ID", "CANDIDATE NAME", "EMAIL", "SCHOOL", "COMPETITION", "GRADE", "EXAM FORMAT", "EXAM CENTER", "EXAM ROUND", "ACADEMIC YEAR", "STATUS"], ...applicantRows.map((item) => [item.id, item.candidate, item.contactEmail, item.school, (item.competitions || []).map((competition) => competition.short || competition.name).filter(Boolean).join(" : "), item.grade, getApplicationFormatSummary(item), getApplicationCenterSummary(item), item.kind, item.year, item.status])]
+      : [["APPLICATION ID", "CANDIDATE NAME", "EMAIL", "SCHOOL", "COMPETITION", "PAST PAPER", "DETAIL", "QUANTITY", "UNIT PRICE (THB)", "ACADEMIC YEAR"], ...paperRows.map(({ application, paper, quantity }) => [application.id, application.candidate, application.contactEmail, application.school, application.exam, paper.name, paper.detail || "", quantity, Number(paper.fee || 0), application.year])];
+    const yearPart = yearFilter === "all" ? "all-years" : yearFilter;
+    const fileName = `ocec-${tab === "mock" ? "applicants" : "past-papers"}-${yearPart}.xlsx`;
+    try {
+      await downloadWorkbook([{ name: tab === "mock" ? "Applicants" : "Past Papers", rows }], fileName);
+      notify(`สร้างไฟล์ ${rows.length - 1} รายการแล้ว`);
+    } catch (error) {
+      notify(error.message || "ส่งออกรายงานไม่สำเร็จ");
+    }
+  }
 
   return (
     <div className="page-stack admin-mock-page">
-      <PageHeading eyebrow="ข้อมูลจำลอง · ไม่มีการเชื่อมต่อภายนอก" title="Mock และข้อสอบเก่า" description="ดูรายชื่อผู้สมัครและรายการข้อสอบเก่าที่เลือกซื้อ เพื่อเตรียมข้อมูลก่อนส่ง Mock หรือจัดส่งเอกสาร" action={<Button icon="download" onClick={() => notify("ตัวอย่างส่งออก Excel · ไม่มีการสร้างหรือดาวน์โหลดไฟล์จริง")}>ส่งออก Excel</Button>} />
+      <PageHeading eyebrow={BACKEND_ENABLED ? "รายงานจากฐานข้อมูล" : "รายงานใบสมัคร"} title="รายชื่อ Mock และข้อสอบเก่า" description="ค้นหาและกรองรายชื่อผู้สมัคร หรือสรุปรายการข้อสอบเก่าที่เลือกซื้อ" action={<Button icon="download" disabled={!BACKEND_ENABLED || (tab === "mock" ? !applicantRows.length : !paperRows.length)} onClick={exportReport}>ส่งออก Excel</Button>} />
       <div className="admin-mock-stat-grid">
         <article className="admin-mock-stat"><span className="admin-mock-stat-icon mock-icon-violet"><Icon name="users" /></span><div><small>ผู้สมัครทั้งหมด</small><strong>{applications.length}</strong><span>รวม Heat และ Final</span></div></article>
         <article className="admin-mock-stat"><span className="admin-mock-stat-icon mock-icon-pink"><Icon name="building" /></span><div><small>สมัครผ่านโรงเรียน</small><strong>{applications.filter((item) => item.source === "school").length}</strong><span>ใบสมัครรายบุคคล</span></div></article>
@@ -2611,7 +2858,7 @@ function AdminMockPapersPage({ applications, notify }) {
         ) : (
           <div className="admin-mock-table-wrap"><table className="admin-mock-table"><thead><tr><th>ผู้สมัคร</th><th>โรงเรียน</th><th>รายการสอบ</th><th>ข้อสอบเก่าที่เลือก</th><th>จำนวน</th><th>ราคา</th><th>ปี</th></tr></thead><tbody>{paperRows.map(({ application, paper }, index) => <tr key={`${application.id}-${paper.id}-${index}`}><td><strong>{application.candidate}</strong><small>{application.contactEmail}</small></td><td>{application.school}</td><td>{application.exam}</td><td><strong>{paper.name}</strong><small>{paper.detail || "ข้อสอบเก่าสำหรับผู้สมัคร"}</small></td><td><span className="admin-mock-quantity">1 ชุด</span></td><td>{fmtMoney(paper.fee)}</td><td>{application.year}</td></tr>)}{paperRows.length === 0 ? <tr><td colSpan="7"><div className="admin-mock-empty"><Icon name="book" /><strong>ไม่มีรายการข้อสอบเก่าที่ตรงกับตัวกรอง</strong><span>ลองเปลี่ยนคำค้นหรือกดล้างตัวกรอง</span></div></td></tr> : null}</tbody></table></div>
         )}
-        <div className="admin-mock-footer"><span><Icon name="info" size={15} />ข้อมูล mock สำหรับต้นแบบเท่านั้น · ไม่มีการส่งหรือดาวน์โหลดไฟล์จริง</span><Button variant="outline" icon="download" onClick={() => notify("ตัวอย่างส่งออก Excel · ไม่มีการสร้างหรือดาวน์โหลดไฟล์จริง")}>ส่งออก Excel</Button></div>
+        <div className="admin-mock-footer"><span><Icon name="info" size={15} />{tab === "mock" ? `${applicantRows.length} ใบสมัครตามตัวกรอง` : `${totalPaperSets} ชุดข้อสอบเก่าตามตัวกรอง`}{BACKEND_ENABLED ? " · ข้อมูลปัจจุบันจากฐานข้อมูล" : " · เปิด backend เพื่อส่งออกรายงานจริง"}</span><Button variant="outline" icon="download" disabled={!BACKEND_ENABLED || (tab === "mock" ? !applicantRows.length : !paperRows.length)} onClick={exportReport}>ส่งออก Excel</Button></div>
       </section>
     </div>
   );
@@ -2679,14 +2926,78 @@ function ReviewSlipDialog({ application, amount, fileName, dataUrl, fileType, on
       <div className="review-slip-dialog-content">
         {dataUrl && fileType.startsWith("image/") ? <img className="review-slip-dialog-image" src={dataUrl} alt={title} />
           : dataUrl && fileType === "application/pdf" ? <iframe className="review-slip-dialog-pdf" src={dataUrl} title={title} />
-            : <DemoTransferSlip application={application} amount={amount} />}
+            : BACKEND_ENABLED ? <div className="review-slip-empty"><Icon name="info" /><strong>ไม่พบไฟล์สลิปใน Portal</strong><small>ตรวจสอบข้อมูลไฟล์บน Google Drive หรืออัปโหลดสลิปใหม่</small></div> : <DemoTransferSlip application={application} amount={amount} />}
       </div>
     </dialog>
   );
 }
 
-function AdminReviewPage({ applications, schoolBatches = [], paymentAccounts = [], onApprove, onPaymentAccountChange, onSlipIssue, notify, navigate, activeApplicationId }) {
-  const pendingApps = applications.filter((item) => item.status === "pending");
+function AdminNotesPanel({ applicationId }) {
+  const [notes, setNotes] = useState([]);
+  const [history, setHistory] = useState([]);
+  const [draft, setDraft] = useState("");
+  const [editingId, setEditingId] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  async function load(signal) {
+    const response = await fetch(`/api/admin/applications/${encodeURIComponent(applicationId)}/notes?includeHistory=true`, { credentials: "same-origin", signal });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "โหลดบันทึกภายในไม่สำเร็จ");
+    setNotes(result.notes || []);
+    setHistory(result.history || []);
+  }
+  useEffect(() => {
+    const controller = new AbortController();
+    setNotes([]); setHistory([]); setDraft(""); setEditingId(""); setError(""); setLoading(true);
+    load(controller.signal).catch((requestError) => { if (!controller.signal.aborted) setError(requestError.message); })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, [applicationId]);
+
+  async function save(event) {
+    event.preventDefault();
+    const body = draft.trim();
+    if (!body || body.length > 4000) { setError("บันทึกต้องมีข้อความไม่เกิน 4,000 ตัวอักษร"); return; }
+    if (editingId && !window.confirm("บันทึกการแก้ไขหมายเหตุนี้หรือไม่?")) return;
+    setBusy(true); setError("");
+    try {
+      const response = await fetch(`/api/admin/applications/${encodeURIComponent(applicationId)}/notes${editingId ? `/${encodeURIComponent(editingId)}` : ""}`, {
+        method: editingId ? "PATCH" : "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify({ body }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "บันทึกหมายเหตุไม่สำเร็จ");
+      await load();
+      setDraft(""); setEditingId("");
+    } catch (requestError) { setError(requestError.message || "บันทึกหมายเหตุไม่สำเร็จ"); }
+    finally { setBusy(false); }
+  }
+
+  async function remove(noteId) {
+    if (!window.confirm("ลบหมายเหตุนี้โดยเก็บประวัติไว้หรือไม่?")) return;
+    setBusy(true); setError("");
+    try {
+      const response = await fetch(`/api/admin/applications/${encodeURIComponent(applicationId)}/notes/${encodeURIComponent(noteId)}`, { method: "DELETE", credentials: "same-origin" });
+      if (!response.ok) { const result = await response.json().catch(() => ({})); throw new Error(result.error || "ลบหมายเหตุไม่สำเร็จ"); }
+      await load();
+      if (editingId === noteId) { setEditingId(""); setDraft(""); }
+    } catch (requestError) { setError(requestError.message || "ลบหมายเหตุไม่สำเร็จ"); }
+    finally { setBusy(false); }
+  }
+
+  return <section className="review-notes-panel" aria-label="บันทึกภายในของแอดมิน">
+    <div className="review-section-heading"><span className="review-section-icon"><Icon name="file" size={16} /></span><div><strong>บันทึกภายในของแอดมิน</strong><small>เห็นได้เฉพาะผู้ดูแลระบบ · เก็บประวัติการแก้ไขและลบ</small></div></div>
+    {loading ? <p>กำลังโหลดบันทึก…</p> : notes.length ? <div className="review-notes-list">{notes.map((note) => <article key={note.id} className="review-note"><p>{note.body}</p><small>บันทึก {new Date(note.createdAt).toLocaleString("th-TH", { timeZone: "Asia/Bangkok" })}</small><div><Button variant="text" disabled={busy} onClick={() => { setEditingId(note.id); setDraft(note.body); }}>แก้ไข</Button><Button variant="text" disabled={busy} onClick={() => remove(note.id)}>ลบ</Button></div></article>)}</div> : <p>ยังไม่มีบันทึกภายใน</p>}
+    <form onSubmit={save}><Field label={editingId ? "แก้ไขบันทึกภายใน" : "เพิ่มบันทึกภายใน"}><textarea value={draft} maxLength={4000} onChange={(event) => setDraft(event.target.value)} /></Field><Button type="submit" disabled={busy || !draft.trim()}>{busy ? "กำลังบันทึก…" : editingId ? "บันทึกการแก้ไข" : "เพิ่มบันทึก"}</Button>{editingId ? <Button type="button" variant="text" onClick={() => { setEditingId(""); setDraft(""); }}>ยกเลิก</Button> : null}</form>
+    {error ? <p className="inline-error" role="alert">{error}</p> : null}
+    <details><summary>ประวัติหมายเหตุ · {history.length} รายการ</summary>{history.length ? <ol>{history.map((entry) => <li key={entry.id}><strong>{entry.action}</strong> · {entry.actor?.name || entry.actor?.email} · {new Date(entry.createdAt).toLocaleString("th-TH", { timeZone: "Asia/Bangkok" })}<div>ก่อน: {entry.before?.body || "—"} → หลัง: {entry.after?.body || "—"}</div></li>)}</ol> : <p>ยังไม่มีประวัติ</p>}</details>
+  </section>;
+}
+
+function AdminReviewPage({ applications, schoolBatches = [], onApprove, onReject, onSlipIssue, notify, navigate, activeApplicationId }) {
+  const hasUnreviewedPayment = (item) => (item.paymentRecords || []).some((payment) => payment.status === "pending");
+  const pendingApps = applications.filter((item) => item.status === "pending" || hasUnreviewedPayment(item));
   const [selectedId, setSelectedId] = useState(activeApplicationId || pendingApps[0]?.id || applications[0]?.id || "");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState(activeApplicationId ? "all" : "pending");
@@ -2695,13 +3006,17 @@ function AdminReviewPage({ applications, schoolBatches = [], paymentAccounts = [
   const [reviewView, setReviewView] = useState(activeApplicationId ? "all" : "school-groups");
   const [selectedGroupKey, setSelectedGroupKey] = useState("");
   const [slipPreviewOpen, setSlipPreviewOpen] = useState(false);
+  const [loadedSlip, setLoadedSlip] = useState(null);
+  const [selectedPaymentId, setSelectedPaymentId] = useState("");
+  const [rejectReason, setRejectReason] = useState("");
+  const [reviewBusy, setReviewBusy] = useState(false);
   const schoolApplications = applications.filter((item) => item.source === "school");
   const schoolGroups = Object.values(schoolApplications.reduce((groups, item) => {
     const key = `${item.year}|${item.exam}`;
     groups[key] ||= { key, year: item.year, exam: item.exam, applications: [] };
     groups[key].applications.push(item);
     return groups;
-  }, {})).map((group) => ({ ...group, pending: group.applications.filter((item) => item.status === "pending").length }));
+  }, {})).map((group) => ({ ...group, pending: group.applications.filter((item) => item.status === "pending" || hasUnreviewedPayment(item)).length }));
   const selectedGroup = schoolGroups.find((group) => group.key === selectedGroupKey);
   const reviewPool = reviewView === "school-groups"
     ? selectedGroup?.applications || []
@@ -2711,67 +3026,67 @@ function AdminReviewPage({ applications, schoolBatches = [], paymentAccounts = [
     const applicationNumber = `OC-${item.year}-${String(item.id || "").toUpperCase()}`;
     const competitionTerms = (item.competitions || []).flatMap((competition) => [competition.short, competition.name, competition.subject]).filter(Boolean);
     const matchesSearch = !query || [item.candidate, item.id, applicationNumber, item.school, item.contactEmail, item.heatId, item.finalId, item.exam, item.year, ...competitionTerms].filter(Boolean).some((value) => String(value).toLowerCase().includes(query));
-    return matchesSearch && (statusFilter === "all" || (statusFilter === "pending" ? item.status === "pending" : item.status === statusFilter)) && (kindFilter === "all" || item.kind === kindFilter) && (sourceFilter === "all" || (sourceFilter === "school" ? item.source === "school" : item.source !== "school"));
+    const matchesStatus = statusFilter === "all"
+      || (statusFilter === "pending" ? item.status === "pending" || hasUnreviewedPayment(item) : item.status === statusFilter && !hasUnreviewedPayment(item));
+    return matchesSearch && matchesStatus && (kindFilter === "all" || item.kind === kindFilter) && (sourceFilter === "all" || (sourceFilter === "school" ? item.source === "school" : item.source !== "school"));
   });
   const selected = filteredApplications.find((item) => item.id === selectedId) || filteredApplications[0];
   const selectedSchoolBatch = selected?.batchId ? schoolBatches.find((item) => item.id === selected.batchId) : null;
-  const selectedSlipFile = selectedSchoolBatch?.paymentSlipFile || selected?.slipFile || null;
+  const paymentRecords = selected?.paymentRecords || [];
+  const selectedPayment = paymentRecords.find((payment) => payment.id === selectedPaymentId) || paymentRecords[0] || null;
+  const slipMetadata = paymentRecords.length ? selectedPayment?.slipFile || null : selectedSchoolBatch?.paymentSlipFile || selected?.slipFile || null;
+  const selectedSlipKey = `${selected?.id || ""}:${selectedPayment?.id || ""}:${slipMetadata?.id || ""}`;
+  const selectedSlipFile = slipMetadata?.dataUrl ? slipMetadata : loadedSlip?.key === selectedSlipKey ? loadedSlip : slipMetadata;
   const selectedSlipDataUrl = selectedSlipFile?.dataUrl || "";
   const selectedSlipType = selectedSlipFile?.type || "";
-  const selectedSlipFileName = selectedSlipFile?.name || selectedSchoolBatch?.paymentSlipFileName || selected?.slipFileName || `payment-slip-${selected?.id || "application"}.pdf`;
-  const historicalAccounts = selected?.paymentAccountsSnapshot || [];
-  const reviewAccounts = [
-    ...paymentAccounts,
-    ...historicalAccounts.filter((oldAccount) => !paymentAccounts.some((account) => account.id === oldAccount.id && account.accountNumber === oldAccount.accountNumber)),
-  ];
-  const [accountDetection, setAccountDetection] = useState({ applicationId: "", status: "idle", account: null, message: "" });
-  const detectedAccount = accountDetection.applicationId === selected?.id ? accountDetection.account : null;
-  const effectiveAccountType = detectedAccount?.category || (accountDetection.applicationId === selected?.id && accountDetection.status === "sample" ? selected?.paymentAccountType : "");
-  const accountNeedsManualMatch = accountDetection.applicationId === selected?.id && ["unmatched", "error"].includes(accountDetection.status);
-  const canApproveWithAccount = Boolean(effectiveAccountType) && (!selectedSlipDataUrl || Boolean(detectedAccount));
-  const pendingCount = applications.filter((item) => item.status === "pending").length;
-  const schoolPendingCount = schoolApplications.filter((item) => item.status === "pending").length;
-  const scopedStatusCount = (status) => reviewPool.filter((item) => status === "all" || item.status === status).length;
+  const selectedSlipFileName = selectedSlipFile?.name || selectedSchoolBatch?.paymentSlipFileName || selected?.slipFileName || (BACKEND_ENABLED ? "ไม่พบไฟล์สลิป" : `payment-slip-${selected?.id || "application"}.pdf`);
+  const [slipLoadError, setSlipLoadError] = useState("");
+  const hasReviewableSlip = !BACKEND_ENABLED || Boolean(selectedSlipDataUrl);
+  const pendingAdditionalPayment = selected?.status === "confirmed" && selectedPayment?.status === "pending";
+  const pendingCount = applications.filter((item) => item.status === "pending" || hasUnreviewedPayment(item)).length;
+  const schoolPendingCount = schoolApplications.filter((item) => item.status === "pending" || hasUnreviewedPayment(item)).length;
+  const scopedStatusCount = (status) => reviewPool.filter((item) => status === "all" || (status === "pending" ? item.status === "pending" || hasUnreviewedPayment(item) : item.status === status && !hasUnreviewedPayment(item))).length;
   const fmtMoney = (value) => `฿${Number(value || 0).toLocaleString()}`;
   const firstName = selected?.nameParts?.firstName || selected?.studentInformation?.firstName || selected?.candidate?.trim().split(/\s+/)[0] || "";
   const lastName = selected?.nameParts?.lastName || selected?.studentInformation?.lastName || selected?.candidate?.trim().split(/\s+/).slice(1).join(" ") || "";
   const candidateExamNumber = selected?.kind === "Final" ? selected?.finalId : selected?.heatId;
-  const expectedTransferAmount = selectedSchoolBatch
-    ? Number(selectedSchoolBatch.invoiceTotal || 0)
-    : Number(selected?.totalPayment || 0);
-  const rawTransferAmount = selected?.transferAmount;
-  const parsedTransferAmount = rawTransferAmount === undefined || rawTransferAmount === null || rawTransferAmount === "" ? null : Number(rawTransferAmount);
-  const transferAmount = parsedTransferAmount !== null && Number.isFinite(parsedTransferAmount) ? parsedTransferAmount : null;
-  const transferMatches = transferAmount !== null && Number.isFinite(transferAmount) && transferAmount === expectedTransferAmount;
+  const expectedTransferAmount = selectedPayment
+    ? Number(selectedPayment.expectedAmount || 0)
+    : selectedSchoolBatch ? Number(selectedSchoolBatch.invoiceTotal || 0) : Number(selected?.totalPayment || 0);
+  const submittedDate = selected?.submitted ? new Date(selected.submitted) : null;
+  const submittedAtISO = submittedDate && Number.isFinite(submittedDate.getTime()) ? submittedDate.toISOString() : "";
+  const submittedAtLabel = submittedAtISO
+    ? new Intl.DateTimeFormat("th-TH", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Bangkok" }).format(submittedDate)
+    : String(selected?.submitted || "ไม่ระบุ");
 
   useEffect(() => {
     setSlipPreviewOpen(false);
+    setSelectedPaymentId("");
   }, [selected?.id]);
 
   useEffect(() => {
     let cancelled = false;
-    if (!selected) return undefined;
-    if (!selectedSlipDataUrl) {
-      setAccountDetection({ applicationId: selected.id, status: selected.paymentAccountType ? "sample" : "idle", account: null, message: "" });
+    if (!selected || !slipMetadata?.url || slipMetadata.dataUrl) {
+      if (!slipMetadata?.url) setLoadedSlip(null);
+      setSlipLoadError("");
       return undefined;
     }
-    setAccountDetection({ applicationId: selected.id, status: "running", account: null, message: "กำลังอ่านเลขบัญชีจากสลิป" });
-    detectPaymentAccount(selectedSlipFile, reviewAccounts).then((result) => {
-      if (cancelled) return;
-      if (result.status === "matched" && result.account) {
-        setAccountDetection({ applicationId: selected.id, status: "matched", account: result.account, message: "ตรวจพบบัญชีในสลิป" });
-        const currentAccount = selected.paymentAccountSnapshot || reviewAccounts.find((account) => account.id === selected.paymentAccountId);
-        if (selected.paymentAccountId !== result.account.id || selected.paymentAccountType !== result.account.category || currentAccount?.accountNumber !== result.account.accountNumber) {
-          onPaymentAccountChange(selected.id, result.account);
-        }
-      } else {
-        setAccountDetection({ applicationId: selected.id, status: "unmatched", account: null, message: "อ่านเลขบัญชีไม่ชัด หรือไม่ตรงกับบัญชีที่ตั้งค่าไว้" });
-      }
-    }).catch(() => {
-      if (!cancelled) setAccountDetection({ applicationId: selected.id, status: "error", account: null, message: "อ่านสลิปอัตโนมัติไม่สำเร็จ · เลือกบัญชีตามสลิปได้ด้านล่าง" });
-    });
+    setLoadedSlip(null);
+    setSlipLoadError("");
+    fetch(slipMetadata.url, { credentials: "same-origin" })
+      .then((response) => { if (!response.ok) throw new Error("เปิดไฟล์สลิปจากฐานข้อมูลไม่สำเร็จ"); return response.blob(); })
+      .then((blob) => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+        reader.onerror = () => reject(new Error("อ่านไฟล์สลิปไม่สำเร็จ"));
+        reader.readAsDataURL(blob);
+      }))
+      .then((dataUrl) => { if (!cancelled) setLoadedSlip({ key: selectedSlipKey, applicationId: selected.id, paymentId: selectedPayment?.id, name: slipMetadata.name, type: slipMetadata.type, dataUrl }); })
+      .catch((error) => { if (!cancelled) setSlipLoadError(error.message || "เปิดไฟล์สลิปไม่สำเร็จ"); });
     return () => { cancelled = true; };
-  }, [selected?.id, selectedSlipDataUrl, selectedSlipType, selectedSlipFileName, paymentAccounts]);
+  }, [selected?.id, selectedPayment?.id, selectedSlipKey, slipMetadata?.url, slipMetadata?.dataUrl]);
+
+
 
   async function copyApplicantField(label, value) {
     if (!value) return;
@@ -2784,7 +3099,7 @@ function AdminReviewPage({ applications, schoolBatches = [], paymentAccounts = [
   }
   return (
     <div className="page-stack">
-      <PageHeading eyebrow="จัดการใบสมัคร · ข้อมูล mock" title="ตรวจใบสมัครและสลิป" description="เปิดดูข้อมูลแต่ละผู้สมัคร ตรวจรายการสอบและยอดชำระ ก่อนอนุมัติหรือแจ้งปัญหาสลิป" action={<span className="queue-indicator"><span />รอตรวจ {pendingCount} ใบ</span>} />
+      <PageHeading eyebrow="จัดการใบสมัคร · คิวตรวจ" title="ตรวจใบสมัครและสลิป" description="เปิดดูข้อมูลแต่ละผู้สมัคร ตรวจรายการสอบและยอดชำระ ก่อนอนุมัติหรือแจ้งปัญหาสลิป" action={<span className="queue-indicator"><span />รอตรวจ {pendingCount} ใบ</span>} />
       <div className="review-layout">
         <section className="surface review-queue">
           <div className="admin-review-mode" role="tablist" aria-label="มุมมองคิวใบสมัคร">
@@ -2805,10 +3120,10 @@ function AdminReviewPage({ applications, schoolBatches = [], paymentAccounts = [
               <div className="review-list">
                 {filteredApplications.map((item) => (
                   <button className={`review-list-item ${selected?.id === item.id ? "review-list-selected" : ""}`} key={item.id} onClick={() => setSelectedId(item.id)}>
-                    <span className={`review-status-avatar ${item.status === "confirmed" ? "review-status-avatar-confirmed" : item.slipIssue ? "review-status-avatar-issue" : "review-status-avatar-pending"}`} title={item.status === "confirmed" ? "ยืนยันใบสมัคร" : item.slipIssue ? `ต้องตรวจสอบ: ${item.slipIssue}` : "รออนุมัติ/ตรวจสอบสลิป"} aria-label={item.status === "confirmed" ? "ยืนยันใบสมัคร" : item.slipIssue ? `ต้องตรวจสอบ: ${item.slipIssue}` : "รออนุมัติ/ตรวจสอบสลิป"}>
-                      <Icon name={item.status === "confirmed" ? "check" : item.slipIssue ? "info" : "clock"} size={16} />
+                    <span className={`review-status-avatar ${item.status === "confirmed" && !hasUnreviewedPayment(item) ? "review-status-avatar-confirmed" : item.slipIssue ? "review-status-avatar-issue" : "review-status-avatar-pending"}`} title={hasUnreviewedPayment(item) ? "มียอดชำระรอตรวจสอบ" : item.status === "confirmed" ? "ยืนยันใบสมัคร" : item.slipIssue ? `ต้องตรวจสอบ: ${item.slipIssue}` : "รออนุมัติ/ตรวจสอบสลิป"} aria-label={hasUnreviewedPayment(item) ? "มียอดชำระรอตรวจสอบ" : item.status === "confirmed" ? "ยืนยันใบสมัคร" : item.slipIssue ? `ต้องตรวจสอบ: ${item.slipIssue}` : "รออนุมัติ/ตรวจสอบสลิป"}>
+                      <Icon name={item.status === "confirmed" && !hasUnreviewedPayment(item) ? "check" : item.slipIssue ? "info" : "clock"} size={16} />
                     </span>
-                    <span className="review-list-copy"><strong>{item.candidate}</strong><small>{getAdminReviewExamLabel(item)}</small><small>{item.source === "school" ? "ส่งผ่านโรงเรียน" : "สมัครด้วยตนเอง"} · {(item.competitions || []).length} รายการ · {fmtMoney(item.totalPayment)}</small></span>
+                    <span className="review-list-copy"><strong>{item.candidate}</strong><small>{getAdminReviewExamLabel(item)}</small><small>{item.source === "school" ? "ส่งผ่านโรงเรียน" : "สมัครด้วยตนเอง"} · {(item.competitions || []).length} รายการ · {fmtMoney(item.totalPayment)}</small>{hasUnreviewedPayment(item) && item.status === "confirmed" ? <small className="review-list-payment-pending">มียอดชำระเพิ่มรอตรวจ</small> : null}</span>
                   </button>
                 ))}
                 {!filteredApplications.length ? <div className="review-empty-filter"><Icon name="search" /><strong>ไม่พบใบสมัคร</strong><span>ลองเปลี่ยนคำค้นหาหรือตัวกรอง</span></div> : null}
@@ -2826,15 +3141,19 @@ function AdminReviewPage({ applications, schoolBatches = [], paymentAccounts = [
               </div>
               <div className="review-detail-actions"><StatusBadge status={selected.status} /><Button variant="outline" icon="edit" onClick={() => navigate("admin-application-edit", selected.id)}>แก้ไขใบสมัคร</Button></div>
             </div>
-            {selected.slipIssue ? <div className="review-record-issue"><Icon name="info" size={16} /><span><strong>สลิปมีปัญหา</strong> · {selected.slipIssue}</span><Button variant="text" icon="upload" onClick={() => navigate("slip-upload", selected.id)}>อัปโหลดใหม่</Button></div> : null}
+            {selected.slipIssue ? <div className="review-record-issue"><Icon name="info" size={16} /><span><strong>สลิปมีปัญหา</strong> · {selected.slipIssue} · ผู้รับลิงก์จะอัปโหลดผ่านอีเมล</span></div> : null}
             <div className="review-detail-body">
               <section className="review-profile-strip" aria-label="ข้อมูลผู้สมัคร">
-                <div className="review-section-heading"><span className="review-section-icon"><Icon name="users" size={16} /></span><div><strong>ข้อมูลผู้สมัคร</strong><small>ใบสมัคร OC-{selected.year}-{selected.id.toUpperCase()} · ส่ง {selected.submitted}</small></div></div>
+                <div className="review-section-heading">
+                  <span className="review-section-icon"><Icon name="users" size={16} /></span>
+                  <div><strong>ข้อมูลผู้สมัคร</strong><small>ใบสมัคร OC-{selected.year}-{selected.id.toUpperCase()}</small></div>
+                  <time className="review-submitted-at" dateTime={submittedAtISO || undefined}><Icon name="clock" size={14} /><span><small>สมัครเมื่อ</small><strong>{submittedAtLabel}</strong></span></time>
+                </div>
                 <div className="review-copy-grid">
                   {[["ชื่อ", firstName], ["นามสกุล", lastName], ["เบอร์โทรศัพท์", getApplicationPhone(selected)], ["รหัสประจำตัว", candidateExamNumber || "ยังไม่กำหนด"], ["อีเมล", selected.contactEmail]].map(([label, value]) => (
                     <div className={`review-copy-field${label === "อีเมล" ? " review-copy-email" : ""}`} key={label}>
                       <span>{label}</span><strong title={value}>{value || "—"}</strong>
-                      {effectiveAccountType === "other" && (label !== "รหัสประจำตัว" || candidateExamNumber) ? <button type="button" className="review-copy-button" aria-label={`คัดลอก${label}`} title={`คัดลอก${label}`} disabled={!value} onClick={() => copyApplicantField(label, value)}><Icon name="copy" size={14} /></button> : null}
+                      {(label !== "รหัสประจำตัว" || candidateExamNumber) ? <button type="button" className="review-copy-button" aria-label={`คัดลอก${label}`} title={`คัดลอก${label}`} disabled={!value} onClick={() => copyApplicantField(label, value)}><Icon name="copy" size={14} /></button> : null}
                     </div>
                   ))}
                 </div>
@@ -2848,7 +3167,7 @@ function AdminReviewPage({ applications, schoolBatches = [], paymentAccounts = [
                     return <div className="review-exam-row" key={competition.id}>
                       <span><strong>{competition.short || competition.name}</strong><small>{competition.name}</small><small>{competition.grade || "ไม่ระบุชั้น"} · {online ? "Online Exam" : "Paper-Based"} · {getApplicationCompetitionCenter(selected, competition) || "—"}</small>{online ? <small className="review-exam-email">อีเมลเข้าสอบ: {examEmail || "ยังไม่ได้ระบุ"}</small> : null}</span><b>{fmtMoney(competition.fee)}</b>
                     </div>;
-                  }) : <p className="review-no-data">ไม่มีรายละเอียดรายการสอบในข้อมูลตัวอย่าง</p>}
+                  }) : <p className="review-no-data">ไม่มีรายละเอียดรายการสอบในใบสมัครนี้</p>}
                 </div>
                 <div className="review-papers-row">
                   <div className="review-papers-heading"><strong>ข้อสอบเก่าที่เลือก</strong><span className="review-paper-count">{selected.pastPapers?.length || 0} ชุด</span></div>
@@ -2861,83 +3180,83 @@ function AdminReviewPage({ applications, schoolBatches = [], paymentAccounts = [
                 </div>
                 <div className="review-fee-summary"><span>ค่าสมัคร <b>{fmtMoney(selected.registrationFee)}</b></span><span>ข้อสอบเก่า <b>{fmtMoney(selected.pastPapersTotal)}</b></span>{Number(selected.nonRefundableAdjustment || 0) > 0 ? <span>ส่วนต่างไม่คืน/ไม่นำไปหัก <b>{fmtMoney(selected.nonRefundableAdjustment)}</b></span> : null}<strong>ยอดที่ต้องชำระ <b>{fmtMoney(expectedTransferAmount)}</b></strong></div>
               </section>
-              <section className="review-payment-panel" aria-label="ตรวจสอบการชำระเงิน">
-                <div className="review-section-heading"><span className="review-section-icon review-section-icon-amber"><Icon name="building" size={16} /></span><div><strong>ตรวจสอบการชำระ</strong><small>ระบบอ่านเลขบัญชีปลายทางจากสลิปอัตโนมัติ</small></div></div>
-                <div className={`review-account-detection ${effectiveAccountType || "unknown"} ${accountDetection.status === "running" ? "is-running" : ""}`} role="status" aria-live="polite">
-                  <span className="review-account-detection-dot" />
-                  <span><strong>{accountDetection.status === "running" ? "กำลังตรวจบัญชีจากสลิป" : accountDetection.status === "matched" ? `ตรวจพบบัญชี${effectiveAccountType === "president" ? "ประธาน" : "อื่น"}` : accountDetection.status === "manual" ? `เลือกบัญชี${effectiveAccountType === "president" ? "ประธาน" : "อื่น"}ตามสลิปแล้ว` : accountDetection.status === "sample" ? `บัญชี${effectiveAccountType === "president" ? "ประธาน" : "อื่น"} · ข้อมูลตัวอย่าง` : accountDetection.message || "ยังไม่พบบัญชีปลายทาง"}</strong>
-                    <small>{detectedAccount ? `${detectedAccount.bankName} · ${detectedAccount.accountName} · ${detectedAccount.accountNumber} · ${effectiveAccountType === "president" ? "ตรวจยอดและเวลาแล้วอนุมัติได้ · ไม่ต้องลงบัญชี" : "ใช้ข้อมูลผู้สมัครลงบัญชีในแพลตฟอร์มอื่น"}` : accountDetection.status === "sample" ? "ไม่มีไฟล์สลิปจริงสำหรับ OCR ในข้อมูลตัวอย่าง" : accountDetection.status === "matched" ? "" : "จะใช้ข้อมูลนี้กำหนดว่าต้องลงบัญชีภายนอกหรือไม่"}</small></span>
-                </div>
-                {accountNeedsManualMatch && selected.status !== "confirmed" ? <label className="review-account-manual"><span>OCR จับคู่ไม่ได้ · เลือกบัญชีให้ตรงกับสลิป</span><select value={detectedAccount ? `${detectedAccount.id}::${detectedAccount.accountNumber}` : ""} onChange={(event) => {
-                  const account = reviewAccounts.find((item) => `${item.id}::${item.accountNumber}` === event.target.value);
-                  if (!account) return;
-                  setAccountDetection({ applicationId: selected.id, status: "manual", account, message: "เลือกบัญชีจากรายการ" });
-                  onPaymentAccountChange(selected.id, account);
-                }}><option value="">เลือกบัญชีที่รับโอน</option>{reviewAccounts.map((account) => <option key={`${account.id}-${account.accountNumber}`} value={`${account.id}::${account.accountNumber}`}>{account.bankName} · {account.accountNumber} · {account.category === "president" ? "บัญชีประธาน" : "บัญชีอื่น"}</option>)}</select></label> : null}
-                <div className="review-payment-evidence">
-                  <div className="review-payment-evidence-info">
-                    <div className={`review-transfer-check ${transferMatches ? "transfer-match" : transferAmount === null ? "transfer-unchecked" : "transfer-mismatch"}`}>
-                      <div><small>ยอดที่ต้องชำระ</small><strong>{fmtMoney(expectedTransferAmount)}</strong></div>
-                      <span className="review-transfer-equals" aria-hidden="true">→</span>
-                      <div><small>ยอดในสลิป</small><strong>{transferAmount === null ? "ยังไม่ระบุ" : fmtMoney(transferAmount)}</strong></div>
-                      <span className="review-transfer-result"><Icon name={transferMatches ? "check" : transferAmount === null ? "clock" : "info"} size={13} />{transferMatches ? "ยอดตรง" : transferAmount === null ? "รอตรวจยอด" : "ยอดไม่ตรง"}</span>
-                    </div>
-                    <div className="review-transfer-time"><span className="review-section-icon"><Icon name="clock" size={15} /></span><span><small>วันและเวลาโอนในสลิป</small><strong>{selected.transferDateTime || "ยังไม่มีข้อมูลเวลาโอน"}</strong></span></div>
-                  </div>
+              <section className="review-payment-panel" aria-label="สลิปโอนเงิน">
+                <div className="review-section-heading"><span className="review-section-icon review-section-icon-amber"><Icon name="image" size={16} /></span><div><strong>สลิปโอนเงิน</strong><small>ตรวจสอบหลักฐานการชำระเงิน</small></div></div>
+                {paymentRecords.length > 1 ? <div className="review-payment-switcher" aria-label="เลือกสลิปที่ต้องการตรวจสอบ">{paymentRecords.map((payment, index) => <button type="button" key={payment.id} className={selectedPayment?.id === payment.id ? "active" : ""} aria-pressed={selectedPayment?.id === payment.id} onClick={() => { setSelectedPaymentId(payment.id); setLoadedSlip(null); setSlipLoadError(""); }}><span>{payment.status === "confirmed" ? "ยืนยันแล้ว" : "รอตรวจ"} · {index === 0 && selected.status === "confirmed" ? "ยอดล่าสุด" : `รายการชำระ ${paymentRecords.length - index}`}</span><strong>{fmtMoney(payment.expectedAmount)}</strong></button>)}</div> : null}
+                {selectedPayment ? <div className="review-payment-amount"><span>ยอดของสลิปนี้</span><strong>{fmtMoney(expectedTransferAmount)}</strong><small>{selectedPayment.status === "confirmed" ? "ยืนยันยอดแล้ว" : "รอตรวจสอบยอดนี้"}</small></div> : null}
+                <div className="review-slip-only">
                   <div className="review-slip-column">
-                    <div className="review-slip-heading"><span className="slip-file-icon"><Icon name={selectedSlipType === "application/pdf" ? "file" : "image"} size={15} /></span><span><strong>{selectedSlipFileName}</strong><small>{selectedSchoolBatch ? `สลิปบิลรวม · ${selectedSchoolBatch.applicationIds?.length || schoolApplications.filter((item) => item.batchId === selected.batchId).length} ใบสมัคร` : "หลักฐานชำระเงิน"}</small></span></div>
-                    <button type="button" className="review-slip-preview" aria-label={`ขยายดูสลิปของ ${selected.candidate}`} onClick={() => setSlipPreviewOpen(true)}>
-                      {selectedSlipDataUrl && selectedSlipType.startsWith("image/") ? <img className="review-slip-image" src={selectedSlipDataUrl} alt="" />
+                    <button type="button" className="review-slip-preview" aria-label={"ขยายดูสลิปของ " + selected.candidate} title="กดเพื่อขยายดูสลิป" disabled={!selectedSlipDataUrl && BACKEND_ENABLED} onClick={() => setSlipPreviewOpen(true)}>
+                      {selectedSlipDataUrl && selectedSlipType.startsWith("image/") ? <img className="review-slip-image" src={selectedSlipDataUrl} alt={"สลิปโอนเงินของ " + selected.candidate} />
                         : selectedSlipDataUrl && selectedSlipType === "application/pdf" ? <span className="review-slip-pdf-card"><Icon name="file" size={25} /><strong>PDF</strong><small>กดเพื่อเปิดดูสลิปเต็ม</small></span>
-                          : <DemoTransferSlip application={selected} amount={transferAmount ?? expectedTransferAmount} />}
+                          : BACKEND_ENABLED ? <span className="review-slip-empty"><Icon name="info" /><strong>ไม่พบไฟล์สลิปใน Portal</strong><small>ตรวจสอบไฟล์บน Google Drive</small></span> : <DemoTransferSlip application={selected} amount={expectedTransferAmount} />}
                     </button>
-                    {!selectedSlipDataUrl ? <small className="review-slip-demo-note">ภาพสลิปจำลองสำหรับข้อมูลตัวอย่าง</small> : null}
-                    <button type="button" className="review-slip-open" onClick={() => setSlipPreviewOpen(true)}>ขยายดูเต็มภาพ</button>
+                    {slipLoadError ? <small className="review-slip-load-error">{slipLoadError}</small> : null}
                   </div>
                 </div>
               </section>
             </div>
             <details className="review-history-collapsible"><summary>ประวัติการแก้ไข · {(selected.changeHistory || []).length} ครั้ง</summary>{selected.changeHistory?.length ? <div className="review-history-list">{selected.changeHistory.map((entry) => <article className="review-history-entry" key={entry.id}><div className="review-history-meta"><strong>{entry.editor}</strong><time>{entry.at}</time></div><div className="review-history-changes">{entry.changes.map((change, index) => <div key={`${entry.id}-${index}`}><span>{change.label}</span><div><del>{change.oldValue || "—"}</del><Icon name="arrow" size={13} /><strong>{change.newValue || "—"}</strong></div></div>)}</div></article>)}</div> : <p className="review-history-empty">ยังไม่มีประวัติการแก้ไข</p>}</details>
+            {BACKEND_ENABLED ? <AdminNotesPanel key={selected.id} applicationId={selected.id} /> : null}
             <div className="review-actions">
-              <div className="review-action-label"><strong>ผลการตรวจสอบ</strong><small>{selected.status === "confirmed" ? "ใบสมัครนี้อนุมัติแล้ว" : selected.slipIssue ? "รอสลิปใหม่ก่อนอนุมัติ" : !canApproveWithAccount ? "ตรวจหรือระบุบัญชีปลายทางจากสลิปก่อนอนุมัติ" : effectiveAccountType === "president" ? "ตรวจยอดและเวลาโอนก่อนยืนยันใบสมัคร" : "ตรวจยอดและเวลาโอน พร้อมคัดลอกข้อมูลไปลงบัญชีภายนอก"}</small></div>
+              <div className="review-action-label"><strong>ผลการตรวจสอบ</strong><small>{pendingAdditionalPayment ? "ใบสมัครอนุมัติแล้ว · ตรวจสลิปยอดชำระเพิ่ม" : selected.status === "confirmed" ? "ใบสมัครนี้อนุมัติแล้ว" : selected.slipIssue ? "รอสลิปใหม่ก่อนอนุมัติ" : !hasReviewableSlip ? "ยังเปิดสลิปไม่ได้ จึงยังอนุมัติไม่ได้" : "ตรวจสอบสลิปแล้วอนุมัติใบสมัคร"}</small></div>
               <div className="review-action-buttons">
-                {selected.status !== "confirmed" && !selected.slipIssue ? <div className="template-menu"><span>ส่งเทมเพลตแจ้งปัญหาสลิป</span><div><Button variant="outline" icon="mail" onClick={() => onSlipIssue(selected.id, "สลิปไม่ถูกต้อง")}>สลิปไม่ถูกต้อง</Button><Button variant="outline" icon="mail" onClick={() => onSlipIssue(selected.id, "เปิดสลิปไม่ได้")}>เปิดสลิปไม่ได้</Button></div></div> : null}
-                <Button icon="check" disabled={selected.status === "confirmed" || Boolean(selected.slipIssue) || !canApproveWithAccount || (transferAmount !== null && !transferMatches)} onClick={() => onApprove(selected.id, effectiveAccountType)}>{selected.status === "confirmed" ? "อนุมัติแล้ว" : "อนุมัติใบสมัครนี้"}</Button>
+                {selected.status !== "confirmed" && !selected.slipIssue && selectedPayment?.status !== "confirmed" ? <div className="template-menu"><span>ส่งเทมเพลตแจ้งปัญหาสลิป</span><div><Button variant="outline" icon="mail" onClick={() => onSlipIssue(selected.id, "สลิปไม่ถูกต้อง", selectedPayment?.id)}>สลิปไม่ถูกต้อง</Button><Button variant="outline" icon="mail" onClick={() => onSlipIssue(selected.id, "เปิดสลิปไม่ได้", selectedPayment?.id)}>เปิดสลิปไม่ได้</Button></div></div> : null}
+              <Button icon="check" disabled={(selected.status === "confirmed" && !pendingAdditionalPayment) || Boolean(selected.slipIssue) || !hasReviewableSlip} onClick={() => onApprove(selected.id, selectedPayment?.id)} title={!hasReviewableSlip ? "เปิดสลิปก่อนอนุมัติ หรือแจ้งปัญหาสลิป" : undefined}>{pendingAdditionalPayment ? "ยืนยันยอดชำระเพิ่ม" : selected.status === "confirmed" ? "อนุมัติแล้ว" : "อนุมัติใบสมัคร"}</Button>
               </div>
+              {selected.status !== "confirmed" && selected.status !== "rejected" ? <form className="review-reject-form" onSubmit={async (event) => { event.preventDefault(); if (!rejectReason.trim()) return; setReviewBusy(true); try { const ok = await onReject(selected.id, rejectReason.trim()); if (ok) setRejectReason(""); } finally { setReviewBusy(false); } }}><Field label="เหตุผลสั้น ๆ ที่ไม่อนุมัติ" required><textarea value={rejectReason} maxLength={240} onChange={(event) => setRejectReason(event.target.value)} required /></Field><Button type="submit" variant="outline" disabled={reviewBusy || !rejectReason.trim()}>ไม่อนุมัติใบสมัคร</Button></form> : null}
             </div>
           </section>
         ) : reviewView === "school-groups" && !selectedGroup ? <section className="surface review-group-guide"><span><Icon name="grid" size={22} /></span><p className="eyebrow">ตรวจใบสมัครจากโรงเรียน</p><h2>เลือกกลุ่มรายการสอบ</h2><p>แต่ละกลุ่มรวมใบสมัครตามรายการสอบและปีการศึกษา เมื่อเลือกกลุ่มแล้วจะแสดงรายชื่อผู้สมัคร พร้อมตัวกรองสถานะและค้นหาชื่อ</p></section> : <div className="surface empty-state">เลือกใบสมัครเพื่อดูรายละเอียด</div>}
       </div>
-      {slipPreviewOpen && selected ? <ReviewSlipDialog key={selected.id} application={selected} amount={transferAmount ?? expectedTransferAmount} fileName={selectedSlipFileName} dataUrl={selectedSlipDataUrl} fileType={selectedSlipType} onClose={() => setSlipPreviewOpen(false)} /> : null}
+      {slipPreviewOpen && selected ? <ReviewSlipDialog key={selected.id} application={selected} amount={expectedTransferAmount} fileName={selectedSlipFileName} dataUrl={selectedSlipDataUrl} fileType={selectedSlipType} onClose={() => setSlipPreviewOpen(false)} /> : null}
     </div>
   );
 }
 
-function AdminApplicationEditPage({ application, onSave, navigate, competitionFees, examCatalog, centerCatalog }) {
+function AdminApplicationEditPage({ application, onSave, navigate, competitionFees, examCatalog, centerCatalog, gradeCatalogEntries = [] }) {
   const savedCompetitions = application.competitions || [];
-  const savedCompetitionIds = new Set(savedCompetitions.map((item) => item.id));
-  const finalCatalog = getFormCompetitions(examCatalog, "FINAL", { year: application.year }).filter((item) => savedCompetitionIds.has(item.id));
-  const editCompetitions = application.kind === "Final"
-    ? (finalCatalog.length ? finalCatalog : savedCompetitions.map((item) => ({ ...item, grades: item.grade ? [item.grade] : DEFAULT_GRADE_CATALOG })))
-    : getFormCompetitions(examCatalog, "HEAT", { year: application.year });
+  const roundType = application.kind === "Final" ? "FINAL" : "HEAT";
+  const catalogCompetitions = getFormCompetitions(examCatalog, roundType, { year: application.year }).filter((item) => {
+    const existing = savedCompetitions.some((entry) => entry.id === item.id);
+    const matchingRounds = (examCatalog || []).filter((exam) => (exam.competitionId || exam.id) === item.id
+      && getExamRoundType(exam) === roundType && exam.year === application.year);
+    return existing || matchingRounds.some((exam) => exam.isOpen) || (!BACKEND_ENABLED && !matchingRounds.length);
+  });
+  const byCatalog = new Map(catalogCompetitions.map((item) => [item.id, item]));
+  const editCompetitions = [...catalogCompetitions.map((item) => {
+    const saved = savedCompetitions.find((entry) => entry.id === item.id);
+    const round = examCatalog.find((entry) => entry.id === saved?.roundId)
+      || examCatalog.find((entry) => entry.competitionId === item.id && getExamRoundType(entry) === roundType && entry.year === application.year && entry.isOpen)
+      || examCatalog.find((entry) => entry.competitionId === item.id && getExamRoundType(entry) === roundType && entry.year === application.year);
+    return { ...item, roundId: saved?.roundId || round?.id || item.roundId || "", examDate: saved?.examDate || round?.examDate || "" };
+  })];
+  for (const saved of savedCompetitions) {
+    if (!byCatalog.has(saved.id)) editCompetitions.push({ ...saved, roundId: saved.roundId, examDate: saved.examDate, grades: [...new Set([saved.grade, ...(saved.grade ? [] : DEFAULT_GRADE_CATALOG)])] });
+  }
   const [profile, setProfile] = useState(() => getApplicantEditValues(application));
   const { firstName, lastName, school, email, phone } = profile;
-  const nameParts = { firstName, lastName };
   const updateProfileField = (key, value) => setProfile((current) => ({ ...current, [key]: value }));
-  const [selectedIds, setSelectedIds] = useState((application.competitions || []).map((item) => item.id));
-  const [grades, setGrades] = useState(Object.fromEntries((application.competitions || []).map((item) => [item.id, item.grade || ""])));
-  const [formats, setFormats] = useState(Object.fromEntries((application.competitions || []).map((item) => [item.id, getApplicationCompetitionFormat(application, item)])));
-  const [centers, setCenters] = useState(Object.fromEntries((application.competitions || []).map((item) => [item.id, item.centerSnapshot?.name || item.center || (getApplicationCompetitionFormat(application, item) === "Paper-Based" ? application.center || "" : "")])));
-  const [examEmailsByCompetition, setExamEmailsByCompetition] = useState(Object.fromEntries((application.competitions || []).filter((item) => getApplicationCompetitionFormat(application, item) === "Online").map((item) => [item.id, getApplicationCompetitionExamEmail(application, item)])));
-  const [additionalSlip, setAdditionalSlip] = useState("");
+  const [selectedIds, setSelectedIds] = useState(savedCompetitions.map((item) => item.id));
+  const [grades, setGrades] = useState(Object.fromEntries(savedCompetitions.map((item) => [item.id, item.grade || ""])));
+  const [formats, setFormats] = useState(Object.fromEntries(savedCompetitions.map((item) => [item.id, getApplicationCompetitionFormat(application, item)])));
+  const [centers, setCenters] = useState(Object.fromEntries(savedCompetitions.map((item) => [item.id, item.centerId || item.centerSnapshot?.id || ""])));
+  const [examEmailsByCompetition, setExamEmailsByCompetition] = useState(Object.fromEntries(savedCompetitions.filter((item) => getApplicationCompetitionFormat(application, item) === "Online").map((item) => [item.id, getApplicationCompetitionExamEmail(application, item)])));
+  const [additionalSlip, setAdditionalSlip] = useState(null);
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const today = getBangkokTodayISO();
   const competitions = editCompetitions.filter((item) => selectedIds.includes(item.id));
-  const roundType = application.kind === "Final" ? "FINAL" : "HEAT";
   const formatFor = (id) => normalizeExamFormat(formats[id], normalizeExamFormat(application.format));
   const examEmailForCompetition = (id) => getCompetitionExamEmailValue(examEmailsByCompetition, id, application.examEmail || application.studentInformation?.examEmail);
+  const roundFor = (item) => examCatalog.find((round) => round.id === item.roundId)
+    || examCatalog.find((round) => round.competitionId === item.id && getExamRoundType(round) === roundType && round.year === application.year);
+  const examDateFor = (item) => item.examDate || roundFor(item)?.examDate || "";
+  const selectionLocked = (item) => Boolean(examDateFor(item) && today >= examDateFor(item));
+  const formatLocked = (item) => Boolean(examDateFor(item) && today > examDateFor(item));
   const centersFor = (id) => getCommonCenters([id], examCatalog, centerCatalog, { year: application.year, roundType });
   const feeForCompetition = (competition) => {
-    const previous = (application.competitions || []).find((item) => item.id === competition.id);
+    const previous = savedCompetitions.find((item) => item.id === competition.id);
     const format = formatFor(competition.id);
     if (previous && getApplicationCompetitionFormat(application, previous) === format && previous.fee !== undefined) return Number(previous.fee || 0);
     return getCompetitionExamPrice(examCatalog, competition.id, roundType, format, competitionFees, application.year);
@@ -2946,103 +3265,165 @@ function AdminApplicationEditPage({ application, onSave, navigate, competitionFe
   const pastPapersTotal = Number(application.pastPapersTotal || 0);
   const nextTotal = nextRegistrationFee + pastPapersTotal;
   const paidTotal = Number(application.totalPayment || 0);
-  const currentRegistrationFee = savedCompetitions.reduce((sum, competition) => {
-    const format = getApplicationCompetitionFormat(application, competition);
-    const fee = competition.fee ?? getCompetitionExamPrice(examCatalog, competition.id, roundType, format, competitionFees, application.year);
-    return sum + Number(fee || 0);
-  }, 0);
+  const currentRegistrationFee = savedCompetitions.reduce((sum, competition) => sum + Number(competition.fee || 0), 0);
   const currentTotal = currentRegistrationFee + pastPapersTotal;
   const delta = nextTotal - currentTotal;
-  const previousFeeForCompetition = (competition) => {
-    const previous = (application.competitions || []).find((item) => item.id === competition.id);
-    if (!previous) return 0;
-    if (previous.chargedFee !== undefined && previous.chargedFee !== null) return Number(previous.chargedFee || 0);
-    if (previous.fee !== undefined && previous.fee !== null) return Number(previous.fee || 0);
-    return getCompetitionExamPrice(examCatalog, competition.id, roundType, getApplicationCompetitionFormat(application, previous), competitionFees, application.year);
-  };
+  const previousFeeForCompetition = (competition) => Number(savedCompetitions.find((item) => item.id === competition.id)?.fee || 0);
   const additionalDue = competitions.reduce((sum, competition) => sum + Math.max(0, feeForCompetition(competition) - previousFeeForCompetition(competition)), 0);
   const amountAfterEdit = paidTotal + additionalDue;
   const nonRefundableAdjustment = Math.max(0, amountAfterEdit - nextTotal);
   const changedFormats = competitions.filter((item) => {
-    const previous = application.competitions?.find((entry) => entry.id === item.id);
+    const previous = savedCompetitions.find((entry) => entry.id === item.id);
     return previous && getApplicationCompetitionFormat(application, previous) !== formatFor(item.id);
   });
-  const hasOnsiteToOnline = changedFormats.some((item) => {
-    const previous = application.competitions.find((entry) => entry.id === item.id);
-    return getApplicationCompetitionFormat(application, previous) === "Paper-Based" && formatFor(item.id) === "Online";
-  });
+  const hasOnsiteToOnline = changedFormats.some((item) => getApplicationCompetitionFormat(application, savedCompetitions.find((entry) => entry.id === item.id)) === "Paper-Based" && formatFor(item.id) === "Online");
 
   function toggleCompetition(id) {
     setSelectedIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+    setError("");
   }
-  function submit(event) {
+  function readSlip(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = String(reader.result || "");
+        const comma = result.indexOf(",");
+        if (comma < 0) return reject(new Error("อ่านไฟล์สลิปไม่สำเร็จ"));
+        const extensionType = { pdf: "application/pdf", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png" }[file.name.split(".").pop()?.toLowerCase()];
+        resolve({ fileName: file.name, mimeType: file.type || extensionType || "", dataBase64: result.slice(comma + 1) });
+      };
+      reader.onerror = () => reject(new Error("อ่านไฟล์สลิปไม่สำเร็จ"));
+      reader.readAsDataURL(file);
+    });
+  }
+  async function submit(event) {
     event.preventDefault();
-    if (!nameParts.firstName.trim() || !nameParts.lastName.trim()) { setError("กรอกชื่อจริงและนามสกุลภาษาอังกฤษ"); return; }
+    if (!firstName.trim() || !lastName.trim()) { setError("กรอกชื่อจริงและนามสกุลภาษาอังกฤษ"); return; }
     if (!school.trim()) { setError("กรอกชื่อโรงเรียน"); return; }
     if (!email.trim()) { setError("กรอกอีเมลติดต่อผู้สมัคร"); return; }
     if (!phone.trim()) { setError("กรอกเบอร์โทรศัพท์ผู้สมัคร"); return; }
     if (!competitions.length) { setError("เลือกอย่างน้อย 1 รายการสอบ"); return; }
     if (competitions.some((item) => !grades[item.id])) { setError("เลือกระดับชั้นให้ครบทุกวิชาที่สมัคร"); return; }
+    const invalidRound = competitions.find((item) => !item.roundId && !roundFor(item));
+    if (invalidRound) { setError(`ไม่พบรอบสอบของ ${invalidRound.short || invalidRound.name}`); return; }
     const missingCenter = competitions.find((item) => formatFor(item.id) === "Paper-Based"
-      && !centersFor(item.id).some((option) => option.name === centers[item.id])
-      && !(application.competitions || []).some((previous) => previous.id === item.id && getApplicationCompetitionFormat(application, previous) === "Paper-Based" && getApplicationCompetitionCenter(application, previous) === centers[item.id]));
+      && !centersFor(item.id).some((option) => option.id === centers[item.id])
+      && !savedCompetitions.some((previous) => previous.id === item.id && previous.centerId === centers[item.id]
+        && !isOnlineCenter(previous.centerSnapshot || { id: previous.centerId, code: previous.centerCode, name: previous.center })));
     if (missingCenter) { setError(`เลือกศูนย์สอบที่เปิดสำหรับ ${missingCenter.short || missingCenter.name}`); return; }
-    const invalidOnlineEmail = competitions.find((item) => formatFor(item.id) === "Online"
-      && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(examEmailForCompetition(item.id).trim()));
+    const invalidOnlineEmail = competitions.find((item) => formatFor(item.id) === "Online" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(examEmailForCompetition(item.id).trim()));
     if (invalidOnlineEmail) { setError(`กรอกอีเมลเข้าสอบที่ถูกต้องสำหรับ ${invalidOnlineEmail.short || invalidOnlineEmail.name}`); return; }
     if (additionalDue > 0 && !additionalSlip) { setError("แนบสลิปเพิ่มเติมเพื่อบันทึกยอดชำระที่เพิ่มขึ้น"); return; }
-    const candidate = [nameParts.firstName, nameParts.lastName].map((part) => part.trim()).filter(Boolean).join(" ");
-    const onlineCenter = centerCatalog.find((item) => item.code === ONLINE_CENTER_CODE) || DEFAULT_CENTER_CATALOG.find((item) => item.code === ONLINE_CENTER_CODE);
+    const onlineCenter = centerCatalog.find((item) => item.code === ONLINE_CENTER_CODE)
+      || (!BACKEND_ENABLED ? DEFAULT_CENTER_CATALOG.find((item) => item.code === ONLINE_CENTER_CODE) : null);
     const updatedCompetitions = competitions.map((item) => {
+      const previous = savedCompetitions.find((entry) => entry.id === item.id);
       const format = formatFor(item.id);
-      const center = format === "Online" ? onlineCenter : centersFor(item.id).find((option) => option.name === centers[item.id]) || centerCatalog.find((option) => option.name === centers[item.id]);
-      return { ...item, grade: grades[item.id], format, examEmail: format === "Online" ? examEmailForCompetition(item.id).trim() : "", fee: feeForCompetition(item), chargedFee: Math.max(previousFeeForCompetition(item), feeForCompetition(item)), center: center?.name || "", centerId: center?.id || "", centerCode: center?.code || "", centerSnapshot: center ? { id: center.id, code: center.code, name: center.name } : null };
+      const previousFormat = previous ? getApplicationCompetitionFormat(application, previous) : "";
+      const selectedCenterId = centers[item.id] || previous?.centerId || previous?.centerSnapshot?.id || "";
+      const availableCenter = centersFor(item.id).find((option) => option.id === selectedCenterId);
+      const catalogCenter = centerCatalog.find((option) => option.id === selectedCenterId);
+      const historicalCenter = previous?.centerId === selectedCenterId || previous?.centerSnapshot?.id === selectedCenterId
+        ? previous.centerSnapshot || { id: selectedCenterId, code: previous.centerCode, name: previous.center }
+        : null;
+      const unavailableCenter = catalogCenter || historicalCenter;
+      const selectedCenter = availableCenter || (isOnlineCenter(unavailableCenter) ? null : unavailableCenter);
+      const center = format === "Online"
+        ? (previousFormat === "Online" ? selectedCenter || onlineCenter : onlineCenter)
+        : selectedCenter;
+      const round = roundFor(item);
+      const gradeId = gradeCatalogEntries.find((entry) => entry.label === grades[item.id])?.id || previous?.gradeId || "";
+      return { ...item, applicationItemId: previous?.applicationItemId || null, roundId: previous?.roundId || round?.id || item.roundId, gradeId,
+        grade: grades[item.id], format, examEmail: format === "Online" ? examEmailForCompetition(item.id).trim() : "", fee: feeForCompetition(item),
+        center: center?.name || "", centerId: center?.id || "", centerCode: center?.code || "", centerSnapshot: center ? { id: center.id, code: center.code, name: center.name } : null };
     });
+    if (updatedCompetitions.some((item) => !item.gradeId)) { setError("ไม่พบข้อมูลระดับชั้นในแค็ตตาล็อก"); return; }
+    const missingRound = updatedCompetitions.find((item) => !item.roundId);
+    if (missingRound) { setError(`ไม่พบข้อมูลรอบสอบของ ${missingRound.short || missingRound.name} กรุณาโหลดหน้าแอดมินใหม่แล้วลองอีกครั้ง`); return; }
+    const missingCenterId = updatedCompetitions.find((item) => !item.centerId);
+    if (missingCenterId) { setError(`ไม่พบข้อมูลศูนย์สอบของ ${missingCenterId.short || missingCenterId.name} กรุณาโหลดหน้าแอดมินใหม่แล้วลองอีกครั้ง`); return; }
     const formatSet = new Set(updatedCompetitions.map((item) => item.format));
     const legacyFormat = formatSet.size > 1 ? "Mixed" : formatSet.has("Online") ? "Online Exam" : "On-site";
     const centerNames = [...new Set(updatedCompetitions.map((item) => item.center).filter(Boolean))];
     const centerSummary = centerNames.join(" · ");
-    const singleCenter = updatedCompetitions[0]?.centerSnapshot || null;
     const legacyExamEmail = updatedCompetitions.find((item) => item.format === "Online")?.examEmail || "";
-    onSave(application.id, {
-      candidate,
-      nameParts,
-      school: school.trim(),
-      contactEmail: email.trim(),
-      phone: phone.trim(),
-      studentInformation: { ...application.studentInformation, ...profile, firstName: nameParts.firstName.trim(), lastName: nameParts.lastName.trim(), school: school.trim(), email: email.trim(), phone: phone.trim(), format: legacyFormat, center: centerSummary, examEmail: legacyExamEmail },
-      examIds: updatedCompetitions.map((item) => item.id),
-      competitions: updatedCompetitions,
-      grade: updatedCompetitions.map((item) => `${item.short}: ${item.grade}`).join(" · "),
-      format: legacyFormat,
-      examEmail: legacyExamEmail,
-      center: centerSummary,
-      centerId: singleCenter?.id || "",
-      centerCode: singleCenter?.code || "",
-      centerSnapshot: singleCenter,
-      registrationFee: nextRegistrationFee,
-      totalPayment: amountAfterEdit,
-      nonRefundableAdjustment,
-      additionalFee: additionalDue,
-      additionalSlipFileName: additionalSlip || application.additionalSlipFileName || "",
-    });
+    const candidate = [firstName, lastName].map((part) => part.trim()).filter(Boolean).join(" ");
+    setSaving(true);
+    setError("");
+    try {
+      const paymentSlip = additionalSlip && additionalDue > 0 ? await readSlip(additionalSlip) : null;
+      await onSave(application.id, {
+        candidate, nameParts: { firstName: firstName.trim(), lastName: lastName.trim() }, school: school.trim(), contactEmail: email.trim(), phone: phone.trim(),
+        studentInformation: { ...application.studentInformation, ...profile, firstName: firstName.trim(), lastName: lastName.trim(), school: school.trim(), email: email.trim(), phone: phone.trim(), format: legacyFormat, center: centerSummary, examEmail: legacyExamEmail },
+        examIds: updatedCompetitions.map((item) => item.id), competitions: updatedCompetitions,
+        grade: updatedCompetitions.map((item) => `${item.short}: ${item.grade}`).join(" · "), format: legacyFormat, examEmail: legacyExamEmail,
+        center: centerSummary, centerId: updatedCompetitions[0]?.centerId || "", centerCode: updatedCompetitions[0]?.centerCode || "",
+        centerSnapshot: updatedCompetitions[0]?.centerSnapshot || null, registrationFee: nextRegistrationFee, totalPayment: amountAfterEdit,
+        nonRefundableAdjustment, additionalFee: additionalDue, additionalSlipFileName: additionalSlip?.name || "",
+        adminEditPayload: {
+          profile: { firstNameEn: firstName.trim(), lastNameEn: lastName.trim(), firstNameTh: profile.thaiFirstName.trim(), lastNameTh: profile.thaiLastName.trim(), schoolName: school.trim(), contactEmail: email.trim(), contactPhone: phone.trim(),
+            address: { address1: profile.address1, address2: profile.address2, city: profile.city, province: profile.province, postalCode: profile.postalCode } },
+          items: updatedCompetitions.map((item) => ({ applicationItemId: item.applicationItemId, roundId: item.roundId, gradeId: item.gradeId,
+            format: item.format === "Online" ? "online" : "paper", centerId: item.centerId, examEmail: item.examEmail })),
+          ...(paymentSlip ? { paymentSlip } : {}),
+        },
+      });
+    } catch (saveError) {
+      setError(saveError?.message || "บันทึกการแก้ไขไม่สำเร็จ");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
     <div className="page-stack admin-edit-application-page">
-      <PageHeading eyebrow="งานแอดมิน · ข้อมูล mock" title="แก้ไขใบสมัคร" description={`${application.candidate} · ${application.exam} · ${application.school}`} action={<Button variant="outline" icon="arrow" onClick={() => navigate("admin-review", application.id)}>กลับไปตรวจใบสมัคร</Button>} />
+      <PageHeading eyebrow="งานแอดมิน · แก้ไขได้ทุกสถานะ" title="แก้ไขใบสมัคร" description={`${application.candidate} · ${application.exam} · ${application.school}`} action={<Button variant="outline" icon="arrow" onClick={() => navigate("admin-review", application.id)}>กลับไปตรวจใบสมัคร</Button>} />
       <form className="admin-edit-layout" onSubmit={submit}>
         <div className="admin-edit-main">
-          <section className="surface admin-edit-section"><div className="admin-edit-section-heading"><span>01</span><div><h2>ข้อมูลผู้เข้าสอบ</h2><p>แก้ไขข้อมูลส่วนตัว ที่อยู่ และข้อมูลติดต่อจากใบสมัคร</p></div></div><ApplicantProfileFields values={profile} onChange={updateProfileField} /></section>
-          <section className="surface admin-edit-section"><div className="admin-edit-section-heading"><span>02</span><div><h2>รายการสอบ รูปแบบ และศูนย์สอบ</h2><p>กำหนดรูปแบบสอบและศูนย์สอบแยกในแต่ละรายการ</p></div></div>
-            <div className="admin-edit-competition-list">{editCompetitions.map((competition) => { const active = selectedIds.includes(competition.id); const format = formatFor(competition.id); const availableCenters = centersFor(competition.id); return <article className={active ? "admin-edit-competition active" : "admin-edit-competition"} key={competition.id}><label><input type="checkbox" checked={active} onChange={() => toggleCompetition(competition.id)} /><span className="admin-edit-checkbox"><Icon name="check" size={13} /></span><span><strong>{competition.name}</strong><small>{competition.subject}</small></span><span className="admin-edit-fee">฿{feeForCompetition(competition).toLocaleString()}<small> / รายการ</small></span></label>{active ? <div className="admin-edit-competition-options"><CompetitionFormatPicker competitionId={competition.id} prefix={`admin-${application.id}`} format={format} paperPrice={getCompetitionExamPrice(examCatalog, competition.id, roundType, "Paper-Based", competitionFees, application.year)} onlinePrice={getCompetitionExamPrice(examCatalog, competition.id, roundType, "Online", competitionFees, application.year)} onChange={(nextFormat) => { setFormats((current) => ({ ...current, [competition.id]: nextFormat })); if (nextFormat === "Online") setCenters((current) => ({ ...current, [competition.id]: "" })); setError(""); }} />{format === "Paper-Based" ? <Field label={`ศูนย์สอบ ${competition.short}`} required className="competition-center-field"><select value={centers[competition.id] || ""} onChange={(event) => setCenters((current) => ({ ...current, [competition.id]: event.target.value }))}><option value="">เลือกศูนย์สอบ</option>{centers[competition.id] && !availableCenters.some((item) => item.name === centers[competition.id]) ? <option value={centers[competition.id]}>{centers[competition.id]} · ปัจจุบัน</option> : null}{availableCenters.map((item) => <option key={item.id} value={item.name}>{item.name} · {item.code}</option>)}</select></Field> : <div className="competition-online-fields"><Field label={`อีเมลเข้าสอบ ${competition.short}`} required className="competition-exam-email" hint="ใช้อีเมลเดียวกับรายการอื่นได้ หากใช้บัญชีเดียวกัน"><input type="email" autoComplete="email" value={examEmailForCompetition(competition.id)} onChange={(event) => { setExamEmailsByCompetition((current) => ({ ...current, [competition.id]: event.target.value })); setError(""); }} placeholder="student@gmail.com" required /></Field></div>}<Field label={`ระดับชั้น ${competition.short}`} required className="competition-grade"><select value={grades[competition.id] || ""} onChange={(event) => setGrades((current) => ({ ...current, [competition.id]: event.target.value }))}><option value="">เลือกระดับชั้น</option>{grades[competition.id] && !competition.grades.includes(grades[competition.id]) ? <option value={grades[competition.id]}>{grades[competition.id]} (ปัจจุบัน)</option> : null}{competition.grades.map((grade) => <option key={grade}>{grade}</option>)}</select></Field></div> : null}</article>; })}</div>
+          <section className="surface admin-edit-section"><div className="admin-edit-section-heading"><span>01</span><div><h2>ข้อมูลผู้เข้าสอบ</h2><p>ผู้ดูแลระบบแก้ไขข้อมูลส่วนตัวได้ทุกสถานะ</p></div></div><ApplicantProfileFields values={profile} onChange={updateProfileField} showThaiNames /></section>
+          <section className="surface admin-edit-section"><div className="admin-edit-section-heading"><span>02</span><div><h2>รายการสอบ รูปแบบ และศูนย์สอบ</h2><p>รายการและระดับชั้นล็อกเมื่อถึงวันสอบ · เปลี่ยนรูปแบบได้ตลอดวันสอบ</p></div></div>
+            <div className="admin-edit-competition-list">{editCompetitions.map((competition) => {
+              const active = selectedIds.includes(competition.id);
+              const format = formatFor(competition.id);
+              const previous = savedCompetitions.find((item) => item.id === competition.id);
+              const lockedSelection = selectionLocked(competition);
+              const lockedFormat = formatLocked(competition);
+              const dependentFormatChange = previous && getApplicationCompetitionFormat(application, previous) !== format;
+              const availableCenters = centersFor(competition.id);
+              const centerLocked = lockedSelection && !dependentFormatChange;
+              return <article className={`${active ? "admin-edit-competition active" : "admin-edit-competition"}${lockedSelection ? " admin-edit-competition-locked" : ""}`} key={competition.id}>
+                <label><input type="checkbox" checked={active} disabled={lockedSelection || saving} onChange={() => toggleCompetition(competition.id)} /><span className="admin-edit-checkbox"><Icon name="check" size={13} /></span><span><strong>{competition.name}</strong><small>{competition.subject}{lockedSelection ? ` · ล็อกรายการ ${examDateFor(competition)}` : ""}</small></span><span className="admin-edit-fee">฿{feeForCompetition(competition).toLocaleString()}<small> / รายการ</small></span></label>
+                {active ? <div className="admin-edit-competition-options">
+                  <CompetitionFormatPicker competitionId={competition.id} prefix={`admin-${application.id}`} format={format}
+                    disabled={lockedFormat || saving}
+                    paperPrice={getCompetitionExamPrice(examCatalog, competition.id, roundType, "Paper-Based", competitionFees, application.year)}
+                    onlinePrice={getCompetitionExamPrice(examCatalog, competition.id, roundType, "Online", competitionFees, application.year)}
+                    onChange={(nextFormat) => {
+                      setFormats((current) => ({ ...current, [competition.id]: nextFormat }));
+                      if (nextFormat === "Paper-Based") {
+                        const physicalCenters = centersFor(competition.id);
+                        setCenters((current) => physicalCenters.some((center) => center.id === current[competition.id])
+                          ? current
+                          : { ...current, [competition.id]: physicalCenters[0]?.id || "" });
+                      }
+                      setError("");
+                    }} />
+                  {format === "Paper-Based" ? <Field label={`ศูนย์สอบ ${competition.short}`} required className="competition-center-field"><select value={centers[competition.id] || ""} disabled={centerLocked || saving} onChange={(event) => setCenters((current) => ({ ...current, [competition.id]: event.target.value }))}>
+                    <option value="">เลือกศูนย์สอบ</option>{previous?.centerId && !isOnlineCenter(previous.centerSnapshot || { id: previous.centerId, code: previous.centerCode, name: previous.center }) && !availableCenters.some((item) => item.id === previous.centerId) ? <option value={previous.centerId}>{previous.center} · ปัจจุบัน</option> : null}{availableCenters.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.code}</option>)}
+                  </select></Field> : <div className="competition-online-fields"><Field label={`อีเมลเข้าสอบ ${competition.short}`} required className="competition-exam-email" hint="ใช้อีเมลเดียวกับรายการอื่นได้ หากใช้บัญชีเดียวกัน"><input type="email" autoComplete="email" value={examEmailForCompetition(competition.id)} disabled={(lockedSelection && !dependentFormatChange) || saving} onChange={(event) => { setExamEmailsByCompetition((current) => ({ ...current, [competition.id]: event.target.value })); setError(""); }} placeholder="student@gmail.com" required /></Field></div>}
+                  <Field label={`ระดับชั้น ${competition.short}`} required className="competition-grade"><select value={grades[competition.id] || ""} disabled={lockedSelection || saving} onChange={(event) => setGrades((current) => ({ ...current, [competition.id]: event.target.value }))}>
+                    <option value="">เลือกระดับชั้น</option>{grades[competition.id] && !competition.grades.includes(grades[competition.id]) ? <option value={grades[competition.id]}>{grades[competition.id]} (ปัจจุบัน)</option> : null}{competition.grades.map((grade) => <option key={grade}>{grade}</option>)}
+                  </select></Field>
+                </div> : null}
+              </article>;
+            })}</div>
           </section>
-          {changedFormats.length || delta !== 0 || additionalDue > 0 ? <section className={hasOnsiteToOnline ? "notice notice-amber admin-edit-change-notice" : "notice notice-blue admin-edit-change-notice"}><Icon name={hasOnsiteToOnline ? "info" : "check"} /><div><strong>{changedFormats.length ? `เปลี่ยนรูปแบบสอบ ${changedFormats.length} รายการ` : additionalDue > 0 ? `ยอดชำระเพิ่ม ${fmtAdminMoney(additionalDue)}` : `ยอดสมัครเปลี่ยน ${delta > 0 ? "เพิ่ม" : "ลด"} ${fmtAdminMoney(Math.abs(delta))}`}</strong><p>{additionalDue > 0 ? `ชำระเพิ่ม ${fmtAdminMoney(additionalDue)} · ไม่หักส่วนต่างจากรายการที่เปลี่ยน Onsite เป็น Online` : delta < 0 ? `ราคาตามรายการลดลง ${fmtAdminMoney(Math.abs(delta))} · ไม่คืนและไม่นำส่วนต่างไปหักรายการที่เพิ่ม` : delta > 0 ? `ราคาตามรายการเพิ่ม ${fmtAdminMoney(delta)} · ไม่เรียกเก็บซ้ำสำหรับรายการที่ชำระแล้ว` : hasOnsiteToOnline ? "ไม่คืนและไม่นำส่วนต่างจากการเปลี่ยนเป็น Online ไปหักรายการอื่น" : "ยอดรวมไม่เปลี่ยน"}</p></div></section> : null}
-          {additionalDue > 0 ? <label className="file-drop file-drop-inline admin-edit-slip"><input type="file" accept="image/*,.pdf" onChange={(event) => { setAdditionalSlip(event.target.files?.[0]?.name || ""); setError(""); }} /><span className="file-drop-icon"><Icon name="upload" /></span><span className="file-drop-copy"><strong>{additionalSlip || "แนบสลิปเพิ่มเติม"}</strong><small>หลักฐานยอดที่ชำระเพิ่ม · JPG, PNG หรือ PDF</small></span><span className="file-select-label">เลือกไฟล์</span></label> : null}
+          {changedFormats.length || delta !== 0 || additionalDue > 0 ? <section className={hasOnsiteToOnline ? "notice notice-amber admin-edit-change-notice" : "notice notice-blue admin-edit-change-notice"}><Icon name={hasOnsiteToOnline ? "info" : "check"} /><div><strong>{changedFormats.length ? `เปลี่ยนรูปแบบสอบ ${changedFormats.length} รายการ` : additionalDue > 0 ? `ยอดชำระเพิ่ม ${fmtAdminMoney(additionalDue)}` : `ยอดสมัครเปลี่ยน ${delta > 0 ? "เพิ่ม" : "ลด"} ${fmtAdminMoney(Math.abs(delta))}`}</strong><p>{additionalDue > 0 ? `แนบสลิปยอดเพิ่ม ${fmtAdminMoney(additionalDue)} · ส่วนต่างจากการลดราคาไม่หักรายการอื่น` : delta < 0 ? `ยอดลดลง ${fmtAdminMoney(Math.abs(delta))} · ไม่คืนเงินและไม่นำส่วนต่างไปหักรายการที่เพิ่ม` : hasOnsiteToOnline ? "ส่วนต่างจากการเปลี่ยนเป็น Online ไม่คืนและไม่นำไปหักรายการอื่น" : "ยอดรวมไม่เปลี่ยน"}</p></div></section> : null}
+          {additionalDue > 0 ? <label className="file-drop file-drop-inline admin-edit-slip"><input type="file" accept="image/jpeg,image/png,application/pdf" disabled={saving} onChange={(event) => { setAdditionalSlip(event.target.files?.[0] || null); setError(""); }} /><span className="file-drop-icon"><Icon name="upload" /></span><span className="file-drop-copy"><strong>{additionalSlip?.name || "แนบสลิปเพิ่มเติม"}</strong><small>หลักฐานยอดที่ชำระเพิ่ม · JPG, PNG หรือ PDF</small></span><span className="file-select-label">เลือกไฟล์</span></label> : null}
           {error ? <p className="inline-error" role="alert"><Icon name="info" size={16} />{error}</p> : null}
-          <div className="admin-edit-footer"><span><Icon name="info" size={15} />บันทึกข้อมูลตัวอย่างในหน้าทดลองนี้เท่านั้น</span><Button variant="outline" onClick={() => navigate("admin-review", application.id)}>ยกเลิก</Button><Button type="submit" icon="check">บันทึกการแก้ไข</Button></div>
+          <div className="admin-edit-footer"><span><Icon name="info" size={15} />บันทึกข้อมูลเข้าสู่ระบบและประวัติการแก้ไข</span><Button variant="outline" disabled={saving} onClick={() => navigate("admin-review", application.id)}>ยกเลิก</Button><Button type="submit" icon="check" disabled={saving}>{saving ? "กำลังบันทึก…" : "บันทึกการแก้ไข"}</Button></div>
         </div>
-        <aside className="surface admin-edit-summary"><span className="side-note-icon"><Icon name="settings" /></span><p className="eyebrow">ตรวจยอดก่อนบันทึก</p><h2>สรุปยอดเปลี่ยนแปลง</h2><div className="admin-edit-total-row"><span>ยอดเดิมในใบสมัคร</span><strong>{fmtAdminMoney(paidTotal)}</strong></div><div className="admin-edit-total-row"><span>ข้อสอบเก่า</span><strong>{fmtAdminMoney(pastPapersTotal)}</strong></div><div className="admin-edit-total-row"><span>ค่าสมัครตามรายการใหม่ · {competitions.length} รายการ</span><strong>{fmtAdminMoney(nextRegistrationFee)}</strong></div>{nonRefundableAdjustment > 0 ? <div className="admin-edit-total-row"><span>ส่วนต่างที่ไม่คืน/ไม่นำไปหัก</span><strong>{fmtAdminMoney(nonRefundableAdjustment)}</strong></div> : null}<div className="admin-edit-total-row admin-edit-new-total"><span>ยอดชำระรวมหลังแก้ไข</span><strong>{fmtAdminMoney(amountAfterEdit)}</strong></div><div className={additionalDue > 0 ? "admin-edit-pay-now due" : "admin-edit-pay-now"}><small>ยอดที่ต้องชำระเพิ่ม</small><strong>{fmtAdminMoney(additionalDue)}</strong></div><p>ส่วนต่างจากการเปลี่ยน Paper-Based เป็น Online ไม่คืนและไม่นำไปหักค่าสมัครรายการใหม่</p></aside>
+        <aside className="surface admin-edit-summary"><span className="side-note-icon"><Icon name="settings" /></span><p className="eyebrow">ตรวจยอดก่อนบันทึก</p><h2>สรุปยอดเปลี่ยนแปลง</h2><div className="admin-edit-total-row"><span>ยอดเดิมในใบสมัคร</span><strong>{fmtAdminMoney(paidTotal)}</strong></div><div className="admin-edit-total-row"><span>ข้อสอบเก่า</span><strong>{fmtAdminMoney(pastPapersTotal)}</strong></div><div className="admin-edit-total-row"><span>ค่าสมัครตามรายการใหม่ · {competitions.length} รายการ</span><strong>{fmtAdminMoney(nextRegistrationFee)}</strong></div>{nonRefundableAdjustment > 0 ? <div className="admin-edit-total-row"><span>ส่วนต่างที่ไม่คืน/ไม่นำไปหัก</span><strong>{fmtAdminMoney(nonRefundableAdjustment)}</strong></div> : null}<div className="admin-edit-total-row admin-edit-new-total"><span>ยอดชำระรวมหลังแก้ไข</span><strong>{fmtAdminMoney(amountAfterEdit)}</strong></div><div className={additionalDue > 0 ? "admin-edit-pay-now due" : "admin-edit-pay-now"}><small>ยอดที่ต้องชำระเพิ่ม</small><strong>{fmtAdminMoney(additionalDue)}</strong></div><p>ส่วนต่างจากการเปลี่ยนรูปแบบหรือการลดรายการไม่คืนและไม่นำไปหักค่าสมัครรายการใหม่</p></aside>
       </form>
     </div>
   );
@@ -3110,10 +3491,11 @@ function GradeSelectionList({ grades, selectedGrades, onChange, label }) {
   );
 }
 
-function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onAddExam, onRemoveExam, registrationOpen, onGenerateHeatIds, centerCatalog, setCenterCatalog, gradeCatalog, setGradeCatalog, applications, pastPaperCatalog, setPastPaperCatalog, paymentAccounts = [], setPaymentAccounts = () => {}, notify }) {
+function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onSetManualClosed = async () => {}, onAddExam, onRemoveExam, onSaveCatalog, onSavePaymentAccounts = onSaveCatalog, catalogDirty = false, registrationOpen, onGenerateHeatIds, centerCatalog, setCenterCatalog, gradeCatalog, setGradeCatalog, competitionCatalog = DEFAULT_COMPETITION_CATALOG, setCompetitionCatalog = () => {}, applications, pastPaperCatalog, setPastPaperCatalog, paymentAccounts = [], setPaymentAccounts = () => {}, notify }) {
   const [centerFile, setCenterFile] = useState("");
   const [centerPreview, setCenterPreview] = useState(null);
   const [pendingExamAction, setPendingExamAction] = useState(null);
+  const [savingExamStatus, setSavingExamStatus] = useState(false);
   const [excludeCenterIssues, setExcludeCenterIssues] = useState(false);
   const [newCenterCode, setNewCenterCode] = useState("");
   const [newCenterName, setNewCenterName] = useState("");
@@ -3123,10 +3505,15 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onAddE
   const [newGradeName, setNewGradeName] = useState("");
   const [newPaymentAccount, setNewPaymentAccount] = useState({ bankName: "", accountName: "", accountNumber: "", category: "other", showInForm: true });
   const [showNewExamForm, setShowNewExamForm] = useState(false);
+  const [showCompetitionManager, setShowCompetitionManager] = useState(false);
+  const [newCompetitionName, setNewCompetitionName] = useState("");
   const [newExamLogo, setNewExamLogo] = useState("");
   const [newExamError, setNewExamError] = useState("");
+  const selectedPaymentAccountId = paymentAccounts.find((account) => account.active !== false && account.showInForm !== false)?.id || "";
   function updatePaymentAccount(id, key, value) {
-    setPaymentAccounts((current) => current.map((account) => account.id === id ? { ...account, [key]: value } : account));
+    setPaymentAccounts((current) => current.map((account) => key === "showInForm"
+      ? { ...account, showInForm: value ? account.id === id : account.id === id ? false : account.showInForm }
+      : account.id === id ? { ...account, [key]: value } : account));
   }
   function addPaymentAccount(event) {
     event.preventDefault();
@@ -3136,9 +3523,12 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onAddE
       notify("มีเลขบัญชีนี้อยู่แล้ว");
       return;
     }
-    setPaymentAccounts((current) => [...current, { ...newPaymentAccount, id: `payment-account-${Date.now()}`, accountNumber, active: true }]);
+    setPaymentAccounts((current) => [
+      ...current.map((account) => newPaymentAccount.showInForm ? { ...account, showInForm: false } : account),
+      { ...newPaymentAccount, id: `payment-account-${Date.now()}`, accountNumber, active: true },
+    ]);
     setNewPaymentAccount({ bankName: "", accountName: "", accountNumber: "", category: "other", showInForm: true });
-    notify("เพิ่มบัญชีรับโอนแล้ว");
+    notify("เพิ่มบัญชีแล้ว · กรุณาบันทึกเพื่อใช้จริง");
   }
   useEffect(() => {
     if (!pendingExamAction) return undefined;
@@ -3154,9 +3544,10 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onAddE
     newPaperGroup,
   ].filter(Boolean))];
   const catalogYears = [...new Set(examCatalog.map((exam) => exam.year).filter(Boolean))].sort((left, right) => Number(right) - Number(left));
-  const [yearFilter, setYearFilter] = useState(catalogYears[0] || "2569");
+  const [yearFilter, setYearFilter] = useState(catalogYears[0] || "all");
   const activePhysicalCenterIds = centerCatalog.filter((center) => center.active !== false && center.code !== ONLINE_CENTER_CODE).map((center) => center.id);
-  const [newExam, setNewExam] = useState({ title: "", roundTypes: [], year: "2569", openDate: "", closeDate: "", examDate: "", examStartTime: "", examEndTime: "", editCloseDate: "", gradeOptions: [], accent: "violet", description: "ตรวจสอบกำหนดการและรายละเอียดการสมัคร", centerIds: activePhysicalCenterIds, prices: { HEAT: { paperBased: 755, onlineExam: 655 }, FINAL: { paperBased: 1550, onlineExam: 1350 }, FINAL_X: { paperBased: 1550, onlineExam: 1350 } } });
+  const [newExam, setNewExam] = useState({ competitionId: competitionCatalog.find((competition) => competition.active !== false)?.id || "", roundTypes: [], year: catalogYears[0] || "", openDate: "", closeDate: "", examDate: "", examStartTime: "", examEndTime: "", editCloseDate: "", gradeOptions: [], accent: "violet", description: "ตรวจสอบกำหนดการและรายละเอียดการสมัคร", centerIds: activePhysicalCenterIds, prices: { HEAT: { paperBased: 755, onlineExam: 655 }, FINAL: { paperBased: 1550, onlineExam: 1350 }, FINAL_X: { paperBased: 1550, onlineExam: 1350 } } });
+  const selectedCompetition = competitionCatalog.find((competition) => competition.id === newExam.competitionId);
   const visibleExams = examCatalog.filter((exam) => yearFilter === "all" || exam.year === yearFilter);
   const examGroups = Object.values(visibleExams.reduce((groups, exam) => {
     const groupId = `${exam.competitionId || exam.title}-${exam.year}`;
@@ -3227,23 +3618,45 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onAddE
   }
   function slugForCompetition(title) {
     const normalized = title.trim().toLowerCase();
-    if (normalized.includes("big bay") || normalized === "bbb") return "bbb";
-    if (normalized.includes("hkimo")) return "hkimo";
-    if (normalized.includes("hkiso")) return "hkiso";
-    if (normalized.includes("hkico")) return "hkico";
     return `custom-${normalized.replace(/[^a-z0-9ก-๙]+/g, "-").replace(/^-|-$/g, "") || Date.now()}`;
   }
+  function addCompetitionChoice() {
+    const name = newCompetitionName.trim();
+    if (!name) return;
+    const short = name.toUpperCase();
+    if (competitionCatalog.some((competition) => competition.short.toLocaleLowerCase() === short.toLocaleLowerCase())) {
+      notify("มีชื่อรายการสอบนี้อยู่แล้ว");
+      return;
+    }
+    const baseId = slugForCompetition(name);
+    const id = competitionCatalog.some((competition) => competition.id === baseId) ? `${baseId}-${Date.now()}` : baseId;
+    const subject = /iso/i.test(name) ? "Science" : /ico/i.test(name) ? "Computer" : "Mathematics";
+    setCompetitionCatalog((current) => [...current, { id, short, name, subject, active: true }]);
+    updateNewExam("competitionId", id);
+    setNewCompetitionName("");
+    notify(`เพิ่มตัวเลือก ${short} แล้ว · กดบันทึกแค็ตตาล็อกเพื่อเก็บข้อมูล`);
+  }
+  function updateCompetitionChoice(id, field, value) {
+    const nextValue = String(value || "").trimStart();
+    if (field === "short" && competitionCatalog.some((item) => item.id !== id && item.short.toLocaleLowerCase() === nextValue.trim().toLocaleLowerCase())) {
+      notify("ชื่อย่อนี้มีอยู่แล้ว");
+      return;
+    }
+    setCompetitionCatalog((current) => current.map((item) => item.id === id ? { ...item, [field]: nextValue } : item));
+    const selected = competitionCatalog.find((item) => item.id === id);
+    if (field === "name" && selected) examCatalog.filter((exam) => exam.competitionId === id).forEach((exam) => onUpdateExam(exam.id, { title: nextValue }));
+  }
   function addExam() {
-    if (!newExam.title.trim() || !newExam.roundTypes.length || !newExam.year.trim()) {
-      setNewExamError("กรอกชื่อรายการสอบ เลือกรอบสอบอย่างน้อยหนึ่งรอบ และระบุปีการศึกษา");
+    if (!selectedCompetition || !newExam.roundTypes.length || !newExam.year.trim()) {
+      setNewExamError("เลือกรายการสอบ เลือกรอบสอบอย่างน้อยหนึ่งรอบ และระบุปีการศึกษา");
       return;
     }
     if (!newExam.gradeOptions.length) {
       setNewExamError("เลือกระดับชั้นที่เปิดรับอย่างน้อยหนึ่งระดับ");
       return;
     }
-    const title = newExam.title.trim();
-    const competitionId = slugForCompetition(title);
+    const title = selectedCompetition.name.trim();
+    const competitionId = selectedCompetition.id;
     const duplicates = newExam.roundTypes.filter((roundType) => examCatalog.some((exam) => exam.competitionId === competitionId && exam.year === newExam.year.trim() && getExamRoundType(exam) === roundType));
     if (duplicates.length) {
       setNewExamError(`${title} ปี ${newExam.year} มี ${duplicates.map((roundType) => EXAM_ROUND_LABELS[roundType]).join(", ")} อยู่แล้ว`);
@@ -3263,7 +3676,7 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onAddE
       examStartTime: newExam.examStartTime,
       examEndTime: newExam.examEndTime,
       editCloseDate: newExam.editCloseDate,
-      finalConfirmCloseDate: roundType === "HEAT" ? "" : (newExam.closeDate || "2027-01-15"),
+      finalConfirmCloseDate: roundType === "FINAL" ? newExam.closeDate : "",
       isOpen: false,
       accent: newExam.accent,
       description: newExam.description.trim(),
@@ -3274,15 +3687,16 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onAddE
       closes: formatThaiDate(newExam.closeDate),
     }));
     setYearFilter(newExam.year.trim());
-    setNewExam({ title: "", roundTypes: [], year: "2569", openDate: "", closeDate: "", examDate: "", examStartTime: "", examEndTime: "", editCloseDate: "", gradeOptions: [], accent: "violet", description: "ตรวจสอบกำหนดการและรายละเอียดการสมัคร", centerIds: [...activePhysicalCenterIds], prices: { HEAT: { paperBased: 755, onlineExam: 655 }, FINAL: { paperBased: 1550, onlineExam: 1350 }, FINAL_X: { paperBased: 1550, onlineExam: 1350 } } });
+    setNewExam({ competitionId: competitionCatalog.find((competition) => competition.active !== false)?.id || "", roundTypes: [], year: catalogYears[0] || "", openDate: "", closeDate: "", examDate: "", examStartTime: "", examEndTime: "", editCloseDate: "", gradeOptions: [], accent: "violet", description: "ตรวจสอบกำหนดการและรายละเอียดการสมัคร", centerIds: [...activePhysicalCenterIds], prices: { HEAT: { paperBased: 755, onlineExam: 655 }, FINAL: { paperBased: 1550, onlineExam: 1350 }, FINAL_X: { paperBased: 1550, onlineExam: 1350 } } });
     setNewExamLogo("");
     setNewExamError("");
     setShowNewExamForm(false);
     notify(`เพิ่ม ${title} ${selectedRoundLabels.filter((_, index) => newExam.roundTypes[index]).join(" · ")} แล้ว · ปิดรับสมัครไว้จนกว่าจะเปิดจากการ์ด`);
   }
   function requestExamStatusChange(exam) {
+    const withinWindow = isWithinRegistrationWindow(exam);
     if (getExamRoundType(exam) === "FINAL") {
-      if (!exam.isOpen) return;
+      if (!exam.isOpen || !withinWindow) return;
       setPendingExamAction({
         id: exam.id,
         title: exam.title,
@@ -3301,6 +3715,10 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onAddE
       notify("ระบุวันเริ่มและวันปิดรับสมัครก่อนเปิดรับ");
       return;
     }
+    if (nextIsOpen && !withinWindow) {
+      notify("เปิดรับสมัครได้เฉพาะภายในช่วงวันที่กำหนด");
+      return;
+    }
     setPendingExamAction({
       id: exam.id,
       title: exam.title,
@@ -3310,11 +3728,14 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onAddE
     });
   }
   function requestHeatIdGeneration(exam) {
-    if (exam.isOpen) {
-      notify("ปิดรับสมัครรายการสอบนี้ก่อนสร้างเลขประจำตัวสอบ");
+    const registrationEnded = Boolean(exam.finalManuallyClosed || (exam.closeDate && getBangkokTodayISO() > exam.closeDate));
+    if (!registrationEnded) {
+      notify("ปิดรับสมัครก่อน หรือรอให้พ้นวันปิดรับสมัครจึงสร้างเลขประจำตัวสอบได้");
       return;
     }
-    const missingCount = getApplicationsForResultTarget(applications, exam).filter((application) => !application.heatId).length;
+    const missingCount = getApplicationsForResultTarget(applications, exam)
+      .flatMap((application) => application.competitions || [])
+      .filter((item) => item.roundId === exam.id && !item.examNumber).length;
     if (!missingCount) {
       notify("รายการสอบนี้ยังไม่มีเลขประจำตัวที่ต้องสร้าง");
       return;
@@ -3329,6 +3750,10 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onAddE
     });
   }
   function restoreFinalAutoStatus(exam) {
+    if (!isWithinRegistrationWindow(exam)) {
+      notify("คืนสถานะเปิดรับได้เฉพาะภายในช่วงวันที่กำหนด");
+      return;
+    }
     setPendingExamAction({
       id: exam.id,
       title: exam.title,
@@ -3337,24 +3762,24 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onAddE
       action: "final-restore",
     });
   }
-  function confirmExamAction() {
+  async function confirmExamAction() {
     if (!pendingExamAction) return;
     const { id, title, round, action, nextIsOpen } = pendingExamAction;
-    if (action === "heat-generate") {
-      onGenerateHeatIds(id);
-    } else if (action === "final-close") {
-      onUpdateExam(id, { finalManuallyClosed: true });
-      notify(`ปิดรับสมัคร ${title} ${round} แล้ว`);
-    } else if (action === "final-restore") {
-      onUpdateExam(id, { finalManuallyClosed: false });
-      notify(`คืนสถานะ ${title} ${round} ให้ระบบเปิดอัตโนมัติตามผล Heat แล้ว`);
-    } else {
-      onUpdateExam(id, { isOpen: nextIsOpen });
-      notify(nextIsOpen
-        ? `เปิดรับ ${title} ${round} แล้ว · หน้าแรกอัปเดตแล้ว`
-        : `ปิดรับ ${title} ${round} แล้ว`);
+    setSavingExamStatus(true);
+    try {
+      if (action === "heat-generate") {
+        await onGenerateHeatIds(id);
+      } else {
+        const manualClosed = action === "final-close" || (!action && !nextIsOpen);
+        await onSetManualClosed(id, manualClosed);
+        notify(manualClosed ? `ปิดรับสมัคร ${title} ${round} แล้ว` : `เปิดรับ ${title} ${round} แล้ว · หน้าแรกอัปเดตแล้ว`);
+      }
+      setPendingExamAction(null);
+    } catch (error) {
+      notify(error?.message || "บันทึกสถานะรายการสอบไม่สำเร็จ");
+    } finally {
+      setSavingExamStatus(false);
     }
-    setPendingExamAction(null);
   }
   function updateCenter(id, key, value) { setCenterCatalog((current) => current.map((center) => center.id === id ? { ...center, [key]: value } : center)); }
   function changeCenterField(center, key, value) {
@@ -3395,11 +3820,11 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onAddE
   function addPastPaper() {
     if (!newPaperName.trim()) return;
     setPastPaperCatalog((current) => [...current, { id: `paper-${Date.now()}`, group: newPaperGroup, name: newPaperName.trim(), price: Number(newPaperPrice) || 0, active: true }]);
-    setNewPaperName(""); notify("เพิ่มรายการข้อสอบเก่าตัวอย่างแล้ว");
+    setNewPaperName(""); notify("เพิ่มรายการแล้ว · กรุณาบันทึกเพื่อใช้จริง");
   }
   function removePastPaper(paper) {
     setPastPaperCatalog((current) => current.filter((item) => item.id !== paper.id));
-    notify(`ลบ ${paper.title || paper.name} ออกจากรายการข้อสอบเก่าตัวอย่างแล้ว`);
+    notify(`นำ ${paper.title || paper.name} ออกจากรายการแล้ว · กรุณาบันทึกเพื่อใช้จริง`);
   }
   function addGradeOption() {
     const grade = newGradeName.trim();
@@ -3427,18 +3852,19 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onAddE
   }
   return (
     <div className="page-stack">
-      <PageHeading eyebrow="รอบสอบและข้อมูลตั้งต้น · ข้อมูล mock" title={pageMode === "form-options" ? "ข้อมูลตัวเลือกในฟอร์ม" : "รายการสอบและกำหนดการ"} description={pageMode === "form-options" ? "จัดการระดับชั้น ศูนย์สอบ และข้อสอบเก่าที่ใช้เป็นตัวเลือกในฟอร์มสมัคร" : "สถานะที่แก้ที่นี่จะแสดงบนหน้าแรกทันทีในตัวอย่างนี้"} action={pageMode === "form-options" ? <span className="admin-data-note"><Icon name="building" size={14} />ระดับชั้น {gradeCatalog.length} ระดับ · ศูนย์สอบ {centerCatalog.filter((center) => center.active !== false).length} แห่ง</span> : <span className={registrationOpen ? "schedule-open" : "closed-badge"}>{registrationOpen ? `เปิดรับ ${examCatalog.filter((exam) => exam.isOpen).length} รายการ` : "ปิดรับสมัครทั้งหมด"}</span>} />
+      <PageHeading eyebrow="รอบสอบและข้อมูลตั้งต้น" title={pageMode === "form-options" ? "ข้อมูลตัวเลือกในฟอร์ม" : "รายการสอบและกำหนดการ"} description={pageMode === "form-options" ? "จัดการระดับชั้น ศูนย์สอบ และข้อสอบเก่าที่ใช้เป็นตัวเลือกในฟอร์มสมัคร" : "แก้ไขรายการสอบและบันทึกการเปลี่ยนแปลงลงฐานข้อมูล"} action={pageMode === "form-options" ? <span className="admin-data-note"><Icon name="building" size={14} />ระดับชั้น {gradeCatalog.length} ระดับ · ศูนย์สอบ {centerCatalog.filter((center) => center.active !== false).length} แห่ง</span> : <span className={registrationOpen ? "schedule-open" : "closed-badge"}>{registrationOpen ? `เปิดรับ ${examCatalog.filter((exam) => exam.isOpen).length} รายการ` : "ปิดรับสมัครทั้งหมด"}</span>} />
+      {catalogDirty ? <p className="admin-unsaved-indicator" role="status">มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก</p> : null}
       {pendingExamAction ? <div className="admin-status-confirm-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setPendingExamAction(null); }}>
         <section className="admin-status-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="admin-status-confirm-title" aria-describedby="admin-status-confirm-message">
           <span className={`admin-status-confirm-icon${pendingExamAction.action === "heat-generate" ? " admin-status-confirm-icon-generate" : pendingExamAction.action === "final-restore" || pendingExamAction.nextIsOpen ? " admin-status-confirm-icon-open" : " admin-status-confirm-icon-close"}`}><Icon name={pendingExamAction.action === "heat-generate" ? "hash" : pendingExamAction.action === "final-restore" || pendingExamAction.nextIsOpen ? "check" : "close"} size={21} /></span>
           <div className="admin-status-confirm-copy">
             <p className="eyebrow">{pendingExamAction.action === "heat-generate" ? "สร้างเลขประจำตัวสอบ" : "ยืนยันการเปลี่ยนสถานะ"}</p>
             <h2 id="admin-status-confirm-title">{pendingExamAction.action === "heat-generate" ? "ยืนยันสร้างเลขประจำตัวสอบ?" : pendingExamAction.action === "final-close" ? "ปิดรับสมัคร Final ก่อนกำหนด?" : pendingExamAction.action === "final-restore" ? "คืนสถานะเปิดอัตโนมัติ?" : pendingExamAction.nextIsOpen ? "เปิดรับสมัครรายการนี้?" : "ปิดรับสมัครรายการนี้?"}</h2>
-            <p id="admin-status-confirm-message"><strong>{pendingExamAction.title} {pendingExamAction.round} {pendingExamAction.year}</strong><br />{pendingExamAction.action === "heat-generate" ? `จะสร้างเลขให้ใบสมัครที่ยังไม่มีเลข ${pendingExamAction.applicantCount} ใบ โดยเรียงตามศูนย์สอบ ระดับชั้น และชื่อผู้สมัคร` : pendingExamAction.action === "final-close" ? "ผู้ผ่าน Heat จะเริ่มสมัคร Final เพิ่มไม่ได้จนกว่าจะคืนสถานะอัตโนมัติ" : pendingExamAction.action === "final-restore" ? "ระบบจะเปิด Final ให้ผู้มีสิทธิ์ หากประกาศผล Heat ที่เกี่ยวข้องแล้วและยังไม่พ้นวันปิด" : pendingExamAction.nextIsOpen ? "ผู้สมัครจะเห็นรายการนี้และสมัครได้บนหน้าแรก" : "ผู้สมัครจะไม่สามารถสมัครรายการนี้เพิ่มได้"}</p>
+            <p id="admin-status-confirm-message"><strong>{pendingExamAction.title} {pendingExamAction.round} {pendingExamAction.year}</strong><br />{pendingExamAction.action === "heat-generate" ? `จะสร้างเลขให้ใบสมัครที่ส่งแล้วและยังไม่มีเลข ${pendingExamAction.applicantCount} ใบ รวมทั้งใบที่รออนุมัติ โดยเรียงตามศูนย์สอบ ระดับชั้น และชื่อผู้สมัคร` : pendingExamAction.action === "final-close" ? "ผู้ผ่าน Heat จะเริ่มสมัคร Final เพิ่มไม่ได้จนกว่าจะคืนสถานะอัตโนมัติ" : pendingExamAction.action === "final-restore" ? "ระบบจะเปิด Final ให้ผู้มีสิทธิ์ หากประกาศผล Heat แล้วและยังอยู่ในช่วงวันรับสมัคร" : pendingExamAction.nextIsOpen ? "ผู้สมัครจะเห็นรายการนี้และสมัครได้บนหน้าแรก" : "ผู้สมัครจะไม่สามารถสมัครรายการนี้เพิ่มได้"}</p>
           </div>
           <div className="admin-status-confirm-actions">
-            <Button variant="outline" onClick={() => setPendingExamAction(null)}>ยกเลิก</Button>
-            <Button icon={pendingExamAction.action === "heat-generate" ? "hash" : pendingExamAction.action === "final-restore" || pendingExamAction.nextIsOpen ? "check" : "close"} onClick={confirmExamAction}>{pendingExamAction.action === "heat-generate" ? "ยืนยันสร้างเลข" : pendingExamAction.action === "final-close" ? "ยืนยันปิดรับ" : pendingExamAction.action === "final-restore" ? "คืนสถานะอัตโนมัติ" : pendingExamAction.nextIsOpen ? "ยืนยันเปิดรับ" : "ยืนยันปิดรับ"}</Button>
+            <Button variant="outline" disabled={savingExamStatus} onClick={() => setPendingExamAction(null)}>ยกเลิก</Button>
+            <Button disabled={savingExamStatus} icon={pendingExamAction.action === "heat-generate" ? "hash" : pendingExamAction.action === "final-restore" || pendingExamAction.nextIsOpen ? "check" : "close"} onClick={confirmExamAction}>{savingExamStatus ? "กำลังบันทึก…" : pendingExamAction.action === "heat-generate" ? "ยืนยันสร้างเลข" : pendingExamAction.action === "final-close" ? "ยืนยันปิดรับ" : pendingExamAction.action === "final-restore" ? "คืนสถานะอัตโนมัติ" : pendingExamAction.nextIsOpen ? "ยืนยันเปิดรับ" : "ยืนยันปิดรับ"}</Button>
           </div>
         </section>
       </div> : null}
@@ -3448,11 +3874,14 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onAddE
         {showNewExamForm ? <form className="admin-exam-create-form" onSubmit={(event) => { event.preventDefault(); addExam(); }}>
           <div className="admin-exam-create-heading"><span className="admin-exam-create-icon"><Icon name="plus" size={17} /></span><div><strong>เพิ่มรายการสอบใหม่</strong><small>รายการจะยังปิดรับสมัคร จนกว่าแอดมินจะกดเปิดรับจากการ์ด</small></div></div>
           <div className="admin-exam-create-fields">
-            <label><span>ชื่อรายการสอบ <b>*</b></span><input value={newExam.title} onChange={(event) => updateNewExam("title", event.target.value)} placeholder="ชื่อรายการแข่งขัน" required /></label>
-            <fieldset className="admin-round-choice"><legend>รอบสอบ <b>*</b></legend><div>{Object.entries(EXAM_ROUND_LABELS).map(([roundType, label]) => <label key={roundType} className={newExam.roundTypes.includes(roundType) ? "admin-round-choice-selected" : ""}><input type="checkbox" checked={newExam.roundTypes.includes(roundType)} onChange={() => toggleNewExamRound(roundType)} /><span>{label}</span></label>)}</div><small>เลือกได้หลายรอบ ระบบจะแยกสร้างเป็นการ์ดคนละใบ</small></fieldset>
+            <div className="admin-exam-title-round-row">
+              <fieldset className="admin-competition-choice"><legend>ชื่อรายการสอบ <b>*</b></legend><div><select aria-label="ชื่อรายการสอบ" value={newExam.competitionId} onChange={(event) => updateNewExam("competitionId", event.target.value)} required><option value="">เลือกรายการสอบ</option>{competitionCatalog.filter((competition) => competition.active !== false).map((competition) => <option key={competition.id} value={competition.id}>{competition.short || competition.name}</option>)}</select><Button type="button" variant="outline" icon="settings" onClick={() => setShowCompetitionManager((current) => !current)}>{showCompetitionManager ? "ปิดจัดการชื่อ" : "เพิ่ม/แก้ชื่อ"}</Button></div>
+                {showCompetitionManager ? <section className="admin-competition-manager" aria-label="จัดการตัวเลือกรายการสอบ"><div className="admin-competition-manager-add"><label><span>เพิ่มชื่อรายการสอบ</span><input value={newCompetitionName} maxLength={255} onChange={(event) => setNewCompetitionName(event.target.value)} placeholder="เช่น HKIMO" /></label><Button type="button" icon="plus" onClick={addCompetitionChoice}>เพิ่มชื่อ</Button></div>{selectedCompetition ? <div className="admin-competition-manager-edit"><span className="admin-exam-field-label">แก้ไขตัวเลือกที่เลือก · {selectedCompetition.short}</span><label><span>ชื่อใน dropdown</span><input value={selectedCompetition.short || ""} maxLength={30} onChange={(event) => updateCompetitionChoice(selectedCompetition.id, "short", event.target.value)} /></label><label><span>ชื่อเต็มที่แสดงในรายการสอบ</span><input value={selectedCompetition.name || ""} maxLength={255} onChange={(event) => updateCompetitionChoice(selectedCompetition.id, "name", event.target.value)} /></label></div> : <small>เลือกรายการสอบด้านบนเพื่อแก้ไขชื่อ</small>}<div className="admin-competition-manager-save"><small>เพิ่มหรือแก้ชื่อแล้วกดบันทึก เพื่อเก็บรายการไว้ใช้งานครั้งต่อไป</small><Button type="button" variant="outline" icon="check" onClick={onSaveCatalog}>บันทึกชื่อรายการ</Button></div></section> : null}
+              </fieldset>
+              <fieldset className="admin-round-choice"><legend>รอบสอบ <b>*</b></legend><div>{Object.entries(EXAM_ROUND_LABELS).map(([roundType, label]) => <label key={roundType} className={newExam.roundTypes.includes(roundType) ? "admin-round-choice-selected" : ""}><input type="checkbox" checked={newExam.roundTypes.includes(roundType)} onChange={() => toggleNewExamRound(roundType)} /><span>{label}</span></label>)}</div><small>เลือกได้หลายรอบ ระบบจะแยกสร้างเป็นการ์ดคนละใบ</small></fieldset>
+            </div>
             {newExam.roundTypes.map((roundType) => <fieldset className="admin-round-price-set" key={roundType}><legend>ราคาสมัคร · {EXAM_ROUND_LABELS[roundType]}</legend><label><span>Paper-Based</span><div><input aria-label={`${EXAM_ROUND_LABELS[roundType]} ราคา Paper-Based`} type="number" min="0" value={newExam.prices[roundType].paperBased} onChange={(event) => updateNewExam("prices", { ...newExam.prices, [roundType]: { ...newExam.prices[roundType], paperBased: Math.max(0, Number(event.target.value) || 0) } })} /><b>บาท</b></div></label><label><span>Online Exam</span><div><input aria-label={`${EXAM_ROUND_LABELS[roundType]} ราคา Online Exam`} type="number" min="0" value={newExam.prices[roundType].onlineExam} onChange={(event) => updateNewExam("prices", { ...newExam.prices, [roundType]: { ...newExam.prices[roundType], onlineExam: Math.max(0, Number(event.target.value) || 0) } })} /><b>บาท</b></div></label></fieldset>)}
             <label><span>ปีการศึกษา <b>*</b></span><input inputMode="numeric" value={newExam.year} onChange={(event) => updateNewExam("year", event.target.value)} placeholder="2569" required /></label>
-            <label><span>โทนสีการ์ด</span><select value={newExam.accent} onChange={(event) => updateNewExam("accent", event.target.value)}><option value="violet">ม่วง</option><option value="blue">น้ำเงิน</option><option value="coral">ชมพู</option><option value="yellow">เหลือง</option></select></label>
             <fieldset className="admin-exam-schedule-fields"><legend>กำหนดวันสำคัญ</legend><div className="admin-exam-schedule-grid">
               <label><span>เริ่มรับสมัคร</span><input type="date" value={newExam.openDate} onChange={(event) => updateNewExam("openDate", event.target.value)} /></label>
               <label><span>ปิดรับสมัคร</span><input type="date" value={newExam.closeDate} onChange={(event) => updateNewExam("closeDate", event.target.value)} /></label>
@@ -3476,15 +3905,19 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onAddE
             const prices = exam.prices || (getExamRoundType(exam) === "HEAT" ? { paperBased: 755, onlineExam: 655 } : { paperBased: 1550, onlineExam: 1350 });
             const roundLabel = exam.round || EXAM_ROUND_LABELS[getExamRoundType(exam)];
             const isFinalRound = getExamRoundType(exam) === "FINAL";
-            const finalStatusLabels = { open: "เปิดอัตโนมัติ", "waiting-results": "รอผล HEAT", "no-eligible-applicants": "ไม่มีผู้ผ่าน", "closed-manual": "ปิดโดยแอดมิน", "closed-deadline": "ปิดตามกำหนด" };
+            const finalStatusLabels = { open: "เปิดอัตโนมัติ", "waiting-results": "รอผล HEAT", "no-eligible-applicants": "ไม่มีผู้ผ่าน", "closed-manual": "ปิดโดยแอดมิน", "closed-deadline": "ปิดตามกำหนด", "not-open-yet": "ยังไม่ถึงวันเปิด" };
             const finalStatus = exam.finalRegistrationStatus || "waiting-results";
-            const statusLabel = isFinalRound ? finalStatusLabels[finalStatus] : exam.isOpen ? "เปิดรับ" : "ยังไม่เปิด";
+            const scheduleInWindow = isWithinRegistrationWindow(exam);
+            const registrationEnded = Boolean(exam.finalManuallyClosed || (exam.closeDate && getBangkokTodayISO() > exam.closeDate));
+            const statusLabel = isFinalRound ? finalStatusLabels[finalStatus] : exam.isOpen ? "เปิดรับ" : exam.finalManuallyClosed ? "ปิดโดยแอดมิน" : exam.openDate && getBangkokTodayISO() < exam.openDate ? "ยังไม่ถึงวันเปิด" : "ปิดรับแล้ว";
             const scheduleLabel = isFinalRound
-              ? (finalStatus === "open" ? `ปิดรับ ${formatThaiDate(exam.finalConfirmCloseDate || exam.closeDate)}` : statusLabel)
-              : exam.isOpen ? `ปิดรับ ${formatThaiDate(exam.closeDate)}` : `สอบ ${formatThaiDate(exam.examDate)}`;
+              ? (finalStatus === "open" ? `ปิดรับ ${formatThaiDate(exam.closeDate)}` : statusLabel)
+              : `${exam.openDate ? `เริ่ม ${formatThaiDate(exam.openDate)}` : "ยังไม่กำหนดวันเริ่ม"} · ${exam.closeDate ? `ปิด ${formatThaiDate(exam.closeDate)}` : "ยังไม่กำหนดวันปิด"}`;
             const isHeatRound = getExamRoundType(exam) === "HEAT";
             const heatApplications = isHeatRound ? getApplicationsForResultTarget(applications, exam) : [];
-            const heatIdsToGenerate = heatApplications.filter((application) => !application.heatId).length;
+            const heatItems = heatApplications.flatMap((application) => application.competitions || []).filter((item) => item.roundId === exam.id);
+            const heatIdsToGenerate = heatItems.filter((item) => !item.examNumber).length;
+            const heatHasExistingNumbers = heatItems.some((item) => item.examNumber);
             return <details className={`admin-round-accordion${exam.isOpen ? " admin-round-accordion-open" : ""}`} key={exam.id}>
               <summary className="admin-round-accordion-summary">
                 <ExamLogo exam={exam} className={`exam-type-mark exam-card-${exam.accent}`} iconSize={18} />
@@ -3506,23 +3939,22 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onAddE
                       ? exam.isOpen
                         ? <Button variant="outline" icon="close" onClick={() => requestExamStatusChange(exam)}>ปิดรับ Final</Button>
                         : finalStatus === "closed-manual"
-                          ? <Button variant="outline" icon="check" onClick={() => restoreFinalAutoStatus(exam)}>คืนสถานะอัตโนมัติ</Button>
+                          ? <Button variant="outline" icon="check" disabled={!scheduleInWindow} title={scheduleInWindow ? "คืนสถานะเปิดรับอัตโนมัติ" : "เปิดคืนได้เฉพาะในช่วงวันที่กำหนด"} onClick={() => restoreFinalAutoStatus(exam)}>คืนสถานะอัตโนมัติ</Button>
                           : null
                       : <>
-                        <Button variant={exam.isOpen ? "outline" : "primary"} icon={exam.isOpen ? "close" : "check"} onClick={() => requestExamStatusChange(exam)}>{exam.isOpen ? "ปิดรับ" : "เปิดรับ"}</Button>
-                        {isHeatRound ? <Button type="button" variant={heatIdsToGenerate ? "outline" : "success"} icon={heatIdsToGenerate ? "hash" : "check"} disabled={exam.isOpen || !heatIdsToGenerate} ariaLabel={`สร้างเลขประจำตัวสอบ ${exam.title} ${roundLabel} ปี ${exam.year}${exam.isOpen ? " · ปิดรับสมัครก่อน" : ""}`} title={exam.isOpen ? "ปิดรับสมัครก่อนสร้างเลขประจำตัวสอบ" : heatIdsToGenerate ? `สร้างเลขให้ผู้สมัคร ${heatIdsToGenerate} ใบ` : "ไม่มีเลขประจำตัวที่ต้องสร้าง"} onClick={() => requestHeatIdGeneration(exam)}>{exam.isOpen ? "ปิดรับก่อนสร้างเลข" : heatIdsToGenerate ? `สร้างเลขสอบ${heatApplications.some((application) => application.heatId) ? ` · ${heatIdsToGenerate} ใบใหม่` : ""}` : heatApplications.length ? "สร้างเลขแล้ว" : "ยังไม่มีผู้สมัคร"}</Button> : null}
+                        <Button variant={exam.isOpen ? "outline" : "primary"} icon={exam.isOpen ? "close" : "check"} disabled={!exam.isOpen && !scheduleInWindow} title={!exam.isOpen && !scheduleInWindow ? "เปิดรับได้เฉพาะในช่วงวันที่กำหนด" : ""} onClick={() => requestExamStatusChange(exam)}>{exam.isOpen ? "ปิดรับ" : "เปิดรับ"}</Button>
+                        {isHeatRound ? <Button type="button" variant={heatIdsToGenerate ? "outline" : "success"} icon={heatIdsToGenerate ? "hash" : "check"} disabled={!registrationEnded || !heatIdsToGenerate} ariaLabel={`สร้างเลขประจำตัวสอบ ${exam.title} ${roundLabel} ปี ${exam.year}${!registrationEnded ? " · รอปิดรับสมัคร" : ""}`} title={!registrationEnded ? "ปิดรับสมัครก่อน หรือรอให้พ้นวันปิดรับสมัคร" : heatIdsToGenerate ? `สร้างเลขให้ ${heatIdsToGenerate} รายการสอบ` : "ไม่มีเลขประจำตัวที่ต้องสร้าง"} onClick={() => requestHeatIdGeneration(exam)}>{!registrationEnded ? "รอปิดรับก่อนสร้างเลข" : heatIdsToGenerate ? `สร้างเลขสอบ · ${heatIdsToGenerate} รายการ${heatHasExistingNumbers ? "ใหม่" : ""}` : heatItems.length ? "สร้างเลขแล้ว" : "ยังไม่มีผู้สมัคร"}</Button> : null}
                       </>}
                     {!exam.isOpen ? <Button type="button" variant="outline" icon="download" className="center-summary-download" onClick={() => downloadCenterSummary(exam)}>สรุปศูนย์สอบ</Button> : null}
-                    <Button variant="outline" className="admin-round-delete" icon="trash" ariaLabel={`ลบ ${exam.title} ${exam.round || ""} ปี ${exam.year}`} title="ลบการ์ดรายการสอบนี้" onClick={() => { onRemoveExam(exam.id); notify(`ลบการ์ด ${exam.title} ${exam.round} ปี ${exam.year} จากข้อมูลตัวอย่างแล้ว`); }}>ลบ</Button>
+                    <Button variant="outline" className="admin-round-delete" icon="trash" ariaLabel={`ลบ ${exam.title} ${exam.round || ""} ปี ${exam.year}`} title="ลบการ์ดรายการสอบนี้" onClick={() => { onRemoveExam(exam.id); notify(BACKEND_ENABLED ? `นำ ${exam.title} ${exam.round} ปี ${exam.year} ออกจากรายการ · กดบันทึกแค็ตตาล็อกเพื่อยืนยัน` : `นำ ${exam.title} ${exam.round} ปี ${exam.year} ออกจากรายการตัวอย่างแล้ว`); }}>ลบ</Button>
                   </div>
                 </div>
-                {isFinalRound ? <div className="admin-final-auto-note"><Icon name="info" size={14} /><span>เปิดอัตโนมัติหลังประกาศ HEAT เมื่อมีผู้ได้ Gold, Silver, Bronze หรือ BBB อันดับ 1st–3rd</span></div> : null}
-                {isFinalRound ? <label className="admin-final-confirm-inline"><span>ปิดยืนยันสิทธิ์</span><input type="date" aria-label={`วันปิดยืนยันสิทธิ์ ${exam.title} ${exam.year}`} value={exam.finalConfirmCloseDate || ""} onChange={(event) => onUpdateExam(exam.id, { finalConfirmCloseDate: event.target.value })} /></label> : null}
+                {isFinalRound ? <div className="admin-final-auto-note"><Icon name="info" size={14} /><span>เมื่อประกาศผล HEAT ระบบเปิดสิทธิ์ให้ผู้ผ่านยืนยันได้ภายในช่วงวันรับสมัคร Final โดยใช้วันปิดรับสมัครเดียวกัน</span></div> : null}
                 <div className="admin-round-accordion-config">
                   <strong>กำหนดการและรายละเอียดรอบสอบ</strong>
                   <div className="admin-round-fields">
                     <label><span>เริ่มรับสมัคร</span><input type="date" value={exam.openDate || ""} onChange={(event) => onUpdateExam(exam.id, { openDate: event.target.value })} /></label>
-                    <label><span>ปิดรับสมัคร</span><input type="date" value={exam.closeDate || ""} onChange={(event) => onUpdateExam(exam.id, { closeDate: event.target.value, closes: formatThaiDate(event.target.value) })} /></label>
+                    <label><span>ปิดรับสมัคร{isFinalRound ? " / ยืนยันสิทธิ์ Final" : ""}</span><input type="date" value={exam.closeDate || ""} onChange={(event) => onUpdateExam(exam.id, { closeDate: event.target.value, ...(isFinalRound ? { finalConfirmCloseDate: event.target.value } : {}), closes: formatThaiDate(event.target.value) })} /></label>
                     <label><span>วันสอบ</span><input type="date" value={exam.examDate || ""} onChange={(event) => onUpdateExam(exam.id, { examDate: event.target.value })} /></label>
                     <label><span>เวลาเริ่มสอบ</span><input type="time" value={exam.examStartTime || ""} onChange={(event) => onUpdateExam(exam.id, { examStartTime: event.target.value })} /></label>
                     <label><span>เวลาสิ้นสุด</span><input type="time" value={exam.examEndTime || ""} onChange={(event) => onUpdateExam(exam.id, { examEndTime: event.target.value })} /></label>
@@ -3542,13 +3974,13 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onAddE
             </details>;
           })}</div>
         </section>)}{!visibleExams.length ? <div className="empty-inline"><Icon name="calendar" /><span>ยังไม่มีรายการสอบในปีการศึกษานี้</span></div> : null}</div>
-        <div className="form-footer admin-round-save"><span><Icon name="info" size={15} />กำหนดการ ราคา และสถานะเป็นข้อมูลตัวอย่างในหน้าทดลองนี้</span><Button variant="outline" onClick={() => notify("บันทึกกำหนดการและราคาตัวอย่างแล้ว")}>บันทึกกำหนดการ</Button></div>
+        <div className="form-footer admin-round-save"><span><Icon name="info" size={15} />การเปลี่ยนแปลงจะมีผลกับหน้าสมัครหลังบันทึก</span><Button variant="outline" onClick={onSaveCatalog}>บันทึกกำหนดการ</Button></div>
       </section>
       </> : null}
       {pageMode === "form-options" ? <div className="admin-form-options-accordions">
       <AdminFormOptionAccordion
         title="บัญชีรับโอน"
-        description="เพิ่มหรือลบบัญชี และกำหนดบัญชีที่จะแสดงในแบบฟอร์มสมัคร"
+        description="เพิ่มหรือลบบัญชี และเลือกบัญชีเดียวที่จะแสดงในแบบฟอร์มสมัคร"
         count={`${paymentAccounts.length} บัญชี`}
         panelClassName="admin-payment-accounts"
       >
@@ -3560,7 +3992,7 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onAddE
               <label><span>เลขบัญชี</span><input aria-label={`เลขบัญชี ${account.accountName}`} value={account.accountNumber || ""} onChange={(event) => updatePaymentAccount(account.id, "accountNumber", event.target.value)} /></label>
               <label><span>ประเภทบัญชี</span><select value={account.category === "president" ? "president" : "other"} onChange={(event) => updatePaymentAccount(account.id, "category", event.target.value)}><option value="president">บัญชีประธาน · ไม่ต้องลงบัญชี</option><option value="other">บัญชีอื่น · ต้องลงบัญชีภายนอก</option></select></label>
             </div>
-            <div className="admin-payment-account-actions"><label className="admin-payment-show"><input type="checkbox" checked={account.showInForm !== false} onChange={(event) => updatePaymentAccount(account.id, "showInForm", event.target.checked)} /><span>แสดงในฟอร์มสมัคร</span></label><button type="button" className="admin-paper-delete" aria-label={`ลบบัญชี ${account.bankName} ${account.accountNumber}`} title="ลบบัญชีรับโอน" onClick={() => setPaymentAccounts((current) => current.filter((item) => item.id !== account.id))}><Icon name="close" size={15} /></button></div>
+            <div className="admin-payment-account-actions"><label className="admin-payment-show"><input type="radio" name="form-payment-account" checked={selectedPaymentAccountId === account.id} onChange={() => updatePaymentAccount(account.id, "showInForm", true)} /><span>แสดงในฟอร์มสมัคร</span></label><button type="button" className="admin-paper-delete" aria-label={`ลบบัญชี ${account.bankName} ${account.accountNumber}`} title="ลบบัญชีรับโอน" onClick={() => setPaymentAccounts((current) => current.filter((item) => item.id !== account.id))}><Icon name="close" size={15} /></button></div>
           </article>)}
           {!paymentAccounts.length ? <p className="admin-payment-empty">ยังไม่มีบัญชีรับโอน · เพิ่มบัญชีใหม่ด้านล่าง</p> : null}
         </div>
@@ -3572,7 +4004,7 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onAddE
           <label className="admin-payment-show"><input type="checkbox" checked={newPaymentAccount.showInForm} onChange={(event) => setNewPaymentAccount((current) => ({ ...current, showInForm: event.target.checked }))} /><span>แสดงในฟอร์มสมัคร</span></label>
           <Button type="submit" variant="outline" icon="plus">เพิ่มบัญชี</Button>
         </form>
-        <div className="admin-fee-foot"><span><Icon name="info" size={14} />OCR อ่านเลขบัญชีในเบราว์เซอร์และไม่ส่งภาพสลิปออกไป · ต้นแบบนี้ไม่บันทึกค่าหลังปิดหน้า</span></div>
+          <div className="admin-fee-foot"><span><Icon name="info" size={14} />เลือกบัญชีที่จะแสดงในหน้าสมัครได้ครั้งละ 1 บัญชี</span><Button variant="outline" onClick={onSavePaymentAccounts}>บันทึกบัญชีรับโอน</Button></div>
       </AdminFormOptionAccordion>
       <AdminFormOptionAccordion
         title="ข้อสอบเก่าและราคา"
@@ -3582,7 +4014,7 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onAddE
       >
         <div className="admin-paper-table-wrap"><table className="admin-paper-table"><thead><tr><th>กลุ่ม / รายการ</th><th>ราคา</th><th>สถานะ</th><th>จัดการ</th></tr></thead><tbody>{pastPaperCatalog.length ? pastPaperCatalog.map((paper) => <tr key={paper.id}><td><small>{paper.group}</small><strong>{paper.name}</strong></td><td><label className="admin-paper-price"><span>฿</span><input aria-label={`ราคาของ ${paper.name}`} type="number" min="0" value={paper.price} onChange={(event) => setPastPaperCatalog((current) => current.map((item) => item.id === paper.id ? { ...item, price: Math.max(0, Number(event.target.value) || 0) } : item))} /></label></td><td><span className={paper.active ? "schedule-open" : "closed-badge"}>{paper.active ? "เปิดขาย" : "ปิดขาย"}</span></td><td><div className="admin-paper-actions"><Button variant="text" onClick={() => setPastPaperCatalog((current) => current.map((item) => item.id === paper.id ? { ...item, active: !item.active } : item))}>{paper.active ? "ปิดรายการ" : "เปิดรายการ"}</Button><button type="button" className="admin-paper-delete" aria-label={`ลบข้อสอบเก่า ${paper.title || paper.name}`} title={`ลบข้อสอบเก่า ${paper.title || paper.name}`} onClick={() => removePastPaper(paper)}><Icon name="close" size={15} /></button></div></td></tr>) : <tr><td className="admin-paper-empty" colSpan="4">ยังไม่มีรายการข้อสอบเก่า · เพิ่มรายการใหม่ได้ด้านล่าง</td></tr>}</tbody></table></div>
         <div className="admin-add-paper"><select aria-label="กลุ่มข้อสอบเก่า" value={newPaperGroup} onChange={(event) => setNewPaperGroup(event.target.value)}>{paperGroupOptions.map((group) => <option key={group}>{group}</option>)}</select><input aria-label="ชื่อรายการข้อสอบเก่าใหม่" placeholder="ชื่อข้อสอบเก่าใหม่" value={newPaperName} onChange={(event) => setNewPaperName(event.target.value)} /><label><span>ราคา</span><input type="number" min="0" value={newPaperPrice} onChange={(event) => setNewPaperPrice(event.target.value)} /></label><Button variant="outline" disabled={!newPaperName.trim()} onClick={addPastPaper}>เพิ่มข้อสอบเก่า</Button></div>
-        <div className="admin-fee-foot"><span>รายการ ราคา และสถานะในส่วนนี้เป็นตัวอย่างสำหรับต้นแบบ</span><Button variant="outline" onClick={() => notify("บันทึกรายการข้อสอบเก่าตัวอย่างแล้ว")}>บันทึกรายการ</Button></div>
+        <div className="admin-fee-foot"><span>รายการ ราคา และสถานะจะใช้ในหน้าสมัครหลังบันทึก</span><Button variant="outline" onClick={onSaveCatalog}>บันทึกรายการ</Button></div>
       </AdminFormOptionAccordion>
       <AdminFormOptionAccordion
         title="ระดับชั้น"
@@ -3595,7 +4027,7 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onAddE
             return <div className="admin-grade-catalog-row" key={grade}><span>{grade}</span><small>{usedBy ? `ใช้ใน ${usedBy} รายการสอบ` : "ยังไม่ใช้ในรายการสอบ"}</small><button type="button" className="admin-grade-remove" aria-label={`ลบระดับชั้น ${grade}`} title={`ลบระดับชั้น ${grade}`} onClick={() => removeGradeOption(grade)}><Icon name="close" size={15} /></button></div>;
           })}</div>
           <form className="admin-add-grade" onSubmit={(event) => { event.preventDefault(); addGradeOption(); }}><label htmlFor="new-grade-option">เพิ่มระดับชั้น</label><input id="new-grade-option" value={newGradeName} onChange={(event) => setNewGradeName(event.target.value)} placeholder="เช่น Primary 1" /><Button type="submit" variant="outline" disabled={!newGradeName.trim()} icon="plus">เพิ่มระดับชั้น</Button></form>
-          <div className="admin-grade-catalog-note"><Icon name="info" size={14} /><span>เมื่อลบระดับชั้น ระบบจะนำออกจากรายการสอบที่เลือกไว้ด้วย แต่ข้อมูลใบสมัครเดิมจะยังแสดงตามที่บันทึก</span></div>
+          <div className="admin-grade-catalog-note"><Icon name="info" size={14} /><span>เมื่อลบระดับชั้น ระบบจะปิดการใช้งานและนำออกจากตัวเลือกรอบสอบ แต่ข้อมูลใบสมัครเดิมยังอยู่</span><Button variant="outline" onClick={onSaveCatalog}>บันทึกระดับชั้น</Button></div>
       </AdminFormOptionAccordion>
       <AdminFormOptionAccordion
         title="ศูนย์สอบกลาง"
@@ -3604,8 +4036,8 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onAddE
         panelClassName="centers-card"
       >
           <div className="center-upload">
-            <input id="center-file" type="file" accept=".xlsx,.xls" onChange={(event) => { stageCenterFile(event.target.files?.[0]); event.target.value = ""; }} />
-            <label htmlFor="center-file" className="file-drop"><span className="file-drop-icon"><Icon name="upload" /></span><strong>{centerFile || "เลือกไฟล์ Excel ศูนย์สอบ"}</strong><small>ไฟล์ .xlsx หรือ .xls · ต้องมีชีต Center โดยคอลัมน์ A เป็นชื่อและ B เป็นรหัส</small></label>
+            <input id="center-file" type="file" accept=".xlsx" onChange={(event) => { stageCenterFile(event.target.files?.[0]); event.target.value = ""; }} />
+            <label htmlFor="center-file" className="file-drop"><span className="file-drop-icon"><Icon name="upload" /></span><strong>{centerFile || "เลือกไฟล์ Excel ศูนย์สอบ"}</strong><small>ไฟล์ .xlsx · ต้องมีชีต Center โดยคอลัมน์ A เป็นชื่อและ B เป็นรหัส</small></label>
             {centerPreview ? <div className="center-import-preview" role="status">
               <strong>ตัวอย่างนำเข้า: {centerPreview.centers.length} ศูนย์ที่ใช้ได้ · {centerPreview.issues.length} แถวต้องตรวจ</strong>
               {centerPreview.issues.length ? <ul>{centerPreview.issues.map((issue) => <li key={`${issue.row}-${issue.code}`}>แถว {issue.row}: {issue.message}</li>)}</ul> : <p>ไม่พบแถวที่มีปัญหา</p>}
@@ -3615,7 +4047,7 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onAddE
           </div>
           <div className="centers-table"><div className="center-row center-row-head"><span>รหัส</span><span>ชื่อศูนย์สอบ</span><span>สถานะและจัดการ</span></div>{centerCatalog.map((center) => <div className={`center-row center-row-editable${center.active === false ? " center-row-inactive" : ""}`} key={center.id}><input aria-label={`รหัสศูนย์สอบ ${center.name}`} value={center.code} onChange={(event) => changeCenterField(center, "code", event.target.value)} /><input aria-label={`ชื่อศูนย์สอบ ${center.code}`} value={center.name} onChange={(event) => changeCenterField(center, "name", event.target.value)} /><div className="center-row-actions"><span className={center.active === false ? "closed-badge" : "schedule-open"}>{center.active === false ? "ปิดใช้" : "ใช้งาน"}</span>{center.active === false ? <Button type="button" variant="text" onClick={() => updateCenter(center.id, "active", true)}>เปิดใช้</Button> : <Button type="button" variant="text" className="center-delete-button" disabled={center.code === ONLINE_CENTER_CODE} onClick={() => deactivateCenter(center)}>ลบ</Button>}</div></div>)}</div>
           <div className="admin-add-center"><input aria-label="รหัสศูนย์สอบใหม่" placeholder="รหัสใหม่" value={newCenterCode} onChange={(event) => setNewCenterCode(event.target.value)} /><input aria-label="ชื่อศูนย์สอบใหม่" placeholder="ชื่อศูนย์สอบใหม่" value={newCenterName} onChange={(event) => setNewCenterName(event.target.value)} /><Button variant="outline" disabled={!newCenterCode.trim() || !newCenterName.trim()} onClick={addCenter}>เพิ่มศูนย์</Button></div>
-          <div className="admin-fee-foot"><span>จำนวนผู้สมัครไม่แสดงในรายการศูนย์ · ศูนย์สอบแก้ไขได้แม้มีรอบเปิดอยู่</span><Button variant="outline" onClick={() => notify("บันทึกศูนย์สอบตัวอย่างแล้ว")}>บันทึกศูนย์สอบ</Button></div>
+          <div className="admin-fee-foot"><span>จำนวนผู้สมัครไม่แสดงในรายการศูนย์ · การปิดใช้ศูนย์จะไม่ลบข้อมูลใบสมัครเดิม</span><Button variant="outline" onClick={onSaveCatalog}>บันทึกศูนย์สอบ</Button></div>
       </AdminFormOptionAccordion>
     </div> : null}
     </div>
@@ -3624,127 +4056,262 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onAddE
 
 function AdminResultsPage({ applications, examCatalog, resultWorkflows, onImportDraft, onResolveConflict, onPublishResult, notify, navigate }) {
   const [conflictsOpen, setConflictsOpen] = useState(false);
+  const [busyImport, setBusyImport] = useState(false);
+  const [manualMatches, setManualMatches] = useState({});
   const years = [...new Set(examCatalog.map((exam) => exam.year).filter(Boolean))].sort((left, right) => Number(right) - Number(left));
-  const [selectedYear, setSelectedYear] = useState(years.includes("2569") ? "2569" : years[0] || "");
+  const [selectedYear, setSelectedYear] = useState(years[0] || '');
   const yearExams = examCatalog.filter((exam) => exam.year === selectedYear);
   const competitions = [...new Map(yearExams.map((exam) => [exam.competitionId, exam.title])).entries()];
-  const [selectedCompetitionId, setSelectedCompetitionId] = useState(() => yearExams.find((exam) => exam.competitionId === "bbb")?.competitionId || yearExams[0]?.competitionId || "");
+  const [selectedCompetitionId, setSelectedCompetitionId] = useState(() => yearExams.find((exam) => exam.competitionId === 'bbb')?.competitionId || yearExams[0]?.competitionId || '');
   const competitionExams = yearExams.filter((exam) => exam.competitionId === selectedCompetitionId);
-  const [selectedRoundType, setSelectedRoundType] = useState(() => competitionExams.find((exam) => getExamRoundType(exam) === "HEAT") ? "HEAT" : getExamRoundType(competitionExams[0] || {}));
+  const [selectedRoundType, setSelectedRoundType] = useState(() => competitionExams.find((exam) => getExamRoundType(exam) === 'HEAT') ? 'HEAT' : getExamRoundType(competitionExams[0] || {}));
   const selectedTarget = competitionExams.find((exam) => getExamRoundType(exam) === selectedRoundType) || competitionExams[0];
   const workflow = selectedTarget ? resultWorkflows[selectedTarget.id] || {} : {};
-  const targetApplications = selectedTarget ? getApplicationsForResultTarget(applications, selectedTarget) : [];
   const rows = workflow.rows || [];
   const finalEligibleRows = rows.filter((row) => isFinalEligibleAward(row.award, selectedTarget?.competitionId));
-  const issueRows = rows.filter((row) => row.matchStatus !== "matched");
+  const issueRows = rows.filter((row) => row.matchStatus !== 'matched');
   const hasConflict = issueRows.length > 0;
-  const conflictCount = issueRows.length;
-  const conflictApplication = applications.find((item) => item.id === issueRows[0]?.issueApplicationId) || targetApplications[0];
-  const awardBreakdown = (selectedTarget?.competitionId === "bbb" ? ["1ST", "2ND", "3RD", "MERIT AWARD", "PARTICIPATION"] : RESULT_AWARDS).map((award) => ({
-    award,
-    count: rows.filter((row) => normalizeAwardLabel(row.award) === normalizeAwardLabel(award)).length,
+  const matchedRows = rows.filter((row) => row.matchStatus === 'matched');
+  const awardBreakdown = (selectedTarget?.competitionId === 'bbb' ? ['1ST', '2ND', '3RD', 'MERIT AWARD', 'PARTICIPATION'] : RESULT_AWARDS).map((award) => ({
+    award, count: rows.filter((row) => normalizeAwardLabel(row.award) === normalizeAwardLabel(award)).length,
   }));
-  const matchedRows = rows.filter((row) => row.matchStatus === "matched");
-  const resultNumberLabel = selectedRoundType === "HEAT" ? "เลขประจำตัว Heat" : "เลขประจำตัว Final";
-  const isPublished = Boolean(workflow.published);
+  const isPublished = workflow.status === 'published' || Boolean(workflow.published);
+  const targetApplications = selectedTarget ? getApplicationsForResultTarget(applications, selectedTarget) : [];
+  const applicationItems = targetApplications.flatMap((application) => (application.competitions || [])
+    .filter((item) => item.roundId === selectedTarget?.id && item.applicationItemId)
+    .map((item) => ({ application, item })));
+
+  async function importFile(file) {
+    if (!file || !selectedTarget || busyImport) return;
+    setBusyImport(true);
+    try {
+      const parsed = await parseAdminWorkbook(file, true);
+      await onImportDraft(selectedTarget, file.name, parsed);
+    } catch (error) { notify(error?.message || 'อ่านไฟล์ผลสอบไม่สำเร็จ'); }
+    finally { setBusyImport(false); }
+  }
+
+  async function resolve(row, action, applicationItemId = '') {
+    try {
+      await onResolveConflict(selectedTarget.id, row.id, action, applicationItemId);
+      setManualMatches((current) => ({ ...current, [row.id]: '' }));
+    } catch (error) { notify(error?.message || 'แก้รายการจับคู่ไม่สำเร็จ'); }
+  }
+
+  return <div className="page-stack">
+    <PageHeading eyebrow="ผลการสอบ · ฐานข้อมูลจริง" title="นำเข้าและประกาศผลสอบ" description="นำเข้า Excel เป็นฉบับร่าง ตรวจรายการจับคู่ผิดปกติ แล้วจึงยืนยันประกาศผล" action={<span className={isPublished ? 'schedule-open' : workflow.id ? 'draft-badge' : 'closed-badge'}>{isPublished ? 'ประกาศแล้ว · ล็อกข้อมูล' : workflow.id ? 'ฉบับร่าง' : 'รอเลือกไฟล์'}</span>} />
+    <section className="surface results-target-toolbar results-admin-target-toolbar">
+      <label><span>ปีการศึกษา</span><select value={selectedYear} onChange={(event) => { const nextYear = event.target.value; const nextExam = examCatalog.find((exam) => exam.year === nextYear); setSelectedYear(nextYear); if (nextExam) { setSelectedCompetitionId(nextExam.competitionId); setSelectedRoundType(getExamRoundType(nextExam)); } }}>{years.map((year) => <option key={year} value={year}>{year}</option>)}</select></label>
+      <label><span>รายการสอบ</span><select value={selectedCompetitionId} onChange={(event) => { const nextCompetition = examCatalog.find((exam) => exam.year === selectedYear && exam.competitionId === event.target.value); setSelectedCompetitionId(event.target.value); if (nextCompetition) setSelectedRoundType(getExamRoundType(nextCompetition)); }}>{competitions.map(([id, title]) => <option key={id} value={id}>{title}</option>)}</select></label>
+      <label><span>รอบสอบ</span><select value={selectedTarget ? getExamRoundType(selectedTarget) : selectedRoundType} onChange={(event) => setSelectedRoundType(event.target.value)}>{competitionExams.map((exam) => <option key={exam.id} value={getExamRoundType(exam)}>{EXAM_ROUND_LABELS[getExamRoundType(exam)] || exam.round}</option>)}</select></label>
+      {selectedTarget ? <span className={isPublished ? 'schedule-open' : 'draft-badge'}>{isPublished ? 'ประกาศผลแล้ว' : workflow.id ? 'มีฉบับร่าง' : 'ยังไม่ได้นำเข้า'}</span> : null}
+    </section>
+    {!selectedTarget ? <section className="surface empty-inline"><Icon name="info" /><span>ไม่พบรอบสอบสำหรับรายการที่เลือก กรุณาตรวจสอบรายการสอบในเมนูรอบสอบ</span></section> : <>
+      {isPublished ? <div className="notice notice-green"><Icon name="check" /><div><strong>ประกาศผล {resultTargetLabel(selectedTarget)} แล้ว</strong><p>ผลสอบแสดงในหน้าประกาศผลและล็อกไม่ให้แก้ไข</p></div></div> : null}
+      <div className="results-admin-grid"><section className="surface import-card">
+        <div className="section-heading"><div><p className="eyebrow">{resultTargetLabel(selectedTarget)}</p><h2>นำเข้าผลสอบฉบับร่าง</h2></div><span className={isPublished ? 'schedule-open' : 'draft-badge'}>{isPublished ? 'ประกาศแล้ว' : workflow.id ? 'ฉบับร่าง' : 'รอไฟล์'}</span></div>
+        <label className={`file-drop file-drop-inline ${isPublished ? 'file-disabled' : ''}`}><input type="file" accept=".xlsx,.csv" disabled={isPublished || busyImport} onChange={(event) => { const file = event.target.files?.[0]; importFile(file); event.target.value = ''; }} /><span className="file-drop-icon"><Icon name="upload" /></span><span className="file-drop-copy"><strong>{busyImport ? 'กำลังอ่านและจับคู่…' : workflow.fileName || 'เลือกไฟล์ Excel ผลสอบ'}</strong><small>ไฟล์ .xlsx หรือ .csv · คอลัมน์ CANDIDATE NO, GRADE, SCHOOL NAME, CANDIDATE NAME และ AWARD · บันทึกเป็นฉบับร่างก่อน</small></span><span className="file-select-label">{workflow.id && !isPublished ? 'แทนฉบับร่าง' : 'เลือกไฟล์'}</span></label>
+        {workflow.id ? <div className="import-summary"><span className="summary-icon summary-green"><Icon name="check" /></span><div><strong>{isPublished ? 'ประกาศผลแล้ว · ล็อกข้อมูล' : 'บันทึกฉบับร่างแล้ว'}</strong><small>บันทึก {rows.length} รายการ · {workflow.fileName}</small></div><span className="summary-pill">มีสิทธิ์ Final {finalEligibleRows.length} ราย</span></div> : null}
+        <div className="results-count-strip"><span><strong>{rows.length}</strong> ผู้เข้าสอบ</span><span><strong>{finalEligibleRows.length}</strong> มีสิทธิ์ไป Final</span><span><strong>{matchedRows.length}</strong> จับคู่ได้</span><button type="button" className={`results-count-review ${hasConflict ? 'has-conflicts' : 'all-clear'}`} disabled={!workflow.id} aria-label={`${issueRows.length} รายการที่ต้องตรวจ · กดเพื่อเปิดรายการ`} title="กดเพื่อเปิดรายการที่ต้องตรวจ" aria-haspopup="dialog" aria-expanded={conflictsOpen} onClick={() => setConflictsOpen(true)}><strong>{issueRows.length}</strong><span className="results-review-action">รายการที่ต้องตรวจ</span><span className="results-review-indicator" aria-hidden="true"><Icon name="cursor" size={18} /></span></button></div>
+        <div className="results-award-breakdown" aria-label="จำนวนผู้เข้าสอบตามรางวัล">{awardBreakdown.map(({ award, count }) => <div className={`results-award-count award-count-${award.toLowerCase().replaceAll(' ', '-')}`} key={award}><span>{award}</span><strong>{count}</strong></div>)}</div>
+        <div className="result-preview-heading"><div><strong>รายชื่อผู้เข้าสอบทั้งหมด</strong><small>ตรวจเลขสอบ ระดับชั้น โรงเรียน ชื่อ และรางวัลก่อนประกาศ</small></div><span>{rows.length} ราย</span></div>
+        {rows.length ? <div className="responsive-table admin-results-table-wrap"><table className="admin-results-table"><thead><tr><th>CANDIDATE NO</th><th>GRADE</th><th>SCHOOL NAME</th><th>CANDIDATE NAME</th><th>AWARD</th><th>จับคู่</th></tr></thead><tbody>{rows.map((row) => <tr className={row.matchStatus !== 'matched' ? 'admin-result-row-unmatched' : ''} key={row.id}><td data-label="CANDIDATE NO"><strong className="mono-number">{row.candidateNo}</strong></td><td data-label="GRADE">{row.grade}</td><td data-label="SCHOOL NAME">{row.schoolName}</td><td data-label="CANDIDATE NAME">{row.candidateName}</td><td data-label="AWARD"><span className={`award-badge award-${String(row.award || '').toLowerCase().replaceAll(' ', '-')}`}>{row.award}</span></td><td data-label="จับคู่">{row.matchStatus === 'matched' ? <span className="match-status match-ok"><Icon name="check" size={13} />จับคู่แล้ว</span> : <span className="match-status match-wait"><Icon name="info" size={13} />{row.matchNote || (row.matchStatus === 'data_mismatch' ? 'ข้อมูลไม่ตรง' : row.matchStatus === 'duplicate' ? 'เลขซ้ำ' : 'ไม่พบเลขสอบ')}</span>}</td></tr>)}</tbody></table></div> : <div className="empty-inline"><Icon name="info" /><span>นำเข้าไฟล์ผลสอบของรายการนี้เพื่อสร้างฉบับร่าง</span></div>}
+        <div className="publish-box"><div><strong>{isPublished ? 'ประกาศผลแล้ว' : 'ยืนยันประกาศผล'}</strong><small>{isPublished ? 'ประกาศผลแล้วและล็อกข้อมูล' : hasConflict ? `ยังประกาศไม่ได้ · แก้รายการที่ต้องตรวจอีก ${issueRows.length} รายการ` : selectedRoundType === 'HEAT' ? 'เมื่อประกาศ Heat ผู้ได้เหรียญ หรือผู้ได้อันดับ 1st–3rd ของ BBB จะได้สิทธิ์ Final อัตโนมัติ' : 'เมื่อประกาศแล้วจะแสดงผลสาธารณะและล็อกข้อมูล'}</small></div><Button icon="check" disabled={!workflow.id || hasConflict || isPublished || !rows.length} onClick={() => onPublishResult(selectedTarget)}>{isPublished ? 'ผลสอบถูกล็อก' : 'ประกาศผล'}</Button></div>
+      </section></div>
+      {conflictsOpen ? <div className="results-conflict-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setConflictsOpen(false); }}><section className="results-conflict-dialog" role="dialog" aria-modal="true" aria-labelledby="results-conflict-title">
+        <div className="results-conflict-dialog-head"><div><p className="eyebrow">ตรวจสอบก่อนประกาศผล</p><h2 id="results-conflict-title">รายการที่ต้องตรวจ</h2><small>ยืนยันหรือจับคู่กับใบสมัครของรอบนี้ให้ครบก่อนประกาศ</small></div><span className={hasConflict ? 'conflict-count' : 'conflict-count conflict-count-clear'}>{issueRows.length} รายการ</span><button type="button" className="results-conflict-close" aria-label="ปิดหน้าต่าง" onClick={() => setConflictsOpen(false)}><Icon name="close" size={18} /></button></div>
+        <div className="results-conflict-dialog-body">{!issueRows.length ? <div className="resolved-state"><span><Icon name="check" /></span><div><strong>ไม่พบรายการผิดปกติ</strong><p>ฉบับร่างพร้อมสำหรับตรวจสอบก่อนประกาศ</p></div></div> : <div className="conflict-list">{issueRows.map((row) => {
+          const linked = applications.find((application) => (application.competitions || []).some((item) => item.applicationItemId === row.applicationItemId));
+          const rowItem = applicationItems.find(({ item }) => item.applicationItemId === row.applicationItemId);
+          return <article className="conflict-item" key={row.id}><div className="conflict-label"><span className="conflict-icon"><Icon name="info" /></span><div><strong>{row.matchNote || 'ตรวจการจับคู่ผลสอบ'}</strong><small>แถว {row.rowNumber} · เลขสอบ {row.candidateNo} · {row.candidateName}</small></div></div><p>{resultTargetLabel(selectedTarget)} · {row.grade}<br />โรงเรียนในไฟล์: {row.schoolName || '—'}{row.applicationItemId ? <><br />พบใบสมัคร: {rowItem?.application.candidate || linked?.candidate || row.applicationCandidateName} · {rowItem?.application.school || row.applicationSchoolName || '—'}</> : null}</p>
+            {row.matchStatus === 'data_mismatch' ? <div className="conflict-actions"><Button variant="outline" icon="check" onClick={() => resolve(row, 'use_application')}>ใช้ข้อมูลจากใบสมัคร</Button><Button variant="text" icon="check" onClick={() => resolve(row, 'confirm')}>ยืนยันข้อมูลในไฟล์</Button></div> : <div className="conflict-actions"><select aria-label={`เลือกใบสมัครจับคู่แถว ${row.rowNumber}`} value={manualMatches[row.id] || ''} onChange={(event) => setManualMatches((current) => ({ ...current, [row.id]: event.target.value }))}><option value="">เลือกใบสมัครในรอบนี้</option>{applicationItems.map(({ application, item }) => <option key={item.applicationItemId} value={item.applicationItemId}>{application.candidate} · {application.school} · {item.examNumber || 'ยังไม่มีเลขสอบ'}</option>)}</select><Button variant="outline" disabled={!manualMatches[row.id]} onClick={() => resolve(row, 'manual_match', manualMatches[row.id])}>จับคู่กับใบสมัคร</Button></div>}
+          </article>;
+        })}</div>}</div>
+      </section></div> : null}
+    </>}
+  </div>;
+}
+
+function AdminFinalIdsPage({ applications, examCatalog, publishedHeatResults, onImport, onResolveRow, onApply, notify, navigate }) {
+  const finalRounds = examCatalog.filter((exam) => getExamRoundType(exam) === 'FINAL');
+  const [roundId, setRoundId] = useState(() => finalRounds[0]?.id || '');
+  const target = finalRounds.find((exam) => exam.id === roundId) || finalRounds[0];
+  const [workflow, setWorkflow] = useState(null);
+  const [fileBusy, setFileBusy] = useState(false);
+  const [manualMatches, setManualMatches] = useState({});
+  const [loading, setLoading] = useState(false);
+  const eligibleHeatItems = new Set((publishedHeatResults || []).filter((result) => result.eligibleForFinal)
+    .map((result) => `${result.applicationId}::${result.competitionId}::${result.grade}`));
+  const targetApplications = applications.filter((application) => application.year === target?.year && application.competitions?.some((item) => item.roundId === target?.id));
+  const applicationItems = targetApplications.flatMap((application) => application.competitions
+    .filter((item) => item.roundId === target?.id && item.applicationItemId && eligibleHeatItems.has(`${application.sourceHeatId}::${item.id}::${item.grade}`))
+    .map((item) => ({ application, item })));
+  const rows = workflow?.rows || [];
+  const conflicts = rows.filter((row) => row.matchStatus !== 'matched');
+  const matchedCount = rows.length - conflicts.length;
 
   useEffect(() => {
-    if (!conflictsOpen) return undefined;
-    const closeOnEscape = (event) => { if (event.key === "Escape") setConflictsOpen(false); };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [conflictsOpen]);
+    if (!target || !BACKEND_ENABLED) { setWorkflow(null); return undefined; }
+    let active = true;
+    setLoading(true);
+    fetch(`/api/admin/final-ids?roundId=${encodeURIComponent(target.id)}`, { credentials: 'same-origin' })
+      .then(async (response) => { const result = await response.json().catch(() => ({})); if (!response.ok) throw new Error(result.error || 'โหลดเลข Final ไม่สำเร็จ'); return result.workflow; })
+      .then((result) => { if (active) setWorkflow(result || null); })
+      .catch((error) => { if (active) notify(error?.message || 'โหลดเลข Final ไม่สำเร็จ'); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [target?.id]);
 
-  return (
-    <div className="page-stack">
-      <PageHeading eyebrow="ผลการสอบ · ข้อมูล mock" title="นำเข้าและประกาศผลสอบ" description="เลือกสนามสอบและรอบก่อนนำเข้าผล ตรวจข้อมูลและรายการจับคู่ผิดปกติ แล้วจึงประกาศผล" action={<span className={isPublished ? "schedule-open" : workflow.draftImported ? "draft-badge" : "closed-badge"}>{isPublished ? "ประกาศแล้ว · ล็อกข้อมูล" : workflow.draftImported ? "ฉบับร่าง" : "รอเลือกไฟล์"}</span>} />
-      <section className="surface results-target-toolbar results-admin-target-toolbar">
-        <label><span>ปีการศึกษา</span><select value={selectedYear} onChange={(event) => { const nextYear = event.target.value; const nextExam = examCatalog.find((exam) => exam.year === nextYear); setSelectedYear(nextYear); if (nextExam) { setSelectedCompetitionId(nextExam.competitionId); setSelectedRoundType(getExamRoundType(nextExam)); } }}>{years.map((year) => <option key={year} value={year}>{year}</option>)}</select></label>
-        <label><span>รายการสอบ</span><select value={selectedCompetitionId} onChange={(event) => { const nextCompetition = examCatalog.find((exam) => exam.year === selectedYear && exam.competitionId === event.target.value); setSelectedCompetitionId(event.target.value); if (nextCompetition) setSelectedRoundType(getExamRoundType(nextCompetition)); }}>{competitions.map(([id, title]) => <option key={id} value={id}>{title}</option>)}</select></label>
-        <label><span>รอบสอบ</span><select value={selectedTarget ? getExamRoundType(selectedTarget) : selectedRoundType} onChange={(event) => setSelectedRoundType(event.target.value)}>{competitionExams.map((exam) => <option key={exam.id} value={getExamRoundType(exam)}>{EXAM_ROUND_LABELS[getExamRoundType(exam)] || exam.round}</option>)}</select></label>
-        {selectedTarget ? <span className={isPublished ? "schedule-open" : "draft-badge"}>{isPublished ? "ประกาศผลแล้ว" : workflow.draftImported ? "มีฉบับร่าง" : "ยังไม่ได้นำเข้า"}</span> : null}
-      </section>
-      {!selectedTarget ? <section className="surface empty-inline"><Icon name="info" /><span>ไม่พบรอบสอบสำหรับรายการที่เลือก กรุณาตรวจสอบรายการสอบในเมนูรอบสอบ</span></section> : <>
-        {isPublished ? <div className="notice notice-green"><Icon name="check" /><div><strong>ประกาศผล {resultTargetLabel(selectedTarget)} แล้ว</strong><p>ผลสอบแสดงในหน้าประกาศผลสาธารณะ และล็อกไม่ให้แก้ไข</p></div></div> : null}
-        <div className="results-admin-grid">
-          <section className="surface import-card">
-            <div className="section-heading"><div><p className="eyebrow">{resultTargetLabel(selectedTarget)}</p><h2>นำเข้าผลสอบฉบับร่าง</h2></div><span className={isPublished ? "schedule-open" : "draft-badge"}>{isPublished ? "ประกาศแล้ว" : workflow.draftImported ? "ฉบับร่าง" : "รอไฟล์"}</span></div>
-            <label className={`file-drop file-drop-inline ${isPublished ? "file-disabled" : ""}`}><input type="file" accept=".xlsx,.xls,.csv" disabled={isPublished} onChange={(event) => { const file = event.target.files?.[0]; if (file) onImportDraft(selectedTarget, file.name); event.target.value = ""; }} /><span className="file-drop-icon"><Icon name="upload" /></span><span className="file-drop-copy"><strong>{workflow.fileName || (workflow.draftImported ? `${selectedTarget.competitionId}-${selectedRoundType.toLowerCase()}-results-draft.xlsx` : "เลือกไฟล์ Excel ผลสอบ")}</strong><small>คอลัมน์ CANDIDATE NO, GRADE, SCHOOL NAME, CANDIDATE NAME และ AWARD · เลือกไฟล์ใหม่เพื่อแทนฉบับร่างได้ก่อนประกาศ</small></span><span className="file-select-label">{workflow.draftImported && !isPublished ? "เปลี่ยนไฟล์" : "เลือกไฟล์"}</span></label>
-            <div className="results-import-actions"><span>หรือทดลองขั้นตอนด้วยข้อมูลตัวอย่าง</span><Button variant="outline" icon="grid" disabled={isPublished} onClick={() => onImportDraft(selectedTarget, "ข้อมูลตัวอย่างผลสอบ.xlsx")}>ใช้ข้อมูลตัวอย่าง</Button></div>
-            {workflow.draftImported ? <div className="import-summary"><span className="summary-icon summary-green"><Icon name="check" /></span><div><strong>{isPublished ? "ประกาศผลแล้ว · ล็อกข้อมูล" : "เตรียมฉบับร่างสำเร็จ"}</strong><small>แสดงรายชื่อผู้เข้าสอบครบ {rows.length} รายการ</small></div><span className="summary-pill">มีสิทธิ์ Final {finalEligibleRows.length} ราย</span></div> : null}
-            <div className="results-count-strip"><span><strong>{rows.length}</strong> ผู้เข้าสอบ</span><span><strong>{finalEligibleRows.length}</strong> มีสิทธิ์ไป Final</span><span><strong>{matchedRows.length}</strong> จับคู่ได้</span><button type="button" className={`results-count-review ${hasConflict ? "has-conflicts" : "all-clear"}`} disabled={!workflow.draftImported} aria-label={`${conflictCount} รายการที่ต้องตรวจ · กดเพื่อเปิดรายการ`} title="กดเพื่อเปิดรายการที่ต้องตรวจ" aria-haspopup="dialog" aria-expanded={conflictsOpen} onClick={() => setConflictsOpen(true)}><strong>{conflictCount}</strong><span className="results-review-action">รายการที่ต้องตรวจ</span><span className="results-review-indicator" aria-hidden="true"><Icon name="cursor" size={18} /></span></button></div>
-            <div className="results-award-breakdown" aria-label="จำนวนผู้เข้าสอบตามรางวัล">{awardBreakdown.map(({ award, count }) => <div className={`results-award-count award-count-${award.toLowerCase().replaceAll(" ", "-")}`} key={award}><span>{award}</span><strong>{count}</strong></div>)}</div>
-            <div className="result-preview-heading"><div><strong>รายชื่อผู้เข้าสอบทั้งหมด</strong><small>ตรวจ Candidate No, ระดับชั้น โรงเรียน ชื่อ และรางวัลก่อนประกาศ</small></div><span>{rows.length} ราย</span></div>
-            {rows.length ? <div className="responsive-table admin-results-table-wrap"><table className="admin-results-table"><thead><tr><th>CANDIDATE NO</th><th>GRADE</th><th>SCHOOL NAME</th><th>CANDIDATE NAME</th><th>AWARD</th><th>จับคู่</th></tr></thead><tbody>{rows.map((row, index) => <tr className={row.matchStatus !== "matched" ? "admin-result-row-unmatched" : ""} key={`${row.applicationId}-${index}`}><td data-label="CANDIDATE NO"><strong className="mono-number">{row.candidateNo || row.examNumber}</strong></td><td data-label="GRADE">{row.grade}</td><td data-label="SCHOOL NAME">{row.schoolName || row.school}</td><td data-label="CANDIDATE NAME">{row.candidateName || row.candidate}</td><td data-label="AWARD"><span className={`award-badge award-${String(row.award || "").toLowerCase().replaceAll(" ", "-")}`}>{row.award}</span></td><td data-label="จับคู่">{row.matchStatus === "school-mismatch" ? <span className="match-status match-wait"><Icon name="info" size={13} />ชื่อโรงเรียนไม่ตรง</span> : row.matchStatus === "unmatched" ? <span className="match-status match-wait"><Icon name="info" size={13} />ไม่พบเลขสอบ</span> : <span className="match-status match-ok"><Icon name="check" size={13} />จับคู่แล้ว</span>}</td></tr>)}</tbody></table></div> : <div className="empty-inline"><Icon name="info" /><span>เลือกไฟล์เพื่อสร้างตัวอย่างผลสอบของรายการนี้</span></div>}
-            <div className="publish-box"><div><strong>{isPublished ? "ประกาศผลแล้ว" : "ยืนยันประกาศผล"}</strong><small>{isPublished ? "ประกาศผลแล้วและล็อกข้อมูล" : hasConflict ? `ยังประกาศไม่ได้ · แก้รายการที่ต้องตรวจให้ครบก่อน (${conflictCount} รายการ)` : selectedRoundType === "HEAT" ? "เมื่อประกาศ Heat ผู้ได้เหรียญ หรือผู้ได้อันดับ 1st–3rd ของ BBB จะยืนยันสิทธิ์ Final ได้อัตโนมัติ" : "เมื่อประกาศแล้วจะแสดงผลสาธารณะและล็อกข้อมูล"}</small></div><Button icon="check" disabled={!workflow.draftImported || hasConflict || isPublished || !rows.length} onClick={() => onPublishResult(selectedTarget)}>{isPublished ? "ผลสอบถูกล็อก" : "ประกาศผล"}</Button></div>
-          </section>
-        </div>
-        {conflictsOpen ? <div className="results-conflict-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setConflictsOpen(false); }}>
-          <section className="results-conflict-dialog" role="dialog" aria-modal="true" aria-labelledby="results-conflict-title">
-            <div className="results-conflict-dialog-head"><div><p className="eyebrow">ตรวจสอบก่อนประกาศผล</p><h2 id="results-conflict-title">รายการที่ต้องตรวจ</h2><small>แก้ไขรายการที่จับคู่ไม่สำเร็จให้ครบก่อนประกาศผล</small></div><span className={hasConflict ? "conflict-count" : "conflict-count conflict-count-clear"}>{conflictCount} รายการ</span><button type="button" className="results-conflict-close" aria-label="ปิดหน้าต่าง" onClick={() => setConflictsOpen(false)}><Icon name="close" size={18} /></button></div>
-            <div className="results-conflict-dialog-body">
-              {!workflow.draftImported ? <div className="empty-inline"><Icon name="info" /><span>เลือกไฟล์ผลสอบของ {resultTargetLabel(selectedTarget)} เพื่อดูรายการที่จับคู่ไม่สำเร็จ</span></div> : !issueRows.length ? <div className="resolved-state"><span><Icon name="check" /></span><div><strong>ไม่พบรายการผิดปกติ</strong><p>ฉบับร่างพร้อมสำหรับตรวจสอบก่อนประกาศผล</p></div></div> : (
-                <div className="conflict-list">{issueRows.map((row, index) => {
-                  const linkedApplication = applications.find((item) => item.id === row.issueApplicationId || item.id === row.applicationId) || conflictApplication;
-                  const schoolMismatch = row.matchStatus === "school-mismatch";
-                  const issueKey = getResultIssueKey(row);
-                  return <article className="conflict-item" key={issueKey}>
-                    <div className="conflict-label"><span className="conflict-icon"><Icon name="info" /></span><div><strong>{schoolMismatch ? "ชื่อโรงเรียนในไฟล์ผลสอบไม่ตรงกับใบสมัคร" : "ไม่พบเลขประจำตัวสอบในใบสมัคร"}</strong><small>แถว {index + 1} · เลขสอบ {row.candidateNo || row.examNumber} · {row.candidateName || row.candidate}</small></div></div>
-                    <p>{resultTargetLabel(selectedTarget)} · {row.grade}{schoolMismatch ? <><br />โรงเรียนในไฟล์ผลสอบ: {row.schoolName || row.school}<br />โรงเรียนในใบสมัคร: {linkedApplication?.school || row.applicationSchoolName || "ไม่พบข้อมูล"}</> : <><br />โรงเรียน: {row.schoolName || row.school}</>}</p>
-                    <div className="conflict-actions">{schoolMismatch ? <><Button variant="outline" icon="check" onClick={() => { onResolveConflict(selectedTarget.id, "application", issueKey); notify("ใช้ชื่อโรงเรียนจากใบสมัครและจับคู่ข้อมูลตัวอย่างแล้ว"); }}>ใช้ชื่อโรงเรียนจากใบสมัคร</Button><Button variant="outline" icon="upload" onClick={() => { onResolveConflict(selectedTarget.id, "file", issueKey); notify("ใช้ชื่อโรงเรียนจากไฟล์ผลสอบ และอัปเดตใบสมัครตัวอย่างแล้ว"); }}>ใช้ข้อมูลจากไฟล์ผลสอบ</Button></> : <><Button variant="outline" icon="edit" onClick={() => { setConflictsOpen(false); linkedApplication ? navigate("admin-review", linkedApplication.id) : notify("ไม่มีใบสมัครตัวอย่างให้เปิด"); }}>เปิดใบสมัครที่เกี่ยวข้อง</Button><Button variant="text" icon="upload" onClick={() => { onResolveConflict(selectedTarget.id, "application", issueKey); notify("จำลองนำไฟล์ Excel เข้าซ้ำสำหรับรายการนี้แล้ว"); }}>จำลองนำไฟล์ Excel เข้าซ้ำ</Button></>}</div>
-                  </article>;
-                })}</div>
-              )}
-            </div>
-          </section>
-        </div> : null}
-      </>}
-      <div className="notice notice-amber results-mock-note"><Icon name="info" /><div><strong>โหมด mock</strong><p>เลือกไฟล์เพื่อจำลองสถานะนำเข้าเท่านั้น ไม่มีการอ่านข้อมูลหรือบันทึกไฟล์ผลสอบจริง</p></div></div>
-    </div>
-  );
-}
+  async function chooseFile(file) {
+    if (!file || !target || fileBusy) return;
+    setFileBusy(true);
+    try {
+      const parsed = await parseAdminWorkbook(file, false);
+      const imported = await onImport(target, file.name, parsed);
+      setWorkflow(imported);
+    } catch (error) { notify(error?.message || 'นำเข้าเลข Final ไม่สำเร็จ'); }
+    finally { setFileBusy(false); }
+  }
 
-function AdminFinalIdsPage({ applications, finalIdsImported, onImport, onManualMatch, notify, navigate }) {
-  const [fileName, setFileName] = useState("");
-  const finalApplications = applications.filter((item) => item.kind === "Final");
-  const matchedCount = finalApplications.filter((item) => item.finalId).length;
-  const waitingCount = Math.max(0, finalApplications.length - matchedCount);
-  return (
-    <div className="page-stack">
-      <PageHeading eyebrow="ข้อมูลผู้เข้าสอบ Final · mock" title="นำเข้าและจับคู่เลข Final" description="จับคู่เลขจากไฟล์กับใบสมัคร Final ด้วยชื่อภาษาอังกฤษและโรงเรียน" action={<span className="queue-indicator"><span />รอตรวจ {waitingCount} รายการ</span>} />
+  async function resolve(row, action, applicationItemId = '') {
+    try {
+      const updated = await onResolveRow(row.id, action, applicationItemId);
+      setWorkflow(updated);
+      setManualMatches((current) => ({ ...current, [row.id]: '' }));
+    } catch (error) { notify(error?.message || 'แก้การจับคู่เลข Final ไม่สำเร็จ'); }
+  }
+
+  async function applyNumbers() {
+    if (!target || conflicts.length || !rows.length || workflow?.applied) return;
+    const applied = await onApply(target);
+    if (!applied) return;
+    const response = await fetch(`/api/admin/final-ids?roundId=${encodeURIComponent(target.id)}`, { credentials: 'same-origin' });
+    const result = await response.json().catch(() => ({}));
+    if (response.ok) setWorkflow(result.workflow || null);
+  }
+
+  return <div className="page-stack">
+    <PageHeading eyebrow="ข้อมูลผู้เข้าสอบ Final · ฐานข้อมูลจริง" title="นำเข้าและจับคู่เลข Final" description="เลือกสนามสอบและรอบ นำเข้าไฟล์จากผู้จัด แล้วตรวจชื่อ โรงเรียน และเลขก่อนบันทึกลงใบสมัคร" action={<span className="queue-indicator"><span />รอตรวจ {conflicts.length} รายการ</span>} />
+    {!target ? <section className="surface empty-inline"><Icon name="info" /><span>ยังไม่มีรายการสอบรอบ Final ในระบบ</span></section> : <>
+      <section className="surface results-target-toolbar results-admin-target-toolbar"><label><span>รายการสอบและรอบ</span><select value={target.id} onChange={(event) => { setRoundId(event.target.value); setWorkflow(null); }}>{finalRounds.map((exam) => <option key={exam.id} value={exam.id}>{exam.title} · {exam.round || EXAM_ROUND_LABELS.FINAL} · {exam.year}</option>)}</select></label><span className={workflow?.applied ? 'schedule-open' : 'draft-badge'}>{workflow?.applied ? 'บันทึกเลขแล้ว' : workflow?.id ? 'ฉบับร่าง' : 'รอไฟล์'}</span></section>
       <section className="surface final-id-import">
-        <div className="final-id-intro"><span className="final-id-intro-icon"><Icon name="users" /></span><div><h2>นำเข้าไฟล์เลขประจำตัวจากฮ่องกง</h2><p>ระบบจับคู่เบื้องต้นด้วยชื่อภาษาอังกฤษและโรงเรียน รายการที่ไม่พบหรือซ้ำจะพักไว้ให้ตรวจสอบ</p></div></div>
-        <label className="file-drop file-drop-inline"><input type="file" accept=".xlsx,.xls" onChange={(event) => { const file = event.target.files?.[0]; if (file) { setFileName(file.name); onImport(); } }} /><span className="file-drop-icon"><Icon name="upload" /></span><span className="file-drop-copy"><strong>{fileName || (finalIdsImported ? "final-candidate-ids.xlsx" : "เลือกไฟล์ Excel เลขประจำตัว Final")}</strong><small>รองรับไฟล์ .xlsx หรือ .xls · การนำเข้าในหน้านี้เป็นการจำลอง</small></span><span className="file-select-label">เลือกไฟล์</span></label>
-        {finalIdsImported ? <div className="import-summary"><span className="summary-icon summary-green"><Icon name="check" /></span><div><strong>จำลองการนำเข้าเรียบร้อย</strong><small>จับคู่อัตโนมัติ {matchedCount} ราย · ต้องตรวจด้วยมือ {waitingCount} ราย</small></div><span className="summary-pill">พร้อมตรวจ</span></div> : null}
+        <div className="final-id-intro"><span className="final-id-intro-icon"><Icon name="users" /></span><div><h2>นำเข้าไฟล์เลขประจำตัวจากผู้จัด</h2><p>จับคู่ด้วยชื่อภาษาอังกฤษและโรงเรียน · ถ้ามีระดับชั้นในไฟล์จะใช้ตรวจเพิ่ม · รายการที่กำกวมให้จับคู่ด้วยมือ</p></div></div>
+        <label className="file-drop file-drop-inline"><input type="file" accept=".xlsx,.csv" disabled={fileBusy || workflow?.applied} onChange={(event) => { const file = event.target.files?.[0]; chooseFile(file); event.target.value = ''; }} /><span className="file-drop-icon"><Icon name="upload" /></span><span className="file-drop-copy"><strong>{fileBusy ? 'กำลังอ่านและจับคู่…' : workflow?.fileName || 'เลือกไฟล์ Excel เลขประจำตัว Final'}</strong><small>ไฟล์ .xlsx หรือ .csv · คอลัมน์ CANDIDATE NO, CANDIDATE NAME, SCHOOL NAME และ GRADE (ถ้ามี)</small></span><span className="file-select-label">{workflow?.id && !workflow?.applied ? 'แทนฉบับร่าง' : 'เลือกไฟล์'}</span></label>
+        {workflow?.id ? <div className="import-summary"><span className="summary-icon summary-green"><Icon name="check" /></span><div><strong>{workflow.applied ? 'บันทึกเลข Final แล้ว' : 'บันทึกฉบับร่างแล้ว'}</strong><small>จับคู่อัตโนมัติ {matchedCount} ราย · ต้องตรวจด้วยมือ {conflicts.length} ราย</small></div><span className="summary-pill">{rows.length} ราย</span></div> : null}
       </section>
       <section className="surface final-match-table">
-        <div className="section-heading"><div><p className="eyebrow">รายการจับคู่</p><h2>ผลการนำเข้าเลข Final</h2></div><div className="match-legend"><span><i className="legend-green" />จับคู่แล้ว</span><span><i className="legend-amber" />รอตรวจ</span></div></div>
-        <div className="responsive-table"><table><thead><tr><th>ชื่อภาษาอังกฤษ</th><th>โรงเรียน</th><th>เลขประจำตัว Final</th><th>สถานะจับคู่</th><th>ดำเนินการ</th></tr></thead><tbody>
-          {finalApplications.map((item) => {
-            const issue = "พบผู้สมัครชื่อเดียวกัน ต้องตรวจยืนยัน";
-            return <tr key={item.id}><td>{item.candidate}</td><td>{item.school}</td><td className="mono-number">{item.finalId || (finalIdsImported ? "รอตรวจจับคู่" : "รอนำเข้าเลขประจำตัว")}</td><td>{item.finalId ? <span className="match-status match-ok"><Icon name="check" size={13} />จับคู่แล้ว</span> : finalIdsImported ? <span className="match-status match-wait"><Icon name="info" size={13} />{issue}</span> : <span className="match-status match-wait"><Icon name="clock" size={13} />รอไฟล์นำเข้า</span>}</td><td><div className="final-id-row-actions"><Button variant="text" icon="file" onClick={() => navigate("admin-review", item.id)}>ดูใบสมัคร</Button>{!item.finalId && finalIdsImported ? <Button variant="outline" onClick={() => onManualMatch(item.id)}>จับคู่ด้วยมือ</Button> : null}</div></td></tr>;
-          })}
-        </tbody></table></div>
-        {!finalApplications.length ? <div className="empty-inline"><Icon name="info" /><span>ยังไม่มีใบสมัคร Final ในข้อมูลตัวอย่าง</span></div> : null}
-        <div className="table-footnote"><Icon name="info" size={15} />เลขที่จับคู่สำเร็จจะแสดงในใบสมัคร Final · หากมีหลายรายการให้ตรวจชื่อและโรงเรียนก่อนยืนยัน</div>
+        <div className="section-heading"><div><p className="eyebrow">{target.title} · ปี {target.year}</p><h2>ผลการนำเข้าเลข Final</h2></div><div className="match-legend"><span><i className="legend-green" />จับคู่แล้ว</span><span><i className="legend-amber" />รอตรวจ</span></div></div>
+        {loading ? <div className="empty-inline"><Icon name="sync" /><span>กำลังโหลดสถานะการนำเข้า…</span></div> : <div className="responsive-table"><table><thead><tr><th>ชื่อภาษาอังกฤษ</th><th>โรงเรียน</th><th>ระดับชั้น</th><th>เลขประจำตัว Final</th><th>สถานะจับคู่</th><th>ดำเนินการ</th></tr></thead><tbody>{rows.map((row) => <tr key={row.id}><td>{row.candidateName}</td><td>{row.schoolName}</td><td>{row.grade || '—'}</td><td className="mono-number">{row.candidateNo}</td><td>{row.matchStatus === 'matched' ? <span className="match-status match-ok"><Icon name="check" size={13} />จับคู่แล้ว</span> : <span className="match-status match-wait"><Icon name="info" size={13} />{row.matchNote || 'รอตรวจ'}</span>}</td><td>{row.matchStatus === 'matched' ? <Button variant="text" icon="file" onClick={() => navigate('admin-review', row.applicationId)}>ดูใบสมัคร</Button> : <div className="final-id-row-actions"><select aria-label={`เลือกผู้สมัครจับคู่เลข ${row.candidateNo}`} value={manualMatches[row.id] || ''} onChange={(event) => setManualMatches((current) => ({ ...current, [row.id]: event.target.value }))}><option value="">เลือกใบสมัครในรอบนี้</option>{applicationItems.map(({ application, item }) => <option key={item.applicationItemId} value={item.applicationItemId}>{application.candidate} · {application.school} · {item.grade}</option>)}</select><Button variant="outline" disabled={!manualMatches[row.id]} onClick={() => resolve(row, 'manual_match', manualMatches[row.id])}>จับคู่</Button></div>}</td></tr>)}</tbody></table></div>}
+        {!loading && !rows.length ? <div className="empty-inline"><Icon name="info" /><span>{workflow?.applied ? 'บันทึกเลข Final แล้ว แต่ไม่พบใบสมัครในรอบนี้' : 'เลือกไฟล์ Excel เพื่อเริ่มจับคู่เลข Final'}</span></div> : null}
+        <div className="publish-box"><div><strong>{workflow?.applied ? 'บันทึกเลข Final แล้ว' : 'ยืนยันบันทึกเลข Final'}</strong><small>{workflow?.applied ? 'เลขถูกบันทึกลงใบสมัครแล้วและล็อกฉบับนำเข้า' : conflicts.length ? `แก้รายการที่ต้องตรวจก่อน (${conflicts.length} รายการ)` : 'เลขที่จับคู่แล้วจะถูกบันทึกลงใบสมัคร Final'}</small></div><Button icon="check" disabled={!workflow?.id || workflow?.applied || conflicts.length > 0 || !rows.length} onClick={applyNumbers}>{workflow?.applied ? 'บันทึกแล้ว' : 'บันทึกเลข Final'}</Button></div>
       </section>
-    </div>
-  );
+      <div className="table-footnote"><Icon name="info" size={15} />ไฟล์ที่บันทึกแล้วจะแสดงเลขบนใบสมัคร Final และข้อมูลผู้เข้าสอบ</div>
+    </>}
+  </div>;
 }
 
-function AdminSheetsPage({ applications, syncFailed, setSyncFailed }) {
-  const confirmedApplications = applications.filter((item) => item.status === "confirmed");
-  const heatCount = confirmedApplications.filter((item) => item.kind === "Heat").length;
-  const finalCount = confirmedApplications.filter((item) => item.kind === "Final").length;
+function GoogleDriveConnectionCard() {
+  const [status, setStatus] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  async function refreshStatus() {
+    if (!BACKEND_ENABLED) return;
+    try {
+      const response = await fetch('/api/admin/google-workspace/status', { credentials: 'same-origin' });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "อ่านสถานะ Google Drive ไม่สำเร็จ");
+      setStatus(result);
+    } catch (error) { setMessage(error.message || "อ่านสถานะ Google Drive ไม่สำเร็จ"); }
+  }
+  useEffect(() => { refreshStatus(); }, []);
+  async function connectGoogle() {
+    setBusy(true); setMessage("");
+    try {
+      const response = await fetch('/api/admin/google-workspace/connect', { method: 'POST', credentials: 'same-origin' });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "เริ่มเชื่อม Google Drive ไม่สำเร็จ");
+      window.location.assign(result.authorizationUrl);
+    } catch (error) { setMessage(error.message || "เริ่มเชื่อม Google Drive ไม่สำเร็จ"); setBusy(false); }
+  }
+  async function prepareFolders() {
+    setBusy(true); setMessage("");
+    try {
+      const response = await fetch('/api/admin/google-workspace/initialize-drive', { method: 'POST', credentials: 'same-origin' });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "เตรียมโฟลเดอร์ Google Drive ไม่สำเร็จ");
+      await refreshStatus(); setMessage("สร้างโฟลเดอร์ OCEC Portal ใน Google Drive แล้ว");
+    } catch (error) { setMessage(error.message || "เตรียมโฟลเดอร์ Google Drive ไม่สำเร็จ"); }
+    finally { setBusy(false); }
+  }
+  const missingWorkspaceScopes = (status?.missingScopes || []).filter((scope) => scope.includes("gmail.send") || scope.includes("spreadsheets"));
+  const scopeLabels = missingWorkspaceScopes.map((scope) => scope.includes("gmail.send") ? "Gmail API" : "Google Sheets API").filter((label, index, labels) => labels.indexOf(label) === index);
+  return <section className="surface sync-demo-control google-drive-connection">
+    <div><span className="sync-demo-icon"><Icon name="upload" /></span><div><strong>บัญชี Google สำหรับ Drive, Gmail และ Sheets</strong><p>{status?.connected ? `เชื่อมต่อแล้ว · ${status.accountEmail}` : status?.configured ? "เชื่อมบัญชี Google ที่ใช้เก็บไฟล์และส่งอีเมล" : "ต้องตั้งค่า OAuth และ encryption key ใน environment ก่อนเชื่อมบัญชี"}</p>{status?.connected ? <small>{status.foldersInitialized ? "โฟลเดอร์ Drive พร้อมใช้งาน" : "ระบบจะเตรียมโฟลเดอร์ Drive เมื่อมีการอัปโหลดไฟล์"}{scopeLabels.length ? ` · ต้องเพิ่มสิทธิ์ ${scopeLabels.join(" และ ")} ใน Google Auth Platform แล้วเชื่อมบัญชีใหม่` : " · สิทธิ์ Gmail และ Sheets พร้อมใช้งาน"}</small> : null}{message ? <small role="status">{message}</small> : null}</div></div>
+    {status?.connected ? <div className="final-id-row-actions">
+      {!status.foldersInitialized ? <Button variant="outline" disabled={busy} onClick={prepareFolders}>{busy ? "กำลังเตรียม…" : "เตรียมโฟลเดอร์ Drive"}</Button> : <span className="schedule-open">Drive พร้อม</span>}
+      {scopeLabels.length ? <Button variant="outline" disabled={busy} onClick={connectGoogle}>{busy ? "กำลังเชื่อม…" : "เชื่อมใหม่เพื่อเพิ่มสิทธิ์"}</Button> : null}
+    </div> : <Button variant="outline" disabled={busy || !status?.configured} onClick={connectGoogle}>{busy ? "กำลังเชื่อม…" : "เชื่อมบัญชี Google"}</Button>}
+  </section>;
+}
+
+function AdminSheetsPage() {
+  const [data, setData] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  async function refresh() {
+    try {
+      const response = await fetch("/api/admin/integrations/status", { credentials: "same-origin" });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "อ่านสถานะ integration ไม่สำเร็จ");
+      setData(result); setMessage("");
+    } catch (error) { setMessage(error.message || "อ่านสถานะ integration ไม่สำเร็จ"); }
+  }
+  useEffect(() => {
+    if (!BACKEND_ENABLED) return undefined;
+    refresh();
+    const timer = window.setInterval(refresh, 5000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const counts = (data?.queue?.counts || []).reduce((all, row) => ({ ...all, [`${row.kind}:${row.status}`]: row.count }), {});
+  const jobs = data?.queue?.jobs || [];
+  const syncFailedCount = counts["sheets.sync_item:failed"] || 0;
+  const pendingCount = (counts["sheets.sync_item:pending"] || 0) + (counts["gmail.send:pending"] || 0);
+  async function syncApprovedItems() {
+    setBusy(true); setMessage("");
+    try {
+      const response = await fetch("/api/admin/integrations/sheets/sync", { method: "POST", credentials: "same-origin" });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "เพิ่มงานซิงก์ไม่สำเร็จ");
+      setMessage(`เพิ่ม ${result.queued} รายการเข้าคิวซิงก์แล้ว`); await refresh();
+    } catch (error) { setMessage(error.message || "เพิ่มงานซิงก์ไม่สำเร็จ"); }
+    finally { setBusy(false); }
+  }
+  async function retryJob(id) {
+    setBusy(true);
+    try {
+      const response = await fetch(`/api/admin/integration-jobs/${id}/retry`, { method: "POST", credentials: "same-origin" });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "เริ่มงานซ้ำไม่สำเร็จ");
+      await refresh();
+    } catch (error) { setMessage(error.message || "เริ่มงานซ้ำไม่สำเร็จ"); }
+    finally { setBusy(false); }
+  }
+  const formatTime = (value) => value ? new Intl.DateTimeFormat("th-TH", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "—";
   return (
     <div className="page-stack">
-      <PageHeading eyebrow="การเชื่อมต่อข้อมูล" title="สถานะ Google Sheets" description="ข้อมูลจากเว็บไซต์ส่งไปยังชีตทางเดียว การแก้ไขในชีตจะไม่ซิงก์กลับเข้าเว็บ" />
-      {syncFailed ? <div className="notice notice-amber sync-failed-message"><Icon name="sync" /><div><strong>ไม่สามารถซิงก์ข้อมูลเข้าชีตได้ ตอนนี้ระบบกำลังพยายามซิงก์ข้อมูลอยู่</strong><p>มี {confirmedApplications.length} ใบสมัครที่รอซิงก์ ระบบจะลองใหม่อัตโนมัติทุก 2–3 นาที</p></div></div> : <div className="notice notice-green"><Icon name="check" /><div><strong>สถานะตัวอย่าง: ซิงก์ข้อมูลปกติ</strong><p>มี {confirmedApplications.length} ใบสมัครที่อนุมัติแล้ว · ยังไม่ได้เชื่อม Google Sheets จริง</p></div></div>}
+      <PageHeading eyebrow="การเชื่อมต่อข้อมูล" title="สถานะ Google Sheets" description="ซิงก์เฉพาะใบสมัครที่อนุมัติแล้ว · แยก workbook ตามปีและ tab ตามรายการสอบ/รอบ · การแก้ไขในชีตไม่เขียนกลับเข้าเว็บ" action={<Button variant="outline" icon="sync" disabled={busy || !BACKEND_ENABLED} onClick={refresh}>รีเฟรชสถานะ</Button>} />
+      {BACKEND_ENABLED ? <GoogleDriveConnectionCard /> : <div className="notice notice-amber"><Icon name="info" /><div><strong>ยังไม่ได้เปิด backend จริง</strong><p>เปิด VITE_BACKEND_ENABLED และเชื่อมฐานข้อมูลก่อนดูสถานะ integration</p></div></div>}
+      {message ? <div className="notice notice-blue" role="status"><Icon name="info" /><div><p>{message}</p></div></div> : null}
       <div className="sheets-grid">
-        <section className="surface sheets-status-card"><span className={"sheets-status-icon " + (syncFailed ? "sheets-status-wait" : "")}><Icon name={syncFailed ? "sync" : "check"} /></span><p className="eyebrow">สถานะการเชื่อมต่อ</p><h2>{syncFailed ? "กำลังซิงก์ข้อมูล" : "สถานะตัวอย่าง: ปกติ"}</h2><p>{syncFailed ? "มีรายการรอซิงก์ ระบบจะดำเนินการใหม่อัตโนมัติ" : "เมื่อใช้งานจริง ระบบจะส่งใบสมัครที่อนุมัติแล้วไปยังชีตทางเดียว"}</p><div className="sheets-last-sync"><span>ใบสมัครที่พร้อมซิงก์</span><strong>{confirmedApplications.length} รายการ</strong></div></section>
-        <section className="surface sheets-activity"><div className="section-heading"><div><p className="eyebrow">กิจกรรมตัวอย่าง</p><h2>รายการที่จะซิงก์</h2></div><span className="activity-range">ตามสถานะปัจจุบัน</span></div><div className="activity-list"><div className="activity-row"><span className="activity-mark activity-ok"><Icon name="check" size={13} /></span><div><strong>ใบสมัคร Heat ที่อนุมัติแล้ว</strong><small>{heatCount} รายการ · ส่งจากเว็บทางเดียว</small></div><time>{syncFailed ? "รอซิงก์" : "พร้อม"}</time></div><div className={"activity-row " + (syncFailed ? "activity-row-failed" : "")}><span className={"activity-mark " + (syncFailed ? "activity-wait" : "activity-ok")}><Icon name={syncFailed ? "clock" : "check"} size={13} /></span><div><strong>ใบสมัคร Final ที่อนุมัติแล้ว</strong><small>{finalCount} รายการ · ไม่ซิงก์กลับจากชีต</small></div><time>{syncFailed ? "รอซิงก์" : "พร้อม"}</time></div></div><p className="sheets-rule"><Icon name="info" size={15} />การแก้ไขในชีตไม่ส่งกลับเข้าเว็บ · ถ้าซิงก์ไม่สำเร็จ ระบบจะลองใหม่ทุก 2–3 นาที</p></section>
+        <section className="surface sheets-status-card"><span className={"sheets-status-icon " + (syncFailedCount ? "sheets-status-wait" : "")}><Icon name={syncFailedCount ? "sync" : "check"} /></span><p className="eyebrow">รายการที่อนุมัติ</p><h2>{data?.queue?.sheets?.synced_items ?? "—"} / {data?.queue?.sheets?.approved_items ?? "—"}</h2><p>รายการที่ซิงก์แล้ว / รายการที่อนุมัติและต้องซิงก์</p><div className="sheets-last-sync"><span>งานรอเริ่ม</span><strong>{pendingCount + (counts["sheets.sync_item:failed"] || 0) + (counts["gmail.send:failed"] || 0)} งาน</strong></div><Button variant="outline" icon="sync" disabled={busy || !data?.workspace?.connected} onClick={syncApprovedItems}>{busy ? "กำลังเพิ่มคิว…" : "ซิงก์ใบสมัครที่อนุมัติแล้ว"}</Button></section>
+        <section className="surface sheets-activity"><div className="section-heading"><div><p className="eyebrow">Google Sheets</p><h2>Workbook ที่สร้างแล้ว</h2></div></div>
+          {(data?.queue?.workbooks || []).length ? <div className="activity-list">{data.queue.workbooks.map((book) => <div className="activity-row" key={book.academic_year}><span className="activity-mark activity-ok"><Icon name="file" size={13} /></span><div><strong>{book.title}</strong><small>ปีการศึกษา {book.academic_year} · อัปเดต {formatTime(book.updated_at)}</small></div><a href={book.spreadsheet_url} target="_blank" rel="noreferrer">เปิดชีต</a></div>)}</div> : <div className="empty-inline"><Icon name="info" /><span>จะสร้าง workbook เมื่อมีใบสมัครที่อนุมัติแล้วเข้าคิว</span></div>}
+          <p className="sheets-rule"><Icon name="info" size={15} />หนึ่งแถวต่อ Application Item ID · ถ้าสมัคร 3 รายการจะแยกอยู่ 3 tab ตามรอบ</p>
+        </section>
       </div>
-      <section className="surface sync-demo-control"><div><span className="sync-demo-icon"><Icon name="settings" /></span><div><strong>ตัวควบคุมข้อมูล mock</strong><p>สลับเพื่อดูข้อความระบบซิงก์ไม่สำเร็จ · ไม่มีการเชื่อมต่อภายนอก</p></div></div><label className="toggle-control"><span>จำลองซิงก์ไม่สำเร็จ</span><input type="checkbox" checked={syncFailed} onChange={(event) => setSyncFailed(event.target.checked)} /><i /></label></section>
+      <section className="surface sheets-activity"><div className="section-heading"><div><p className="eyebrow">คิวส่งข้อมูล</p><h2>งานล่าสุด</h2></div></div>
+        {jobs.length ? <div className="activity-list">{jobs.map((job) => <div className={"activity-row " + (job.status === "failed" ? "activity-row-failed" : "")} key={job.id}><span className={"activity-mark " + (job.status === "completed" ? "activity-ok" : job.status === "failed" ? "activity-wait" : "")}><Icon name={job.status === "completed" ? "check" : job.status === "failed" ? "info" : "clock"} size={13} /></span><div><strong>{job.kind === "gmail.send" ? "ส่งอีเมล" : "ซิงก์ Google Sheets"} · {job.status === "completed" ? "เสร็จแล้ว" : job.status === "failed" ? "ส่งไม่สำเร็จ" : job.status === "running" ? "กำลังทำงาน" : "รอคิว"}</strong><small>{job.last_error || `สร้าง ${formatTime(job.created_at)} · ลองแล้ว ${job.attempts} ครั้ง`}</small></div>{job.status === "failed" ? <Button variant="text" disabled={busy} onClick={() => retryJob(job.id)}>ลองอีกครั้ง</Button> : null}</div>)}</div> : <div className="empty-inline"><Icon name="info" /><span>ยังไม่มีงานอีเมลหรือชีต</span></div>}
+      </section>
     </div>
   );
 }
@@ -3753,7 +4320,7 @@ function RegistrationLoginGate({ kind }) {
   return (
     <section className="surface registration-login-gate" aria-labelledby="registration-login-title">
       <span className="registration-login-icon"><Icon name="shield" size={22} /></span>
-      <p className="eyebrow">{kind === "Final" ? "OCEC Final 2569" : "OCEC Portal"}</p>
+      <p className="eyebrow">{kind === "Final" ? "OCEC Final" : "OCEC Portal"}</p>
       <h1 id="registration-login-title">เข้าสู่ระบบเพื่อเริ่มสมัคร</h1>
       <p>เมื่อเข้าสู่ระบบแล้ว ฟอร์มสมัครสอบจะเปิดขึ้นที่หน้านี้ คุณสามารถกรอกข้อมูลผู้สมัครและติดตามใบสมัครผ่านบัญชีได้</p>
     </section>
@@ -3761,47 +4328,50 @@ function RegistrationLoginGate({ kind }) {
 }
 
 function FinalAccessGate({ navigate }) {
-  return <section className="surface registration-login-gate" aria-labelledby="final-access-title"><span className="registration-login-icon"><Icon name="award" size={22} /></span><p className="eyebrow">OCEC Final 2569</p><h1 id="final-access-title">ยืนยันสิทธิ์ก่อนสมัคร Final</h1><p>เริ่มจากตรวจสอบใบสมัคร Heat ที่ผ่านการคัดเลือก แล้วระบบจะนำข้อมูลเดิมมาเติมในฟอร์ม Final ให้</p><Button icon="arrow" onClick={() => navigate("final-confirm")}>ไปหน้ายืนยันสิทธิ์</Button></section>;
+  return <section className="surface registration-login-gate" aria-labelledby="final-access-title"><span className="registration-login-icon"><Icon name="award" size={22} /></span><p className="eyebrow">OCEC Final</p><h1 id="final-access-title">ยืนยันสิทธิ์ก่อนสมัคร Final</h1><p>เริ่มจากตรวจสอบใบสมัคร Heat ที่ผ่านการคัดเลือก แล้วระบบจะนำข้อมูลเดิมมาเติมในฟอร์ม Final ให้</p><Button icon="arrow" onClick={() => navigate("final-confirm")}>ไปหน้ายืนยันสิทธิ์</Button></section>;
+}
+
+function schoolBatchesFromApplications(applications) {
+  const batches = new Map();
+  (applications || []).filter((application) => application.batchId).forEach((application) => {
+    const batch = batches.get(application.batchId) || { id: application.batchId, source: "backend", applicationIds: [], invoiceTotal: application.invoiceTotal || 0, paymentSlipFileName: application.slipFileName || "", paymentId: application.paymentId || "" };
+    batch.applicationIds.push(application.id);
+    batches.set(batch.id, batch);
+  });
+  return [...batches.values()];
 }
 
 function App() {
-  const [page, setPage] = useState(() => window.location.hash.slice(1) || "home");
-  const [persona, setPersona] = useState(() => window.location.hash.slice(1).startsWith("admin-") ? "admin" : "coordinator");
+  const [page, setPage] = useState(() => routeFromLocation().page);
+  const [persona, setPersona] = useState(() => routeFromLocation().page.startsWith("admin-") ? "admin" : "coordinator");
+  const [adminPortalPath, setAdminPortalPath] = useState(isAdminPortalPath);
   const [menuOpen, setMenuOpen] = useState(false);
   const [calendarDay, setCalendarDay] = useState(getBangkokTodayISO);
-  const [centerCatalog, setCenterCatalog] = useState(DEFAULT_CENTER_CATALOG);
-  const [applications, setApplications] = useState(() => seedApplications.map((application) => {
-    const legacyCodes = { "ศูนย์สอบกรุงเทพฯ": "554", "ศูนย์สอบเชียงใหม่": "557", "ศูนย์สอบขอนแก่น": "562", "ศูนย์สอบฮ่องกง": "888", "Online Exam": ONLINE_CENTER_CODE };
-    const center = DEFAULT_CENTER_CATALOG.find((item) => item.name === application.center || item.code === legacyCodes[application.center]);
-    const snapshot = center
-      ? { id: center.id, code: center.code, name: center.name }
-      : { id: "", code: legacyCodes[application.center] || "", name: application.center || "" };
-    return { ...application, center: snapshot.name, centerId: snapshot.id, centerCode: snapshot.code, centerSnapshot: snapshot };
-  }));
-  const [schoolBatches, setSchoolBatches] = useState(() => Object.values(seedApplications.filter((application) => application.source === "school" && application.batchId).reduce((groups, application) => {
-    groups[application.batchId] ||= { id: application.batchId, source: "manual", paymentSlipFileName: `school-bill-${application.batchId}.pdf`, applicationIds: [], invoiceTotal: 0, marketingConsent: false };
-    groups[application.batchId].applicationIds.push(application.id);
-    groups[application.batchId].invoiceTotal += Number(application.totalPayment || 0);
-    groups[application.batchId].marketingConsent ||= Boolean(application.marketingConsent);
-    return groups;
-  }, {})));
+  const [centerCatalog, setCenterCatalog] = useState(BACKEND_ENABLED ? [] : DEFAULT_CENTER_CATALOG);
+  const [applications, setApplications] = useState([]);
+  const [publicEditApplication, setPublicEditApplication] = useState(null);
+  const [publicEditCredentials, setPublicEditCredentials] = useState(null);
+  const [schoolBatches, setSchoolBatches] = useState([]);
   const defaultPhysicalCenterIds = DEFAULT_CENTER_CATALOG.filter((center) => center.code !== ONLINE_CENTER_CODE).map((center) => center.id);
-  const [examCatalog, setExamCatalog] = useState(() => demoExamCatalog.map((exam) => ({
+  const [examCatalog, setExamCatalog] = useState(() => BACKEND_ENABLED ? [] : demoExamCatalog.map((exam) => ({
     ...exam,
     centerIds: [...defaultPhysicalCenterIds],
     gradeOptions: [...(FORM_COMPETITIONS.find((competition) => competition.id === exam.competitionId)?.grades || DEFAULT_GRADE_CATALOG)],
   })));
-  const [gradeCatalog, setGradeCatalog] = useState(DEFAULT_GRADE_CATALOG);
+  const [competitionCatalog, setCompetitionCatalog] = useState(() => BACKEND_ENABLED ? [] : DEFAULT_COMPETITION_CATALOG);
+  const [gradeCatalog, setGradeCatalog] = useState(BACKEND_ENABLED ? [] : DEFAULT_GRADE_CATALOG);
+  const [gradeCatalogEntries, setGradeCatalogEntries] = useState([]);
   const [competitionFees, setCompetitionFees] = useState({ heatOnline: 655, heatOnsite: 755, finalOnline: 1350, finalOnsite: 1550 });
-  const [pastPaperCatalog, setPastPaperCatalog] = useState(DEMO_PAST_PAPERS);
-  const [paymentAccounts, setPaymentAccounts] = useState(DEFAULT_PAYMENT_ACCOUNTS);
-  const [activeApplicationId, setActiveApplicationId] = useState("bbb-heat-2569-01");
+  const [pastPaperCatalog, setPastPaperCatalog] = useState(BACKEND_ENABLED ? [] : DEMO_PAST_PAPERS);
+  const [paymentAccounts, setPaymentAccounts] = useState(BACKEND_ENABLED ? [] : DEFAULT_PAYMENT_ACCOUNTS);
+  const [savedCatalogSnapshot, setSavedCatalogSnapshot] = useState(null);
+  const [activeApplicationId, setActiveApplicationId] = useState(() => routeFromLocation().applicationId);
   const [toast, setToast] = useState("");
   const [authProfile, setAuthProfile] = useState(null);
+  const [authChecked, setAuthChecked] = useState(!BACKEND_ENABLED);
   const [finalAccess, setFinalAccess] = useState(null);
   const [resultWorkflows, setResultWorkflows] = useState({});
-  const [finalIdsImported, setFinalIdsImported] = useState(false);
-  const [syncFailed, setSyncFailed] = useState(false);
+  const [apiPublishedResults, setApiPublishedResults] = useState([]);
   useEffect(() => {
     if (!BACKEND_ENABLED) return undefined;
     const controller = new AbortController();
@@ -3815,13 +4385,46 @@ function App() {
         const [catalog, auth] = await Promise.all([catalogResponse.json(), authResponse.json()]);
         if (controller.signal.aborted) return;
         setExamCatalog(catalog.exams);
+        setCompetitionCatalog(catalog.competitions || DEFAULT_COMPETITION_CATALOG);
         setGradeCatalog(catalog.grades.map((grade) => grade.label));
+        setGradeCatalogEntries(catalog.grades);
         setCenterCatalog(catalog.centers);
         setPastPaperCatalog(catalog.pastPapers);
         setPaymentAccounts(catalog.paymentAccounts);
+        setSavedCatalogSnapshot({ exams: catalog.exams, competitions: catalog.competitions || DEFAULT_COMPETITION_CATALOG, grades: catalog.grades.map((grade) => grade.label), centers: catalog.centers, pastPapers: catalog.pastPapers, paymentAccounts: catalog.paymentAccounts });
         setAuthProfile(auth.user);
+        setAuthChecked(true);
+        if (auth.user) {
+          const applicationsResponse = await fetch(auth.user.isAdmin ? '/api/admin/applications' : '/api/applications/mine', { signal: controller.signal, credentials: 'same-origin' });
+          if (!applicationsResponse.ok) throw new Error('Could not load saved applications');
+          const applicationData = await applicationsResponse.json();
+          if (controller.signal.aborted) return;
+          const savedApplications = applicationData.applications || [];
+          setApplications(savedApplications);
+          setSchoolBatches(schoolBatchesFromApplications(savedApplications));
+        } else {
+          setApplications([]);
+          setSchoolBatches([]);
+        }
+        const publicResultsResponse = await fetch('/api/results', { signal: controller.signal });
+        if (publicResultsResponse.ok) {
+          const publicResults = await publicResultsResponse.json();
+          if (!controller.signal.aborted) setApiPublishedResults(publicResults.results || []);
+        }
+        if (auth.user?.isAdmin) {
+          const [resultsResponse] = await Promise.all([
+            fetch('/api/admin/results', { signal: controller.signal, credentials: 'same-origin' }),
+          ]);
+          if (resultsResponse.ok) {
+            const resultData = await resultsResponse.json();
+            if (!controller.signal.aborted) setResultWorkflows(resultData.workflows || {});
+          }
+        }
       } catch (error) {
-        if (!controller.signal.aborted) setToast('ไม่สามารถเชื่อมต่อข้อมูลจริงได้ กรุณาตรวจสอบ Portal API');
+        if (!controller.signal.aborted) {
+          setAuthChecked(true);
+          setToast('ไม่สามารถเชื่อมต่อข้อมูลจริงได้ กรุณาตรวจสอบ Portal API');
+        }
       }
     }
     loadBackendState();
@@ -3831,7 +4434,7 @@ function App() {
     const timer = window.setTimeout(() => setCalendarDay(getBangkokTodayISO()), millisecondsUntilBangkokMidnight());
     return () => window.clearTimeout(timer);
   }, [calendarDay]);
-  const publishedResultRows = Object.entries(resultWorkflows).flatMap(([targetId, workflow]) => {
+  const demoPublishedResultRows = Object.entries(resultWorkflows).flatMap(([targetId, workflow]) => {
     if (!workflow.published) return [];
     const target = examCatalog.find((exam) => exam.id === targetId);
     if (!target) return [];
@@ -3846,24 +4449,69 @@ function App() {
       year: target.year,
     }));
   });
+  const publishedResultRows = BACKEND_ENABLED ? apiPublishedResults : demoPublishedResultRows;
   const publishedHeatResults = publishedResultRows.filter((row) => row.roundType === "HEAT");
   const resultPublished = publishedHeatResults.length > 0;
   const effectiveExamCatalog = getFinalRegistrationCatalog(examCatalog, applications, publishedHeatResults, calendarDay);
   const registrationOpen = effectiveExamCatalog.some((exam) => exam.isOpen);
+  const catalogSnapshot = { exams: examCatalog, competitions: competitionCatalog, grades: gradeCatalog, centers: centerCatalog, pastPapers: pastPaperCatalog, paymentAccounts };
+  const catalogDirty = BACKEND_ENABLED && Boolean(savedCatalogSnapshot) && JSON.stringify(catalogSnapshot) !== JSON.stringify(savedCatalogSnapshot);
+  const catalogPage = page === "admin-round" || page === "admin-form-options";
+  useEffect(() => {
+    if (!catalogPage || !catalogDirty) return undefined;
+    const warnBeforeUnload = (event) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+  }, [catalogPage, catalogDirty]);
   const activeApplication = applications.find((item) => item.id === activeApplicationId) || applications[0];
+  const adminEditApplication = applications.find((item) => item.id === activeApplicationId);
+  const activeEditableApplication = publicEditApplication?.id === activeApplicationId
+    ? publicEditApplication
+    : applications.find((item) => item.id === activeApplicationId);
   const visibleApplications = persona === "coordinator" || persona === "admin"
     ? applications
     : persona === "guest"
       ? applications.filter((item) => item.owner === "guest")
-      : applications.filter((item) => item.owner === "candidate" || item.candidate === "Nicha Srisawat");
+      : applications.filter((item) => item.owner === "candidate");
   const pageTitle = pageLabels[page] || pageLabels.home;
   const requiresRegistrationLogin = !authProfile && page === "apply-heat";
 
   useEffect(() => {
-    const handleHash = () => setPage(pageLabels[window.location.hash.slice(1)] ? window.location.hash.slice(1) : "home");
-    window.addEventListener("hashchange", handleHash);
-    return () => window.removeEventListener("hashchange", handleHash);
+    const syncRoute = () => {
+      const route = routeFromLocation();
+      const canonicalPath = routeUrlFor(route.page, route.applicationId);
+      const currentPath = window.location.pathname;
+      if (route.legacy || currentPath !== canonicalPath) window.history.replaceState(null, "", `${canonicalPath}${window.location.search}`);
+      setAdminPortalPath(isAdminPortalPath() || route.page.startsWith('admin-'));
+      setPage(route.page);
+      setActiveApplicationId(route.applicationId || "");
+      if (route.page !== "edit-application") {
+        setPublicEditApplication(null);
+        setPublicEditCredentials(null);
+      }
+    };
+    window.addEventListener("popstate", syncRoute);
+    syncRoute();
+    return () => {
+      window.removeEventListener("popstate", syncRoute);
+    };
   }, []);
+
+  useEffect(() => {
+    if (!adminPortalPath || !authChecked) return;
+    if (authProfile?.isAdmin) {
+      setPersona("admin");
+      if (page === "admin-login") {
+        setPage("admin-home");
+        window.history.replaceState(null, "", routeUrlFor("admin-home"));
+      }
+      return;
+    }
+    if (page !== "admin-login") {
+      setPage("admin-login");
+      window.history.replaceState(null, "", ADMIN_PORTAL_PATH);
+    }
+  }, [adminPortalPath, authChecked, authProfile?.isAdmin, page]);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -3872,10 +4520,19 @@ function App() {
   }, [toast]);
 
   function navigate(nextPage, applicationId) {
-    if (applicationId) setActiveApplicationId(applicationId);
+    if (catalogPage && catalogDirty && nextPage !== page && !window.confirm("มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก ต้องการออกจากหน้านี้หรือไม่?")) return;
+    if (nextPage !== "edit-application") {
+      setPublicEditApplication(null);
+      setPublicEditCredentials(null);
+    }
+    if (applicationId !== undefined) setActiveApplicationId(applicationId || "");
     setPage(nextPage);
     setMenuOpen(false);
-    if (window.location.hash !== "#" + nextPage) window.location.hash = nextPage;
+    const isAdminTarget = nextPage.startsWith("admin-");
+    const targetUrl = routeUrlFor(nextPage, applicationId || (nextPage === "application-detail" || nextPage === "edit-application" || nextPage === "admin-review" || nextPage === "admin-application-edit" || nextPage === "slip-upload" || nextPage === "edit-verify" ? activeApplicationId : ""));
+    setAdminPortalPath(isAdminTarget);
+    const currentUrl = `${window.location.pathname}${window.location.search}`;
+    if (currentUrl !== targetUrl) window.history.pushState(null, "", targetUrl);
     window.scrollTo({ top: 0, behavior: "auto" });
   }
 
@@ -3888,13 +4545,21 @@ function App() {
     setToast(message);
   }
 
-  function signInWithGoogleDemo(profile) {
+  function signInWithGoogleDemo() {
     if (BACKEND_ENABLED) {
-      window.location.assign(`/api/auth/google/start?returnTo=${encodeURIComponent(window.location.pathname + window.location.hash)}`);
+      window.location.assign(`/api/auth/google/start?returnTo=${encodeURIComponent(window.location.pathname + window.location.search)}`);
       return;
     }
-    setAuthProfile(profile);
-    notify("เข้าสู่ระบบตัวอย่างสำเร็จ");
+    notify("โหมดตัวอย่างอ่านอย่างเดียว · เปิด Portal API เพื่อเข้าสู่ระบบและสมัครจริง");
+  }
+
+  function signInAdmin() {
+    if (!BACKEND_ENABLED) {
+      notify("ระบบหลังบ้านต้องเปิด VITE_BACKEND_ENABLED=true ก่อน");
+      return;
+    }
+    const returnTo = routeUrlFor("admin-home");
+    window.location.assign(`/api/auth/google/start?returnTo=${encodeURIComponent(returnTo)}`);
   }
 
   async function signOut() {
@@ -3902,7 +4567,24 @@ function App() {
       try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }); }
       catch { notify('ออกจากระบบไม่สำเร็จ กรุณาลองใหม่'); return; }
     }
+    const wasAdminPortal = isAdminPortalPath();
     setAuthProfile(null);
+    setPersona("coordinator");
+    setApplications([]);
+    setSchoolBatches([]);
+    setPublicEditApplication(null);
+    setPublicEditCredentials(null);
+    setActiveApplicationId("");
+    setMenuOpen(false);
+    if (wasAdminPortal) {
+      setPage("admin-login");
+      window.history.replaceState(null, "", ADMIN_PORTAL_PATH);
+      setAdminPortalPath(true);
+    } else {
+      setPage("home");
+      window.history.replaceState(null, "", routeUrlFor("home"));
+      setAdminPortalPath(false);
+    }
     notify("ออกจากระบบแล้ว");
   }
 
@@ -3911,6 +4593,34 @@ function App() {
   }
 
   function saveAdminApplication(id, updates) {
+    if (BACKEND_ENABLED) {
+      return (async () => {
+        const response = await fetch(`/api/admin/applications/${encodeURIComponent(id)}`, {
+          method: 'PATCH', credentials: 'same-origin', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(updates.adminEditPayload),
+        });
+        const responseText = await response.text().catch(() => '');
+        let body = {};
+        try { body = responseText ? JSON.parse(responseText) : {}; } catch { body = { message: responseText.slice(0, 240) }; }
+        if (!response.ok) {
+          const errorMessage = body.error || body.message || '';
+          const missingRoute = response.status === 404 && (/^not found$/i.test(errorMessage) || /Route PATCH .* not found/i.test(errorMessage));
+          if (missingRoute) throw new Error('Portal API ยังไม่ได้โหลดเส้นทางแก้ไขใบสมัคร · รีสตาร์ต Portal API แล้วเปิดหน้าแอดมินใหม่');
+          if (response.status === 404) throw new Error(/application not found/i.test(errorMessage)
+            ? 'ไม่พบใบสมัครนี้ในฐานข้อมูลที่กำลังเชื่อมต่อ · โหลดรายการใบสมัครใหม่แล้วลองอีกครั้ง'
+            : `ไม่พบข้อมูลสำหรับบันทึก (HTTP 404)${errorMessage ? ` · ${errorMessage}` : ''}`);
+          if (response.status === 401 || response.status === 403) throw new Error(`ไม่มีสิทธิ์บันทึกหรือหมดเวลาเข้าสู่ระบบ · ${errorMessage || `HTTP ${response.status}`}`);
+          throw new Error(errorMessage || `บันทึกการแก้ไขไม่สำเร็จ (HTTP ${response.status})`);
+        }
+        try {
+          await refreshApplicationData();
+        } catch {
+          // PATCH succeeded; a follow-up list refresh must not make the save look unsuccessful.
+        }
+        notify(body.result?.additionalDue ? `บันทึกแล้ว · ยอดชำระเพิ่ม ${fmtAdminMoney(body.result.additionalDue)}` : 'บันทึกการแก้ไขใบสมัครแล้ว');
+        navigate('admin-review', id);
+      })();
+    }
     const current = applications.find((item) => item.id === id);
     if (!current) return;
     const next = { ...current, ...updates };
@@ -3944,6 +4654,86 @@ function App() {
     setExamCatalog((current) => current.map((exam) => exam.id === id ? { ...exam, ...updates } : exam));
   }
 
+  async function setExamManualClosed(id, manualClosed) {
+    if (!BACKEND_ENABLED) {
+      const today = getBangkokTodayISO();
+      setExamCatalog((current) => current.map((exam) => exam.id === id ? {
+        ...exam,
+        finalManuallyClosed: manualClosed,
+        isOpen: !manualClosed && Boolean(exam.openDate && exam.closeDate && exam.openDate <= today && today <= exam.closeDate),
+      } : exam));
+      return true;
+    }
+    const response = await fetch(`/api/admin/exams/${encodeURIComponent(id)}`, {
+      method: 'PATCH', credentials: 'same-origin', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ manualClosed }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || 'บันทึกสถานะรายการสอบไม่สำเร็จ');
+    const today = getBangkokTodayISO();
+    setExamCatalog((current) => current.map((exam) => exam.id === id ? {
+      ...exam,
+      ...result.exam,
+      finalManuallyClosed: manualClosed,
+      isOpen: !manualClosed && Boolean(exam.openDate && exam.closeDate && exam.openDate <= today && today <= exam.closeDate),
+    } : exam));
+    return result.exam;
+  }
+
+  async function saveAdminCatalog() {
+    if (!BACKEND_ENABLED) { notify("โหมดตัวอย่างยังไม่ได้เชื่อมฐานข้อมูล"); return false; }
+    const selectedPaymentAccountId = paymentAccounts.find((account) => account.active !== false && account.showInForm !== false)?.id || "";
+    const normalizedPaymentAccounts = paymentAccounts.map((account) => ({
+      ...account,
+      showInForm: Boolean(selectedPaymentAccountId && account.id === selectedPaymentAccountId),
+    }));
+    const grades = gradeCatalog.map((label, index) => ({
+      id: gradeCatalogEntries.find((entry) => entry.label === label)?.id || `grade-${label.normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "")}`,
+      label,
+      sortOrder: index + 1,
+    }));
+    try {
+      const response = await fetch('/api/admin/catalog', {
+        method: 'PUT', credentials: 'same-origin', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ exams: examCatalog, competitions: competitionCatalog, grades, centers: centerCatalog, pastPapers: pastPaperCatalog, paymentAccounts: normalizedPaymentAccounts }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "บันทึกข้อมูลตั้งต้นไม่สำเร็จ");
+      const catalog = result.catalog;
+      setExamCatalog(catalog.exams);
+      setCompetitionCatalog(catalog.competitions || []);
+      setGradeCatalog(catalog.grades.map((grade) => grade.label));
+      setGradeCatalogEntries(catalog.grades);
+      setCenterCatalog(catalog.centers);
+      setPastPaperCatalog(catalog.pastPapers);
+      setPaymentAccounts(catalog.paymentAccounts);
+      setSavedCatalogSnapshot({ exams: catalog.exams, competitions: catalog.competitions || [], grades: catalog.grades.map((grade) => grade.label), centers: catalog.centers, pastPapers: catalog.pastPapers, paymentAccounts: catalog.paymentAccounts });
+      notify("บันทึกข้อมูลแค็ตตาล็อกลงฐานข้อมูลแล้ว");
+      return true;
+    } catch (error) { notify(error?.message || "บันทึกข้อมูลตั้งต้นไม่สำเร็จ"); return false; }
+  }
+
+  async function saveAdminPaymentAccounts() {
+    if (!BACKEND_ENABLED) { notify("โหมดตัวอย่างยังไม่ได้เชื่อมฐานข้อมูล"); return false; }
+    const selectedPaymentAccountId = paymentAccounts.find((account) => account.active !== false && account.showInForm === true)?.id || "";
+    const normalizedPaymentAccounts = paymentAccounts.map((account) => ({
+      ...account,
+      showInForm: Boolean(selectedPaymentAccountId && account.id === selectedPaymentAccountId),
+    }));
+    try {
+      const response = await fetch('/api/admin/payment-accounts', {
+        method: 'PUT', credentials: 'same-origin', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ paymentAccounts: normalizedPaymentAccounts }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "บันทึกบัญชีรับโอนไม่สำเร็จ");
+      setPaymentAccounts(result.paymentAccounts || []);
+      setSavedCatalogSnapshot((current) => current ? { ...current, paymentAccounts: result.paymentAccounts || [] } : current);
+      notify("บันทึกบัญชีรับโอนแล้ว · ฟอร์มสมัครจะแสดงบัญชีที่เลือก");
+      return true;
+    } catch (error) { notify(error?.message || "บันทึกบัญชีรับโอนไม่สำเร็จ"); return false; }
+  }
+
   function addExam(exam) {
     setExamCatalog((current) => [...current, exam]);
   }
@@ -3952,328 +4742,453 @@ function App() {
     setExamCatalog((current) => current.filter((exam) => exam.id !== id));
   }
 
-  function submitApplication(values) {
-    const applicants = values.batchApplications?.length ? values.batchApplications : [values];
-    const batchId = values.batchId || "";
-    const records = applicants.map((applicant, index) => {
-      const paymentAccountsSnapshot = applicant.paymentAccountsSnapshot || values.paymentAccountsSnapshot || [];
-      const { fileName: applicantSlipFileName, slipFile: applicantSlipFile, ...studentInformation } = applicant;
-      delete studentInformation.paymentAccountsSnapshot;
-      const id = batchId ? `${batchId}-${index + 1}` : "new-" + Date.now().toString().slice(-5);
-      const examListings = applicant.examListings || [];
-      const examYear = applicant.examYear || examListings[0]?.year || "2569";
-      const examLabel = applicant.kind === "Final"
-        ? `OCEC Final ${examYear}`
-        : examListings.length
-          ? examListings.map((exam) => `${exam.name} · ${applicant.grades?.[exam.id] || ""}`).join(", ")
-          : "OCEC Heat รอบที่ 1";
-      return {
-        id,
-        batchId: batchId || undefined,
-        owner: applicant.source === "school" ? "coordinator" : applicant.source === "guest" ? "guest" : "candidate",
-        source: applicant.source || "self",
-        kind: applicant.kind,
-        exam: examLabel,
-        examIds: examListings.map((exam) => exam.id),
-        year: examYear,
-        candidate: applicant.candidate,
-        school: applicant.school,
-        grade: applicant.grade,
-        format: applicant.format === "Online" ? "Online Exam" : applicant.format,
-        center: applicant.center,
-        centerId: applicant.centerId || "",
-        centerCode: applicant.centerCode || "",
-        centerSnapshot: applicant.centerSnapshot || null,
-        contactEmail: applicant.contactEmail,
-        examEmail: applicant.examEmail || "",
-        phoneLast4: (applicant.phone || "").slice(-4),
-        studentInformation,
-        slipFileName: values.schoolBatch ? "" : applicantSlipFileName || `payment-slip-${id}.pdf`,
-        slipFile: values.schoolBatch ? null : applicantSlipFile || null,
-        paymentAccountsSnapshot,
-        competitions: examListings.map((exam) => ({
-          id: exam.id,
-          name: exam.name,
-          short: exam.short,
-          subject: exam.subject,
-          grade: exam.grade || applicant.grades?.[exam.id] || "",
-          format: normalizeExamFormat(exam.format, normalizeExamFormat(applicant.format)),
-          examEmail: exam.format === "Online" || exam.format === "Online Exam" ? (exam.examEmail || applicant.examEmail || "") : "",
-          fee: Number(exam.fee ?? 0),
-          chargedFee: Number(exam.chargedFee ?? exam.fee ?? 0),
-          center: exam.center || "",
-          centerId: exam.centerId || "",
-          centerCode: exam.centerCode || "",
-          centerSnapshot: exam.centerSnapshot || null,
-        })),
-        pastPapers: applicant.pastPaperSelections || [],
-        pastPapersTotal: applicant.pastPapersTotal || 0,
-        registrationFee: applicant.registrationFee || 0,
-        totalPayment: applicant.totalPayment || 0,
-        marketingConsent: Boolean(values.schoolBatch?.marketingConsent ?? applicant.marketingConsent),
-        submitted: "วันนี้",
-        status: "pending",
-        heatId: applicant.kind === "Final" ? (applications.find((item) => item.id === applicant.sourceHeatId)?.heatId || "") : "",
-        finalId: "",
-        sourceHeatId: applicant.sourceHeatId || "",
-        result: "",
-        canEdit: false,
-        slipIssue: "",
-      };
-    });
-    const id = records[0].id;
-    setApplications((current) => [...records, ...current]);
-    if (values.schoolBatch && batchId) {
-      setSchoolBatches((current) => [{
-        id: batchId,
-        source: values.schoolBatch.source || "manual",
-        paymentSlipFileName: values.schoolBatch.paymentSlipFileName,
-        paymentSlipFile: values.schoolBatch.paymentSlipFile || null,
-        applicationIds: records.map((record) => record.id),
-        invoiceTotal: Number(values.totalPayment || records.reduce((sum, record) => sum + record.totalPayment, 0)),
-        marketingConsent: Boolean(values.schoolBatch.marketingConsent),
-        submitted: new Date().toISOString(),
-      }, ...current.filter((item) => item.id !== batchId)]);
-    }
-    setActiveApplicationId(id);
-    setPersona(values.source === "school" ? "coordinator" : values.source === "guest" ? "guest" : "candidate");
-    notify(values.schoolBatch ? `ส่งใบสมัคร ${records.length} คนสำเร็จ · ยอดรวม ฿${Number(values.totalPayment || 0).toLocaleString()} · ใช้บิลและสลิปเดียว` : "ส่งใบสมัครสำเร็จ ระบบส่งอีเมลสรุปไปยัง " + applicants[0].contactEmail);
-    navigate("application-detail", id);
+  async function refreshApplicationData() {
+    if (!BACKEND_ENABLED || !authProfile) return [];
+    const endpoint = authProfile.isAdmin ? '/api/admin/applications' : '/api/applications/mine';
+    const response = await fetch(endpoint, { credentials: 'same-origin' });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || 'โหลดใบสมัครจากฐานข้อมูลไม่สำเร็จ');
+    const savedApplications = body.applications || [];
+    setApplications(savedApplications);
+    setSchoolBatches(schoolBatchesFromApplications(savedApplications));
+    return savedApplications;
   }
 
-  function saveApplication(id, form) {
-    updateApplication(id, { ...form, phoneLast4: form.phone.replace(/\D/g, "").slice(-4) });
+  async function submitApplication(values) {
+    const applicants = values.batchApplications?.length ? values.batchApplications : [values];
+    if (BACKEND_ENABLED) {
+      try {
+        const toCandidatePayload = (applicant) => {
+          const examYear = applicant.examYear || values.examYear || getActiveExamYear(examCatalog, applicant.kind === "Final" ? "FINAL" : "HEAT");
+          const roundType = applicant.kind === "Final" ? "FINAL" : "HEAT";
+          const items = (applicant.examListings || []).map((listing) => {
+            const round = examCatalog.find((exam) => exam.competitionId === listing.id && exam.year === examYear && getExamRoundType(exam) === roundType);
+            const grade = gradeCatalogEntries.find((item) => item.label === listing.grade);
+            if (!round || !grade) throw new Error(`ไม่พบข้อมูลรอบสอบหรือระดับชั้นของ ${listing.short || listing.name}`);
+            return {
+              roundId: round.id,
+              gradeId: grade.id,
+              format: normalizeExamFormat(listing.format) === "Online" ? "online" : "paper",
+              centerId: listing.centerId,
+              ...(normalizeExamFormat(listing.format) === "Online" ? { examEmail: listing.examEmail || applicant.examEmail || "" } : {}),
+            };
+          });
+          const information = applicant.studentInformation || applicant;
+          const school = applicant.school || (information.schoolName === "Other" ? information.certificateSchoolName : information.schoolName) || "";
+          return {
+            applicant: {
+              firstNameEn: information.firstName || applicant.firstName || "",
+              middleNameEn: information.middleName || applicant.middleName || "",
+              lastNameEn: information.lastName || applicant.lastName || "",
+              firstNameTh: information.thaiFirstName || applicant.thaiFirstName || "",
+              lastNameTh: information.thaiLastName || applicant.thaiLastName || "",
+              gender: information.gender || applicant.gender || "",
+              certificateSchoolName: information.certificateSchoolName || applicant.certificateSchoolName || "",
+              dateOfBirth: information.dateOfBirth || applicant.dateOfBirth || "",
+              schoolName: school,
+              contactEmail: applicant.contactEmail || information.email || applicant.email || "",
+              contactPhone: information.phone || applicant.phone || "",
+              address: {
+                address1: information.address1 || applicant.address1 || "",
+                address2: information.address2 || applicant.address2 || "",
+                city: information.city || applicant.city || "",
+                province: information.province || applicant.province || "",
+                postalCode: information.postalCode || applicant.postalCode || "",
+              },
+            },
+            items,
+            pastPaperIds: (applicant.pastPaperSelections || []).map((paper) => paper.id),
+            marketingConsent: Boolean(applicant.marketingConsent ?? values.schoolBatch?.marketingConsent),
+            ...(applicant.sourceHeatId ? { sourceHeatApplicationId: applicant.sourceHeatId } : {}),
+          };
+        };
+        const slipFile = values.schoolBatch?.paymentSlipFile || applicants[0]?.slipFile;
+        if (!slipFile?.dataUrl) throw new Error("กรุณาแนบสลิปการชำระเงินก่อนส่งใบสมัคร");
+        const slip = { fileName: slipFile.name || values.schoolBatch?.paymentSlipFileName || "payment-slip", mimeType: slipFile.type, dataBase64: slipFile.dataUrl.split(",")[1] || "" };
+        const body = values.schoolBatch
+          ? { schoolName: applicants[0]?.school || applicants[0]?.studentInformation?.schoolName || "", source: values.schoolBatch.source || "manual", applicants: applicants.map(toCandidatePayload), slip }
+          : { ...toCandidatePayload(applicants[0]), source: applicants[0].kind === "Final" ? "final" : applicants[0].source || "self", slip };
+        const response = await fetch(values.schoolBatch ? '/api/school-batches/submit' : '/api/applications/submit', {
+          method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          if (response.status === 409 && result.existingApplicationId) {
+            await refreshApplicationData();
+            setActiveApplicationId(result.existingApplicationId);
+            setPersona(values.schoolBatch ? "coordinator" : "candidate");
+            notify("พบใบสมัครรายการนี้อยู่แล้ว กำลังเปิดใบสมัครเดิม");
+            navigate("application-detail", result.existingApplicationId);
+            return;
+          }
+          throw new Error(result.error || "ส่งใบสมัครไม่สำเร็จ");
+        }
+        const savedApplications = await refreshApplicationData();
+        const firstId = values.schoolBatch ? result.batch?.applicationIds?.[0] : result.application?.id;
+        if (!firstId) throw new Error("ส่งใบสมัครแล้ว แต่ระบบไม่ส่งเลขอ้างอิงกลับมา");
+        setActiveApplicationId(firstId);
+        setPersona(values.schoolBatch ? "coordinator" : "candidate");
+        notify(values.schoolBatch ? `ส่งใบสมัคร ${result.batch.applicationIds.length} คนและบันทึกลงฐานข้อมูลแล้ว · ยอดรวม ฿${Number(result.batch.total || 0).toLocaleString()}` : "ส่งใบสมัครและบันทึกลงฐานข้อมูลแล้ว");
+        navigate("application-detail", firstId);
+        return savedApplications;
+      } catch (error) {
+        notify(error?.message || "ส่งใบสมัครไม่สำเร็จ กรุณาลองอีกครั้ง");
+        return;
+      }
+    }
+    notify("โหมดตัวอย่างอ่านอย่างเดียว · ไม่ได้บันทึกใบสมัคร");
+    return;
+
+  }
+
+  async function saveApplication(id, form, publicCredentials = null) {
+    const publicAccess = Boolean(publicCredentials);
+    if (BACKEND_ENABLED) {
+      try {
+        const information = form.studentInformation || {};
+        const profile = {
+          firstNameEn: form.nameParts?.firstName || form.firstName || information.firstName || "",
+          middleNameEn: information.middleName || "",
+          lastNameEn: form.nameParts?.lastName || form.lastName || information.lastName || "",
+          firstNameTh: information.thaiFirstName || "",
+          lastNameTh: information.thaiLastName || "",
+          schoolName: form.school || information.school || "",
+          contactEmail: form.contactEmail || information.email || "",
+          contactPhone: form.phone || information.phone || "",
+          address: { address1: information.address1 || "", address2: information.address2 || "", city: information.city || "", province: information.province || "", postalCode: information.postalCode || "" },
+        };
+        const response = await fetch(publicAccess ? `/api/public/applications/${encodeURIComponent(id)}/profile` : `/api/applications/${encodeURIComponent(id)}/profile`, {
+          method: 'PATCH', credentials: 'same-origin', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(publicAccess ? { identity: publicCredentials, profile } : profile),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || "บันทึกการแก้ไขไม่สำเร็จ");
+        if (publicAccess) {
+          setPublicEditApplication(result.application);
+          setPublicEditCredentials({ candidateName: result.application.candidate, phoneLast4: result.application.phoneLast4 });
+          notify("บันทึกการแก้ไขแล้ว · สถานะใบสมัครคงเดิม");
+          navigate("check-status");
+          return;
+        }
+        await refreshApplicationData();
+        notify("บันทึกการแก้ไขลงฐานข้อมูลแล้ว · สถานะการอนุมัติคงเดิม");
+        navigate("application-detail", id);
+        return;
+      } catch (error) { notify(error?.message || "บันทึกการแก้ไขไม่สำเร็จ"); return; }
+    }
+    const updatedApplication = { ...form, phoneLast4: form.phone.replace(/\D/g, "").slice(-4) };
+    updateApplication(id, updatedApplication);
+    if (publicAccess) {
+      setPublicEditApplication((current) => current?.id === id ? { ...current, ...updatedApplication } : current);
+      setPublicEditCredentials({ candidateName: updatedApplication.candidate, phoneLast4: updatedApplication.phoneLast4 });
+      notify("บันทึกการแก้ไขแล้ว · สถานะใบสมัครคงเดิม");
+      navigate("check-status");
+      return;
+    }
     notify("บันทึกการแก้ไขแล้ว สถานะใบสมัครยังคงยืนยันใบสมัคร");
     navigate("application-detail", id);
   }
 
-  function saveCertificatePhoto(id, certificatePhoto) {
-    updateApplication(id, { certificatePhoto: certificatePhoto || null });
-    notify(certificatePhoto ? "บันทึกรูปสำหรับจัดทำเกียรติบัตรในต้นแบบแล้ว" : "ลบรูปสำหรับเกียรติบัตรในต้นแบบแล้ว");
+  async function saveCertificatePhoto(id, certificatePhoto) {
+    if (!BACKEND_ENABLED) throw new Error("กรุณาเปิด backend ก่อนอัปโหลดรูปเกียรติบัตร");
+    try {
+      const response = await fetch(`/api/applications/${encodeURIComponent(id)}/certificate-photo`, {
+        method: certificatePhoto ? "POST" : "DELETE",
+        credentials: "same-origin",
+        ...(certificatePhoto ? { headers: { "content-type": "application/json" }, body: JSON.stringify(certificatePhoto) } : {}),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "บันทึกรูปเกียรติบัตรไม่สำเร็จ");
+      await refreshApplicationData();
+      notify(certificatePhoto ? "อัปโหลดรูปเกียรติบัตรไปยัง Google Drive แล้ว" : "ลบรูปเกียรติบัตรแล้ว");
+      return result;
+    } catch (error) {
+      notify(error?.message || "บันทึกรูปเกียรติบัตรไม่สำเร็จ");
+      throw error;
+    }
   }
 
-  function approveApplication(id, paymentAccountType) {
+  async function approveApplication(id, paymentId = null) {
     const item = applications.find((entry) => entry.id === id);
-    updateApplication(id, { status: "confirmed", canEdit: true, paymentAccountType });
+    if (BACKEND_ENABLED) {
+      try {
+        const response = await fetch(`/api/admin/applications/${encodeURIComponent(id)}/review`, {
+          method: 'PATCH', credentials: 'same-origin', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ decision: 'approve', ...(paymentId ? { paymentId } : {}) }),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || 'อนุมัติใบสมัครไม่สำเร็จ');
+        await refreshApplicationData();
+        notify(result.paymentOnly ? 'ยืนยันยอดชำระเพิ่มแล้ว' : result.waitingPayments ? 'Portal API ยังใช้เงื่อนไขอนุมัติเวอร์ชันเก่า · กรุณารีสตาร์ต API แล้วลองอีกครั้ง' : 'อนุมัติใบสมัครแล้ว');
+        return;
+      } catch (error) {
+        notify(error?.message || 'อนุมัติใบสมัครไม่สำเร็จ กรุณาลองอีกครั้ง');
+        return;
+      }
+    }
+    updateApplication(id, { status: "confirmed", canEdit: true });
     notify("อนุมัติใบสมัครแล้ว อีเมลแจ้งผลส่งไปยัง " + (item?.contactEmail || "อีเมลผู้เข้าสอบ"));
   }
 
-  function updateApplicationPaymentAccount(id, paymentAccount) {
-    if (!paymentAccount) return;
-    updateApplication(id, {
-      paymentAccountType: paymentAccount.category,
-      paymentAccountId: paymentAccount.id,
-      paymentAccountSnapshot: { ...paymentAccount },
-    });
+  async function rejectApplication(id, reason) {
+    if (!reason?.trim() || reason.trim().length > 240) { notify("กรุณาระบุเหตุผลสั้น ๆ ไม่เกิน 240 ตัวอักษร"); return false; }
+    if (!BACKEND_ENABLED) { notify("โหมดตัวอย่างยังไม่ได้เชื่อมฐานข้อมูล"); return false; }
+    try {
+      const response = await fetch(`/api/admin/applications/${encodeURIComponent(id)}/review`, {
+        method: "PATCH", credentials: "same-origin", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ decision: "reject", reason: reason.trim() }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "ไม่อนุมัติใบสมัครไม่สำเร็จ");
+      await refreshApplicationData();
+      notify("บันทึกการไม่อนุมัติและเข้าคิวส่งอีเมลแจ้งผู้สมัครแล้ว");
+      return true;
+    } catch (error) { notify(error?.message || "ไม่อนุมัติใบสมัครไม่สำเร็จ"); return false; }
   }
 
-  function notifySlipIssue(id, issue) {
+  async function notifySlipIssue(id, issue, paymentId = null) {
     const item = applications.find((entry) => entry.id === id);
+    if (BACKEND_ENABLED) {
+      try {
+        const response = await fetch(`/api/admin/applications/${encodeURIComponent(id)}/review`, {
+          method: 'PATCH', credentials: 'same-origin', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ decision: 'slip_issue', reason: issue, ...(paymentId ? { paymentId } : {}) }),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || 'บันทึกปัญหาสลิปไม่สำเร็จ');
+        await refreshApplicationData();
+        notify(result.emailRecipient === 'coordinator'
+          ? 'บันทึกปัญหาสลิปแล้ว · สร้างลิงก์ใช้ครั้งเดียวและเข้าคิวแจ้งผู้ประสานงาน'
+          : 'บันทึกปัญหาสลิปแล้ว · สร้างลิงก์ใช้ครั้งเดียวและเข้าคิวส่งอีเมล');
+        return;
+      } catch (error) {
+        notify(error?.message || 'บันทึกปัญหาสลิปไม่สำเร็จ กรุณาลองอีกครั้ง');
+        return;
+      }
+    }
     updateApplication(id, { slipIssue: issue });
     notify("ส่งเทมเพลต “" + issue + "” พร้อมลิงก์อัปโหลดไปยัง " + (item?.contactEmail || "อีเมลผู้เข้าสอบ"));
   }
 
-  function generateHeatIds(examId) {
+  async function generateHeatIds(examId) {
     const targetExam = examCatalog.find((exam) => exam.id === examId);
-    if (!targetExam || getExamRoundType(targetExam) !== "HEAT") return;
-    if (targetExam.isOpen) {
-      notify("ปิดรับสมัครรายการสอบนี้ก่อนสร้างเลขประจำตัวสอบ");
-      return;
-    }
-    const gradeOrder = gradeCatalog;
-    const gradeIndex = (grade) => {
-      const index = gradeOrder.indexOf(grade);
-      return index < 0 ? gradeOrder.length : index;
-    };
-    const selectedApplications = getApplicationsForResultTarget(applications, targetExam);
-    const ordered = selectedApplications.filter((item) => !item.heatId).slice().sort((a, b) => {
-      const centerCompare = (a.centerCode || getCenterByApplication(a, centerCatalog).code || "999").localeCompare(b.centerCode || getCenterByApplication(b, centerCatalog).code || "999");
-      if (centerCompare) return centerCompare;
-      const gradeCompare = gradeIndex(a.grade) - gradeIndex(b.grade);
-      if (gradeCompare) return gradeCompare;
-      const nameCompare = a.candidate.localeCompare(b.candidate, "en");
-      return nameCompare || a.submitted.localeCompare(b.submitted);
-    });
-    if (!ordered.length) {
-      notify(`ไม่มีใบสมัคร ${targetExam.title} ${targetExam.round || EXAM_ROUND_LABELS.HEAT} ที่ต้องสร้างเลข`);
-      return;
-    }
-    const sequenceByCenter = {};
-    const usedHeatIds = new Set();
-    applications.filter((item) => item.kind === "Heat" && item.heatId).forEach((item) => {
-      const code = String(item.centerCode || getCenterByApplication(item, centerCatalog).code || "999");
-      const id = String(item.heatId);
-      usedHeatIds.add(id);
-      const suffix = id.startsWith(code) ? Number.parseInt(id.slice(code.length), 10) : 0;
-      if (Number.isFinite(suffix)) sequenceByCenter[code] = Math.max(sequenceByCenter[code] || 0, suffix);
-    });
-    const assigned = {};
-    ordered.forEach((item) => {
-      const code = String(item.centerCode || getCenterByApplication(item, centerCatalog).code || "999");
-      let candidateId;
-      do {
-        sequenceByCenter[code] = (sequenceByCenter[code] || 0) + 1;
-        candidateId = code + String(sequenceByCenter[code]).padStart(4, "0");
-      } while (usedHeatIds.has(candidateId));
-      assigned[item.id] = candidateId;
-      usedHeatIds.add(candidateId);
-    });
-    setApplications((current) => current.map((item) => assigned[item.id] ? { ...item, heatId: assigned[item.id] } : item));
-    notify(`สร้างเลขประจำตัวสอบ ${targetExam.title} ${targetExam.round || EXAM_ROUND_LABELS.HEAT} จำนวน ${ordered.length} ใบแล้ว`);
+    if (!targetExam || getExamRoundType(targetExam) !== 'HEAT') return;
+    if (!BACKEND_ENABLED) { notify('กรุณาเปิด backend เพื่อสร้างเลขสอบลงฐานข้อมูล'); return; }
+    try {
+      const response = await fetch(`/api/admin/exams/${encodeURIComponent(examId)}/exam-numbers`, {
+        method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ confirm: true }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'สร้างเลขประจำตัวสอบไม่สำเร็จ');
+      await refreshApplicationData();
+      notify(`สร้างเลขประจำตัวสอบ ${targetExam.title} ${targetExam.round || EXAM_ROUND_LABELS.HEAT} แล้ว · ใหม่ ${result.assigned} ราย · มีเลขเดิม ${result.alreadyAssigned} ราย`);
+    } catch (error) { notify(error?.message || 'สร้างเลขประจำตัวสอบไม่สำเร็จ'); }
   }
 
-  function importFinalIds() {
-    setFinalIdsImported(true);
-    if (!applications.some((item) => item.kind === "Final")) {
-      notify("ยังไม่มีใบสมัคร Final สำหรับจับคู่เลขประจำตัว");
-      return;
-    }
-    notify("อ่านไฟล์เลข Final ในโหมดตัวอย่างแล้ว · ตรวจสอบรายการจับคู่ก่อนบันทึก");
-  }
-
-  function matchFinalId(id) {
-    const target = applications.find((item) => item.id === id);
-    const suggestedId = target?.kind === "Final" ? `F-69${String(target.id).slice(-5).padStart(5, "0")}` : "";
-    if (target && suggestedId) updateApplication(target.id, { finalId: suggestedId });
-    notify(`จับคู่เลข Final ให้ ${target?.candidate || "ผู้เข้าสอบ"} แล้ว`);
-  }
-
-  function importResultDraft(target, fileName) {
-    const rows = makeMockResultRows(applications, target);
-    const hasConflict = rows.some((row) => row.matchStatus !== "matched");
-    setResultWorkflows((current) => ({
-      ...current,
-      [target.id]: { ...current[target.id], fileName, rows, draftImported: true, hasConflict, conflictResolved: false, published: false },
-    }));
-    notify(`อ่านไฟล์ ${fileName} สำหรับ ${resultTargetLabel(target)} ในโหมดตัวอย่างแล้ว`);
-  }
-
-  function resolveResultConflict(targetId, schoolSource = "application", issueKey = "") {
-    const target = examCatalog.find((exam) => exam.id === targetId);
-    if (!target) return;
-    const workflow = resultWorkflows[targetId] || {};
-    const schoolUpdates = new Map();
-    const rows = (workflow.rows || []).map((row) => {
-      if (row.matchStatus === "matched" || (issueKey && getResultIssueKey(row) !== issueKey)) return row;
-      const application = applications.find((item) => item.id === row.issueApplicationId || item.id === row.applicationId);
-      const candidateNo = getExamRoundType(target) === "HEAT" ? application?.heatId : application?.finalId;
-      const useFileSchool = row.matchStatus === "school-mismatch" && schoolSource === "file";
-      const schoolName = useFileSchool
-        ? row.schoolName || row.school
-        : application?.school || row.schoolName || row.school;
-      if (useFileSchool && application && schoolName) schoolUpdates.set(application.id, schoolName);
-      return {
-        ...row,
-        candidateNo: row.matchStatus === "unmatched" ? candidateNo || row.candidateNo : row.candidateNo,
-        examNumber: row.matchStatus === "unmatched" ? candidateNo || row.examNumber : row.examNumber,
-        schoolName,
-        school: schoolName,
-        applicationSchoolName: schoolName || row.applicationSchoolName,
-        issueApplicationId: "",
-        matchStatus: "matched",
-      };
+  async function importFinalIds(target, fileName, rows) {
+    if (!BACKEND_ENABLED) throw new Error('กรุณาเปิด backend เพื่อนำเข้าเลข Final');
+    const response = await fetch(`/api/admin/exams/${encodeURIComponent(target.id)}/final-ids/draft`, {
+      method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ fileName, rows }),
     });
-    if (schoolUpdates.size) {
-      const at = new Intl.DateTimeFormat("th-TH", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date());
-      setApplications((current) => current.map((application) => {
-        const school = schoolUpdates.get(application.id);
-        if (!school || school === application.school) return application;
-        const change = { label: "โรงเรียน (อ้างอิงไฟล์ผลสอบ)", oldValue: application.school || "—", newValue: school };
-        const entry = { id: `audit-result-school-${Date.now()}-${application.id}`, editor: "ผู้ดูแลระบบ · Aommy", at, changes: [change] };
-        return {
-          ...application,
-          school,
-          studentInformation: { ...application.studentInformation, school },
-          changeHistory: [entry, ...(application.changeHistory || [])],
-        };
-      }));
-    }
-    const stillHasConflicts = rows.some((row) => row.matchStatus !== "matched");
-    setResultWorkflows((current) => {
-      const currentWorkflow = current[targetId] || workflow;
-      return { ...current, [targetId]: { ...currentWorkflow, rows, hasConflict: stillHasConflicts, conflictResolved: !stillHasConflicts, fileName: stillHasConflicts ? currentWorkflow.fileName : "ผลสอบฉบับแก้ไข (ตัวอย่าง).xlsx" } };
-    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || 'นำเข้าเลข Final ไม่สำเร็จ');
+    notify(`บันทึกเลข Final ${result.workflow.rows.length} รายการเป็นฉบับร่างแล้ว`);
+    return result.workflow;
   }
 
-  function publishResults(target) {
+  async function resolveFinalIdRow(rowId, action, applicationItemId = '') {
+    const response = await fetch(`/api/admin/final-id-import-rows/${encodeURIComponent(rowId)}/resolve`, {
+      method: 'PATCH', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action, ...(applicationItemId ? { applicationItemId } : {}) }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || 'แก้รายการจับคู่เลข Final ไม่สำเร็จ');
+    return result.workflow;
+  }
+
+  async function saveFinalIds(target) {
+    if (!target || !window.confirm(`ยืนยันบันทึกเลขประจำตัว Final ${target.title} ${target.year} ลงใบสมัครที่จับคู่แล้วหรือไม่?`)) return;
+    try {
+      const response = await fetch(`/api/admin/exams/${encodeURIComponent(target.id)}/final-ids/apply`, {
+        method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ confirm: true }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'บันทึกเลข Final ไม่สำเร็จ');
+      await refreshApplicationData();
+      notify(`บันทึกเลขประจำตัว Final ลงใบสมัคร ${result.rows} รายแล้ว`);
+      return true;
+    } catch (error) { notify(error?.message || 'บันทึกเลข Final ไม่สำเร็จ'); return false; }
+  }
+
+  async function importResultDraft(target, fileName, rows) {
+    if (!BACKEND_ENABLED) throw new Error('กรุณาเปิด backend เพื่อนำเข้าผลสอบ');
+    const response = await fetch(`/api/admin/exams/${encodeURIComponent(target.id)}/results/draft`, {
+      method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ fileName, rows }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || 'นำเข้าผลสอบไม่สำเร็จ');
+    setResultWorkflows((current) => ({ ...current, [target.id]: result.workflow }));
+    notify(`นำเข้าผลสอบ ${result.workflow.rows.length} รายการและบันทึกเป็นฉบับร่างแล้ว`);
+    return result.workflow;
+  }
+
+  async function resolveResultConflict(targetId, rowId, action, applicationItemId = '') {
+    const response = await fetch(`/api/admin/result-import-rows/${encodeURIComponent(rowId)}/resolve`, {
+      method: 'PATCH', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action, ...(applicationItemId ? { applicationItemId } : {}) }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || 'แก้รายการจับคู่ผลสอบไม่สำเร็จ');
+    setResultWorkflows((current) => ({ ...current, [targetId]: result.workflow }));
+    notify('บันทึกการตรวจจับคู่ผลสอบแล้ว');
+    return result.workflow;
+  }
+
+  async function publishResults(target) {
     const currentWorkflow = resultWorkflows[target.id] || {};
-    const unresolvedCount = (currentWorkflow.rows || []).filter((row) => row.matchStatus !== "matched").length;
-    if (!currentWorkflow.draftImported || !currentWorkflow.rows?.length || unresolvedCount) {
-      notify(unresolvedCount ? `ยังประกาศผลไม่ได้ · กรุณาแก้รายการที่ต้องตรวจอีก ${unresolvedCount} รายการ` : "ยังประกาศผลไม่ได้ · กรุณานำเข้าผลสอบฉบับร่างก่อน");
+    if (!currentWorkflow.id || !currentWorkflow.rows?.length) { notify('ยังไม่มีผลสอบฉบับร่าง'); return; }
+    const unresolvedCount = currentWorkflow.rows.filter((row) => row.matchStatus !== 'matched').length;
+    if (unresolvedCount) { notify(`ยังประกาศผลไม่ได้ · กรุณาแก้รายการที่ต้องตรวจอีก ${unresolvedCount} รายการ`); return; }
+    if (!window.confirm(`ยืนยันประกาศผล ${resultTargetLabel(target)} หรือไม่? เมื่อประกาศแล้วระบบจะแสดงผลสาธารณะและล็อกข้อมูล`)) return;
+    try {
+      const response = await fetch(`/api/admin/exams/${encodeURIComponent(target.id)}/results/publish`, {
+        method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ confirm: true }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'ประกาศผลสอบไม่สำเร็จ');
+      const [publicResponse, workflowResponse, catalogResponse] = await Promise.all([
+        fetch('/api/results'), fetch('/api/admin/results', { credentials: 'same-origin' }), fetch('/api/catalog'),
+      ]);
+      if (publicResponse.ok) setApiPublishedResults((await publicResponse.json()).results || []);
+      if (workflowResponse.ok) setResultWorkflows((await workflowResponse.json()).workflows || {});
+      if (catalogResponse.ok) setExamCatalog((await catalogResponse.json()).exams || []);
+      notify(`ประกาศผล ${resultTargetLabel(target)} แล้ว · ผู้มีสิทธิ์ Final ${result.eligibleForFinal} ราย · เปิดรอบ Final อัตโนมัติ ${result.openedFinalRounds} รอบ`);
+    } catch (error) { notify(error?.message || 'ประกาศผลสอบไม่สำเร็จ'); }
+  }
+
+  function confirmFinalFromApplicationCard(application) {
+    if (BACKEND_ENABLED) { navigate("final-confirm"); return; }
+    if (!authProfile?.email || authProfile.isAdmin || application?.source !== "self"
+      || application.contactEmail?.toLowerCase() !== authProfile.email.toLowerCase()) return;
+    const availableRounds = getEligibleFinalRounds(application, effectiveExamCatalog, publishedHeatResults, calendarDay);
+    if (!availableRounds.length) {
+      notify("ขณะนี้ไม่มีรอบ Final ที่เปิดให้ยืนยันสิทธิ์สำหรับใบสมัครนี้");
       return;
     }
-    setResultWorkflows((current) => ({ ...current, [target.id]: { ...current[target.id], published: true, publishedAt: new Date().toISOString() } }));
-    notify(`ประกาศผล ${resultTargetLabel(target)} ในตัวอย่างแล้ว · ผลสอบถูกล็อก${getExamRoundType(target) === "HEAT" ? " และเปิดยืนยันสิทธิ์ Final อัตโนมัติ" : ""}`);
+    setFinalAccess({ heatId: application.id, mode: "account", allowedRoundIds: availableRounds.map((round) => round.id) });
+    setPersona("candidate");
+    navigate("apply-final", application.id);
+  }
+
+  function continueVerifiedFinal(choice) {
+    const { applicant, item } = choice;
+    const exam = examCatalog.find((round) => round.id === item.roundId);
+    const grade = gradeCatalogEntries.find((entry) => entry.id === item.gradeId);
+    const center = centerCatalog.find((entry) => entry.id === item.centerId);
+    if (!exam || !grade || !center) { notify("ข้อมูลรอบสอบไม่ครบ กรุณาลองใหม่"); return; }
+    const prefill = {
+      id: choice.sourceHeatApplicationId, year: item.year,
+      candidate: [applicant.firstNameEn, applicant.middleNameEn, applicant.lastNameEn].filter(Boolean).join(" "),
+      school: applicant.schoolName, contactEmail: applicant.contactEmail, center: center.name,
+      competitions: [{ id: exam.competitionId, grade: grade.label, format: item.format === "online" ? "Online" : "Paper-Based", center: center.name, centerId: center.id, examEmail: item.examEmail }],
+      studentInformation: {
+        firstName: applicant.firstNameEn, middleName: applicant.middleNameEn || "", lastName: applicant.lastNameEn,
+        thaiFirstName: applicant.firstNameTh || "", thaiLastName: applicant.lastNameTh || "",
+        dateOfBirth: applicant.dateOfBirth, phone: applicant.contactPhone, email: applicant.contactEmail,
+        address1: applicant.address?.address1 || "", address2: applicant.address?.address2 || "",
+        city: applicant.address?.city || "", province: applicant.address?.province || "", postalCode: applicant.address?.postalCode || "",
+      },
+    };
+    setFinalAccess({ heatId: choice.sourceHeatApplicationId, mode: "account", allowedRoundIds: [item.roundId], prefill });
+    setPersona("candidate");
+    navigate("apply-final", choice.sourceHeatApplicationId);
   }
 
   const content = (() => {
     switch (page) {
+      case "admin-login":
+        return <AdminLoginPage authProfile={authProfile} authChecked={authChecked} backendEnabled={BACKEND_ENABLED} onSignIn={signInAdmin} onSignOut={signOut} />;
       case "apply-heat":
         return <ApplicationFormPage key={page} kind="Heat" onSubmit={submitApplication} navigate={navigate} competitionFees={competitionFees} examCatalog={examCatalog} centerCatalog={centerCatalog} pastPaperCatalog={pastPaperCatalog} paymentAccounts={paymentAccounts} />;
       case "apply-final":
-        return finalAccess && finalAccess.heatId === activeApplicationId
-          ? <ApplicationFormPage key={`${page}-${activeApplicationId}`} kind="Final" prefill={activeApplication} applicationMode={finalAccess.mode} allowedRoundIds={finalAccess.allowedRoundIds} onSubmit={submitApplication} navigate={navigate} competitionFees={competitionFees} examCatalog={examCatalog} centerCatalog={centerCatalog} pastPaperCatalog={pastPaperCatalog} paymentAccounts={paymentAccounts} />
+        return authProfile && finalAccess && finalAccess.heatId === activeApplicationId
+          ? <ApplicationFormPage key={`${page}-${activeApplicationId}`} kind="Final" prefill={finalAccess.prefill || activeApplication} applicationMode={finalAccess.mode} allowedRoundIds={finalAccess.allowedRoundIds} onSubmit={submitApplication} navigate={navigate} competitionFees={competitionFees} examCatalog={examCatalog} centerCatalog={centerCatalog} pastPaperCatalog={pastPaperCatalog} paymentAccounts={paymentAccounts} />
           : <FinalAccessGate navigate={navigate} />;
       case "applications":
-        return <ApplicationsPage applications={visibleApplications} navigate={navigate} />;
+        return <ApplicationsPage applications={visibleApplications} navigate={navigate} resultRows={publishedResultRows} examCatalog={effectiveExamCatalog} today={calendarDay} authProfile={authProfile} onConfirmFinal={confirmFinalFromApplicationCard} />;
       case "application-detail":
-        return <ApplicationDetailPage application={applications.find((item) => item.id === activeApplicationId)} navigate={navigate} resultRows={publishedResultRows} examCatalog={examCatalog} onSaveCertificatePhoto={saveCertificatePhoto} />;
+        return <ApplicationDetailPage application={applications.find((item) => item.id === activeApplicationId)} navigate={navigate} resultRows={publishedResultRows} examCatalog={effectiveExamCatalog} today={calendarDay} authProfile={authProfile} hasFinalApplication={applications.some((item) => item.kind === "Final" && item.sourceHeatId === activeApplicationId)} onConfirmFinal={confirmFinalFromApplicationCard} onSaveCertificatePhoto={saveCertificatePhoto} />;
       case "check-status":
         return <StatusLookupPage applications={applications} navigate={navigate} />;
       case "lookup-choice":
         return <LookupChoicePage navigate={navigate} />;
       case "edit-verify":
-        return <EditVerifyPage applications={applications} onVerified={(id) => navigate("edit-application", id)} navigate={navigate} />;
+        return <EditVerifyPage applications={applications} onVerified={(application, credentials) => {
+          setPublicEditApplication(application);
+          setPublicEditCredentials(credentials);
+          navigate("edit-application", application.id);
+        }} navigate={navigate} />;
       case "edit-application":
-        return <EditApplicationPage key={activeApplicationId} application={activeApplication} onSave={saveApplication} navigate={navigate} examCatalog={examCatalog} />;
+        return activeEditableApplication
+          ? <EditApplicationPage key={activeApplicationId} application={activeEditableApplication} onSave={saveApplication} navigate={navigate} examCatalog={examCatalog} publicAccess={publicEditApplication?.id === activeApplicationId} publicCredentials={publicEditCredentials} />
+          : <section className="surface empty-state"><strong>กรุณายืนยันชื่อและเบอร์โทรศัพท์ก่อนแก้ไขใบสมัคร</strong><Button icon="shield" onClick={() => navigate("edit-verify")}>ไปหน้ายืนยันตัวตน</Button></section>;
       case "slip-upload":
-        return <SlipUploadPage application={activeApplication} onUploaded={(id, slipFile) => updateApplication(id, { slipIssue: "", slipFileName: slipFile.name, slipFile, paymentAccountType: "", paymentAccountId: "", paymentAccountSnapshot: null })} onReturn={() => navigate("admin-review", activeApplication?.id)} notify={notify} />;
+        return <section className="surface empty-state"><strong>ลิงก์อัปโหลดสลิปนี้ใช้ไม่ได้</strong><p>กรุณาเปิดลิงก์เฉพาะจากอีเมลแจ้งแก้ไขสลิป</p><Button onClick={() => navigate("check-status")}>ค้นหาสถานะใบสมัคร</Button></section>;
+      case "slip-replacement":
+        return <SlipReplacementPage />;
       case "final-confirm":
-        return <FinalConfirmationPage key={activeApplicationId} applications={applications} applicationHint={activeApplication} onContinue={(selected, mode, profile, finalRounds = []) => { if (mode === "google") signInWithGoogleDemo(profile || demoGoogleProfile); setFinalAccess({ heatId: selected.id, mode, allowedRoundIds: finalRounds.map((round) => round.id) }); setPersona(mode === "guest" ? "guest" : "candidate"); navigate("apply-final", selected.id); }} navigate={navigate} publishedHeatResults={publishedHeatResults} examCatalog={effectiveExamCatalog} authProfile={authProfile} onSignIn={signInWithGoogleDemo} />;
+        return BACKEND_ENABLED
+          ? <ApiFinalConfirmationPage authProfile={authProfile} onContinue={continueVerifiedFinal} onSignIn={signInWithGoogleDemo} />
+          : <FinalConfirmationPage key={activeApplicationId} applications={applications} applicationHint={activeApplication} onContinue={() => notify("โหมดตัวอย่างอ่านอย่างเดียว · ไม่ได้ยืนยันสิทธิ์ Final")} navigate={navigate} publishedHeatResults={publishedHeatResults} examCatalog={effectiveExamCatalog} authProfile={authProfile} onSignIn={signInWithGoogleDemo} />;
       case "results":
         return <PublicResultsPage resultRows={publishedResultRows} />;
       case "admin-home":
-        return <AdminHomePage applications={applications} examCatalog={effectiveExamCatalog} resultWorkflows={resultWorkflows} navigate={navigate} resultPublished={resultPublished} syncFailed={syncFailed} />;
+        return <AdminHomePage applications={applications} examCatalog={effectiveExamCatalog} resultWorkflows={resultWorkflows} navigate={navigate} resultPublished={resultPublished} />;
       case "admin-review":
-        return <AdminReviewPage applications={applications} schoolBatches={schoolBatches} paymentAccounts={paymentAccounts} onApprove={approveApplication} onPaymentAccountChange={updateApplicationPaymentAccount} onSlipIssue={notifySlipIssue} notify={notify} navigate={navigate} activeApplicationId={activeApplicationId} />;
+        return <AdminReviewPage applications={applications} schoolBatches={schoolBatches} onApprove={approveApplication} onReject={rejectApplication} onSlipIssue={notifySlipIssue} notify={notify} navigate={navigate} activeApplicationId={activeApplicationId} />;
       case "admin-application-edit":
-        return <AdminApplicationEditPage key={activeApplicationId} application={activeApplication} onSave={saveAdminApplication} navigate={navigate} competitionFees={competitionFees} examCatalog={examCatalog} centerCatalog={centerCatalog} />;
+        return adminEditApplication
+          ? <AdminApplicationEditPage key={activeApplicationId} application={adminEditApplication} onSave={saveAdminApplication} navigate={navigate} competitionFees={competitionFees} examCatalog={examCatalog} centerCatalog={centerCatalog} gradeCatalogEntries={gradeCatalogEntries} />
+          : <section className="surface empty-state"><strong>ไม่พบใบสมัครนี้</strong><Button variant="outline" onClick={() => navigate("admin-review")}>กลับไปหน้าใบสมัคร</Button></section>;
       case "admin-mock-papers":
         return <AdminMockPapersPage applications={applications} notify={notify} />;
       case "admin-round":
-        return <AdminRoundPage examCatalog={effectiveExamCatalog} onUpdateExam={updateExam} onAddExam={addExam} onRemoveExam={removeExam} registrationOpen={registrationOpen} onGenerateHeatIds={generateHeatIds} centerCatalog={centerCatalog} setCenterCatalog={setCenterCatalog} gradeCatalog={gradeCatalog} setGradeCatalog={setGradeCatalog} applications={applications} pastPaperCatalog={pastPaperCatalog} setPastPaperCatalog={setPastPaperCatalog} notify={notify} />;
+        return <AdminRoundPage examCatalog={effectiveExamCatalog} onUpdateExam={updateExam} onSetManualClosed={setExamManualClosed} onAddExam={addExam} onRemoveExam={removeExam} onSaveCatalog={saveAdminCatalog} catalogDirty={catalogDirty} registrationOpen={registrationOpen} onGenerateHeatIds={generateHeatIds} centerCatalog={centerCatalog} setCenterCatalog={setCenterCatalog} gradeCatalog={gradeCatalog} setGradeCatalog={setGradeCatalog} competitionCatalog={competitionCatalog} setCompetitionCatalog={setCompetitionCatalog} applications={applications} pastPaperCatalog={pastPaperCatalog} setPastPaperCatalog={setPastPaperCatalog} notify={notify} />;
       case "admin-form-options":
-        return <AdminRoundPage pageMode="form-options" examCatalog={examCatalog} onUpdateExam={updateExam} onAddExam={addExam} onRemoveExam={removeExam} registrationOpen={registrationOpen} onGenerateHeatIds={generateHeatIds} centerCatalog={centerCatalog} setCenterCatalog={setCenterCatalog} gradeCatalog={gradeCatalog} setGradeCatalog={setGradeCatalog} applications={applications} pastPaperCatalog={pastPaperCatalog} setPastPaperCatalog={setPastPaperCatalog} paymentAccounts={paymentAccounts} setPaymentAccounts={setPaymentAccounts} notify={notify} />;
+        return <AdminRoundPage pageMode="form-options" examCatalog={examCatalog} onUpdateExam={updateExam} onSetManualClosed={setExamManualClosed} onAddExam={addExam} onRemoveExam={removeExam} onSaveCatalog={saveAdminCatalog} onSavePaymentAccounts={saveAdminPaymentAccounts} catalogDirty={catalogDirty} registrationOpen={registrationOpen} onGenerateHeatIds={generateHeatIds} centerCatalog={centerCatalog} setCenterCatalog={setCenterCatalog} gradeCatalog={gradeCatalog} setGradeCatalog={setGradeCatalog} competitionCatalog={competitionCatalog} setCompetitionCatalog={setCompetitionCatalog} applications={applications} pastPaperCatalog={pastPaperCatalog} setPastPaperCatalog={setPastPaperCatalog} paymentAccounts={paymentAccounts} setPaymentAccounts={setPaymentAccounts} notify={notify} />;
       case "admin-results":
         return <AdminResultsPage applications={applications} examCatalog={examCatalog} resultWorkflows={resultWorkflows} onImportDraft={importResultDraft} onResolveConflict={resolveResultConflict} onPublishResult={publishResults} notify={notify} navigate={navigate} />;
       case "admin-final-ids":
-        return <AdminFinalIdsPage applications={applications} finalIdsImported={finalIdsImported} onImport={importFinalIds} onManualMatch={matchFinalId} notify={notify} navigate={navigate} />;
+        return <AdminFinalIdsPage applications={applications} examCatalog={examCatalog} publishedHeatResults={publishedHeatResults} onImport={importFinalIds} onResolveRow={resolveFinalIdRow} onApply={saveFinalIds} notify={notify} navigate={navigate} />;
       case "admin-sheets":
-        return <AdminSheetsPage applications={applications} syncFailed={syncFailed} setSyncFailed={setSyncFailed} />;
+        return <AdminSheetsPage />;
       default:
         return <HomePage navigate={navigate} persona={persona} applications={visibleApplications} />;
     }
   })();
+
+  const protectedAdminPage = page.startsWith("admin-") && page !== "admin-login";
+  if (page === "admin-login" || (protectedAdminPage && (!BACKEND_ENABLED || !authChecked || !authProfile?.isAdmin))) {
+    return <AdminLoginPage authProfile={authProfile} authChecked={authChecked} backendEnabled={BACKEND_ENABLED} onSignIn={signInAdmin} onSignOut={signOut} />;
+  }
 
   if (page === "home" && persona !== "admin") {
     return <LandingPage navigate={navigate} setPersona={setPersona} authProfile={authProfile} onSignIn={signInWithGoogleDemo} onSignOut={signOut} onStartApplication={startApplication} resultPublished={resultPublished} examCatalog={effectiveExamCatalog} />;
   }
 
   if (persona !== "admin" && !page.startsWith("admin-")) {
-    return <PublicPortalLayout page={page} navigate={navigate} setPersona={setPersona} authProfile={authProfile} onSignIn={signInWithGoogleDemo} onSignOut={signOut} toast={toast} setToast={setToast}>{requiresRegistrationLogin ? <RegistrationLoginGate kind="Heat" /> : content}</PublicPortalLayout>;
+    return <PublicPortalLayout page={page} navigate={navigate} setPersona={setPersona} authProfile={authProfile} onSignIn={signInWithGoogleDemo} onSignOut={signOut} toast={toast} setToast={setToast} examCatalog={effectiveExamCatalog}>{requiresRegistrationLogin ? <RegistrationLoginGate kind="Heat" /> : content}</PublicPortalLayout>;
   }
 
   const shellPersona = page.startsWith("admin-") ? "admin" : persona;
   return (
     <div className={"app-shell " + (shellPersona === "admin" ? "admin-shell" : "")}>
       <a className="skip-link" href="#main-content">ข้ามไปยังเนื้อหาหลัก</a>
-      <Sidebar page={page} persona={shellPersona} applications={applications} navigate={navigate} open={menuOpen} onClose={() => setMenuOpen(false)} notify={notify} />
+      <Sidebar page={page} persona={shellPersona} applications={applications} navigate={navigate} open={menuOpen} onClose={() => setMenuOpen(false)} notify={notify} activeYear={getActiveExamYear(examCatalog, "HEAT")} />
       <main className="main-column" id="main-content" tabIndex="-1">
-        <Topbar title={pageTitle} persona={shellPersona} setPersona={(next) => { setPersona(next); if (next === "admin") navigate("admin-home"); else if (page.startsWith("admin-")) navigate("home"); }} menuOpen={menuOpen} setMenuOpen={setMenuOpen} navigate={navigate} />
+        <Topbar title={pageTitle} persona={shellPersona} setPersona={(next) => { setPersona(next); if (next === "admin") navigate("admin-home"); else if (page.startsWith("admin-")) navigate("home"); }} menuOpen={menuOpen} setMenuOpen={setMenuOpen} navigate={navigate} authProfile={authProfile} onSignOut={signOut} activeYear={getActiveExamYear(examCatalog, "HEAT")} />
         <div className="content-wrap">
-          <div className="prototype-banner"><Icon name="info" size={15} /><span>ต้นแบบสำหรับทดลองใช้งาน · ข้อมูลและการเชื่อมต่อภายนอกเป็นข้อมูลจำลอง</span><button onClick={(event) => event.currentTarget.parentElement.remove()} aria-label="ปิดข้อความ"><Icon name="close" size={14} /></button></div>
+          {!BACKEND_ENABLED ? <div className="prototype-banner"><Icon name="info" size={15} /><span>โหมดตัวอย่างสำหรับพัฒนา UI · ข้อมูลไม่เชื่อมต่อฐานข้อมูลจริง</span><button onClick={(event) => event.currentTarget.parentElement.remove()} aria-label="ปิดข้อความ"><Icon name="close" size={14} /></button></div> : null}
           {content}
-          <footer className="page-footer"><span>© 2569 OCEC Portal</span><span>สำหรับการสอบถาม ติดต่อฝ่ายประสานงานโครงการ</span><a href="#help" onClick={(event) => { event.preventDefault(); notify("ศูนย์ช่วยเหลือเป็นตัวอย่างสำหรับ prototype"); }}>ศูนย์ช่วยเหลือ</a><a className="flaticon-attribution" href="https://www.flaticon.com/uicons" target="_blank" rel="noreferrer">UIcons by Flaticon</a></footer>
+          <footer className="page-footer"><span>© 2569 OCEC Portal</span><span>สำหรับการสอบถาม ติดต่อฝ่ายประสานงานโครงการ</span><a href="https://lin.ee/3hzFg1z" target="_blank" rel="noopener noreferrer">ศูนย์ช่วยเหลือ</a><a className="flaticon-attribution" href="https://www.flaticon.com/uicons" target="_blank" rel="noreferrer">UIcons by Flaticon</a></footer>
         </div>
       </main>
       {toast ? <div className="toast" role="status" aria-live="polite"><span><Icon name="check" size={16} /></span><p>{toast}</p><button aria-label="ปิดการแจ้งเตือน" onClick={() => setToast("")}><Icon name="close" size={16} /></button></div> : null}

@@ -1,0 +1,2 @@
+ALTER TABLE google_workspace_sheet_rows
+  DROP CONSTRAINT IF EXISTS google_workspace_sheet_rows_exam_round_id_spreadsheet_row_key;

@@ -241,7 +241,7 @@ export function downloadSchoolTemplate({ centerCatalog = [], competitions = [], 
 
 function normalizeChoice(value) {
   const normalized = text(value).toLowerCase();
-  if (["สมัคร", "yes", "y", "true", "1", "checked", "✓", "☑", "☒"].includes(normalized)) return true;
+  if (["ซื้อ", "สมัคร", "yes", "y", "true", "1", "checked", "✓", "☑", "☒"].includes(normalized)) return true;
   if (["ไม่สมัคร", "ไม่ซื้อ", "no", "n", "false", "0", "unchecked", "☐"].includes(normalized)) return false;
   return null;
 }

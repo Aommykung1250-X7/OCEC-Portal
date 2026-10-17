@@ -58,6 +58,16 @@ function normalizeName(value) {
   return String(value ?? "").trim();
 }
 
+export function isOnlineCenter(center) {
+  if (center && typeof center === "object") {
+    return normalizeCode(center.code) === ONLINE_CENTER_CODE
+      || normalizeName(center.id) === ONLINE_CENTER_ID
+      || isOnlineCenter(center.name);
+  }
+  const name = normalizeName(center).toLowerCase();
+  return name === "online : home base" || name === "online exam";
+}
+
 export function parseCenterRows(rows, existingCenters = []) {
   const centers = [];
   const issues = [];
@@ -70,6 +80,10 @@ export function parseCenterRows(rows, existingCenters = []) {
     const code = normalizeCode(row?.[1]);
     if (!name || !code) {
       issues.push({ row: excelRow, code, name, message: "ต้องมีชื่อศูนย์สอบและรหัสศูนย์สอบ" });
+      return;
+    }
+    if (!/^\d{3}$/.test(code)) {
+      issues.push({ row: excelRow, code, name, message: "รหัสศูนย์สอบต้องเป็นตัวเลข 3 หลักเพื่อใช้สร้างเลขประจำตัวสอบ" });
       return;
     }
     if (code === "000") {

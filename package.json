@@ -1,5 +1,5 @@
 {
-  "name": "ocec-portal-prototype",
+  "name": "ocec-portal",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -11,8 +11,14 @@
     "api:dev": "node --env-file-if-exists=.env --watch server/start.js",
     "api:start": "node --env-file-if-exists=.env server/start.js",
     "start": "npm run api:start",
+    "test": "node --test --test-concurrency=1 test/*.test.js test/e2e/*.test.js",
+    "test:db": "node scripts/with-test-db.js",
+    "test:e2e": "node scripts/test-e2e.js",
+    "test:e2e:install": "playwright install chromium",
+    "email:test": "node --env-file-if-exists=.env scripts/send-registration-email.js",
     "db:migrate": "node --env-file-if-exists=.env server/migrate.js",
     "db:seed": "node --env-file-if-exists=.env server/seed.js",
+    "local:production": "npm run db:migrate && npm run build && npm start",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0"
   },
@@ -20,14 +26,14 @@
     "@fastify/static": "^10.1.6",
     "fastify": "^5.12.5",
     "google-auth-library": "^11.2.0",
-    "pdfjs-dist": "^6.4.299",
     "pg": "^8.23.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "tesseract.js": "^7.0.0",
-    "xlsx": "^0.18.5"
+    "read-excel-file": "^9.3.12",
+    "write-excel-file": "^4.1.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "vite": "^8.3.1"
   }
 }
