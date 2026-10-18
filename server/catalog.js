@@ -15,7 +15,10 @@ export async function loadCatalog() {
     getPool().query('SELECT * FROM exam_rounds WHERE active=true ORDER BY year DESC, title'),
     getPool().query('SELECT * FROM grade_catalog WHERE active=true ORDER BY sort_order, label'),
     getPool().query('SELECT * FROM exam_centers ORDER BY code'),
-    getPool().query('SELECT exam_round_id, grade_id, NULL::text AS center_id FROM exam_round_grades UNION ALL SELECT exam_round_id, NULL::text, center_id FROM exam_round_centers'),
+    getPool().query(`SELECT exam_round_id, grade_id, NULL::text AS center_id FROM exam_round_grades
+      UNION ALL
+      SELECT rc.exam_round_id, NULL::text, rc.center_id FROM exam_round_centers rc
+      JOIN exam_centers ec ON ec.id=rc.center_id WHERE ec.code <> '500'`),
     getPool().query('SELECT * FROM past_papers ORDER BY group_name, id'),
     getPool().query('SELECT * FROM payment_accounts WHERE active=true ORDER BY id'),
     getPool().query('SELECT * FROM competitions ORDER BY id'),
@@ -38,7 +41,7 @@ export async function loadCatalog() {
     }),
     grades: grades.rows.map((row) => ({ id: row.id, label: row.label, sortOrder: row.sort_order, active: row.active })),
     centers: centers.rows.map((row) => ({ id: row.id, code: row.code, name: row.name, active: row.active })),
-    pastPapers: pastPapers.rows.map((row) => ({ id: row.id, group: row.group_name, title: row.title, detail: row.detail, name: `${row.title} — ${row.detail}`, price: row.price_satang / 100, active: row.active })),
+    pastPapers: pastPapers.rows.map((row) => ({ id: row.id, competitionId: row.competition_id, group: row.group_name, title: row.title, detail: row.detail, name: `${row.title} — ${row.detail}`, price: row.price_satang / 100, active: row.active })),
     paymentAccounts: accounts.rows.map((row) => ({ id: row.id, bankName: row.bank_name, accountName: row.account_name, accountNumber: row.account_number, category: row.category, showInForm: row.show_in_form, active: row.active })),
   };
 }
@@ -127,13 +130,17 @@ export async function saveCatalogSnapshot(snapshot, actorId) {
     if (!Array.isArray(snapshot?.[key])) throw fail(`Catalog field ${key} must be an array`);
   }
   const labelIds = new Map();
-  const grades = snapshot.grades.map((grade, index) => {
+  const duplicateGradeIds = [];
+  const grades = snapshot.grades.flatMap((grade, index) => {
     const label = cleanText(typeof grade === 'string' ? grade : grade.label, 'Grade label', 120);
     const normalized = label.toLocaleLowerCase();
-    if (labelIds.has(normalized)) throw fail(`Duplicate grade: ${label}`);
     const id = safeId((typeof grade === 'object' && grade.id) || `grade-${label.normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-')}`, 'Grade ID');
+    if (labelIds.has(normalized)) {
+      if (id !== labelIds.get(normalized)) duplicateGradeIds.push(id);
+      return [];
+    }
     labelIds.set(normalized, id);
-    return { id, label, sortOrder: Number.isInteger(grade.sortOrder) ? grade.sortOrder : index + 1 };
+    return [{ id, label, sortOrder: Number.isInteger(grade.sortOrder) ? grade.sortOrder : index + 1 }];
   });
   const centerIds = new Set();
   const centerCodes = new Set();
@@ -159,6 +166,7 @@ export async function saveCatalogSnapshot(snapshot, actorId) {
     return { id, short, name, subject, active: competition.active !== false };
   });
   const roundIds = new Set();
+  const onlineCenterIds = new Set(centers.filter((center) => center.code === '500').map((center) => center.id));
   const exams = snapshot.exams.map((exam) => {
     const id = safeId(exam.id, 'Exam round ID');
     const competitionId = safeId(exam.competitionId, 'Competition ID');
@@ -168,12 +176,14 @@ export async function saveCatalogSnapshot(snapshot, actorId) {
     if (!['HEAT', 'FINAL', 'FINAL_X'].includes(type)) throw fail(`Unsupported exam round type: ${type}`);
     if (roundIds.has(id)) throw fail(`Duplicate exam round: ${id}`);
     if (exam.isOpen && !Array.isArray(exam.gradeOptions ?? []) || exam.isOpen && !(exam.gradeOptions || []).length) throw fail(`Open round ${title} requires at least one grade`);
-    const selectedGrades = (exam.gradeOptions || []).map((label) => {
+    const selectedGrades = [...new Set((exam.gradeOptions || []).map((label) => {
       const found = labelIds.get(String(label).toLocaleLowerCase());
       if (!found) throw fail(`Unknown grade selected for ${title}: ${label}`);
       return found;
-    });
-    const selectedCenters = [...new Set(exam.centerIds || [])].map((centerId) => safeId(centerId, 'Exam center ID'));
+    }))];
+    const selectedCenters = [...new Set(exam.centerIds || [])]
+      .map((centerId) => safeId(centerId, 'Exam center ID'))
+      .filter((centerId) => !onlineCenterIds.has(centerId));
     if (selectedCenters.some((centerId) => !centers.some((center) => center.id === centerId && center.active && center.code !== '500'))) throw fail(`Unknown or inactive exam center selected for ${title}`);
     const price = (value, label) => {
       const amount = Number(value);
@@ -225,6 +235,10 @@ export async function saveCatalogSnapshot(snapshot, actorId) {
   const accounts = normalizePaymentAccounts(snapshot.paymentAccounts);
 
   await transaction(async (client) => {
+    if (duplicateGradeIds.length) {
+      const referencedDuplicates = await client.query('SELECT DISTINCT grade_id FROM application_items WHERE grade_id=ANY($1::text[])', [duplicateGradeIds]);
+      if (referencedDuplicates.rowCount) throw fail('Cannot merge duplicate grades that are used by existing applications');
+    }
     const before = await catalogAuditSnapshot(client);
     const todayResult = await client.query("SELECT (now() AT TIME ZONE 'Asia/Bangkok')::date AS today");
     const today = String(todayResult.rows[0].today).slice(0, 10);

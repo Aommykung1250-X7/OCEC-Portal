@@ -261,8 +261,16 @@ function recordsFromSingleSheet(rows) {
   const canonicalHeader = (cell) => text(cell).replace(/\s*\*$/, "").toUpperCase();
   const headerIndex = rows.findIndex((row) => row?.some((cell) => canonicalHeader(cell) === "ENGLISH FIRST NAME") && row?.some((cell) => canonicalHeader(cell).startsWith("EXAM FORMAT") || canonicalHeader(cell).startsWith("สมัคร ")));
   if (headerIndex < 0) return { headers: [], records: [], headerIndex, issues: [{ sheet: "Registration", row: 1, field: "", message: "ไม่พบหัวตารางเทมเพลตสมัครโรงเรียน" }] };
-  const headers = rows[headerIndex].map((cell) => text(cell).replace(/\s*\*$/, ""));
-  const records = rows.slice(headerIndex + 1).map((cells, index) => ({ rowNumber: headerIndex + index + 2, values: Object.fromEntries(headers.map((header, column) => [header, cells?.[column] ?? ""])) }));
+  // Lookup lists for dropdowns live in hidden columns without headers. Ignore those
+  // columns so their values cannot be mistaken for extra applicant rows.
+  const headerColumns = rows[headerIndex]
+    .map((cell, column) => ({ header: text(cell).replace(/\s*\*$/, ""), column }))
+    .filter(({ header }) => header);
+  const headers = headerColumns.map(({ header }) => header);
+  const records = rows.slice(headerIndex + 1).map((cells, index) => ({
+    rowNumber: headerIndex + index + 2,
+    values: Object.fromEntries(headerColumns.map(({ header, column }) => [header, cells?.[column] ?? ""])),
+  }));
   return { headers, records, headerIndex, issues: [] };
 }
 

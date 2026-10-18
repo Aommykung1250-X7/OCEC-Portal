@@ -473,19 +473,20 @@ if (!testUrl) {
     assert.match(body, new RegExp(reason));
   });
 
-  test('reject requires a non-empty short reason', async () => {
+  test('reject accepts no reason and still queues a rejection email', async () => {
     const input = candidate('RejectValidation');
     const draft = await createIndividualDraft(input, ownerId);
     await getPool().query("UPDATE applications SET status='pending',submitted_at=now() WHERE id=$1", [draft.id]);
     const cookie = await sessionFor(adminId);
-    for (const payload of [{ decision: 'reject' }, { decision: 'reject', reason: '' }, { decision: 'reject', reason: '   ' }, { decision: 'reject', reason: 'x'.repeat(241) }]) {
-      const response = await app.inject({ method: 'PATCH', url: `/api/admin/applications/${draft.id}/review`, headers: { cookie }, payload });
-      assert.equal(response.statusCode, 400, response.body);
-    }
-    const application = await getPool().query('SELECT status FROM applications WHERE id=$1', [draft.id]);
-    assert.equal(application.rows[0].status, 'pending');
+    const tooLong = await app.inject({ method: 'PATCH', url: `/api/admin/applications/${draft.id}/review`, headers: { cookie }, payload: { decision: 'reject', reason: 'x'.repeat(241) } });
+    assert.equal(tooLong.statusCode, 400, tooLong.body);
+    const response = await app.inject({ method: 'PATCH', url: `/api/admin/applications/${draft.id}/review`, headers: { cookie }, payload: { decision: 'reject' } });
+    assert.equal(response.statusCode, 200, response.body);
+    const application = await getPool().query('SELECT status,review_note FROM applications WHERE id=$1', [draft.id]);
+    assert.equal(application.rows[0].status, 'rejected');
+    assert.equal(application.rows[0].review_note, null);
     const messages = await getPool().query("SELECT count(*)::integer AS count FROM integration_jobs WHERE kind='gmail.send' AND payload->>'to'=$1", [input.applicant.contactEmail]);
-    assert.equal(messages.rows[0].count, 0);
+    assert.equal(messages.rows[0].count, 1);
   });
 
   test('My Applications returns the owner’s applications and excludes another account’s data', async () => {

@@ -3,6 +3,8 @@ import { DEFAULT_CENTER_CATALOG, ONLINE_CENTER_CODE, ONLINE_CENTER_ID, buildCent
 import { downloadWorkbook, readWorkbook, worksheetRows } from "./excel.js";
 import { downloadSchoolTemplate, parseSchoolWorkbook } from "./schoolBatchWorkbook.js";
 import { getApplicationHeatResultState } from "./application-results.js";
+import { NotFoundPage } from "./SystemPages.jsx";
+import { ADMIN_PORTAL_PATH, isAdminPortalPath, pageLabels, routeFromLocation, routeUrlFor } from "./routes.js";
 
 const BACKEND_ENABLED = import.meta.env.VITE_BACKEND_ENABLED === "true";
 const DEMO_AVATAR_SRC = "/demo-google-avatar.svg";
@@ -370,93 +372,6 @@ const demoGoogleProfile = {
   picture: "/demo-google-avatar.svg",
 };
 
-const pageLabels = {
-  home: "ภาพรวม",
-  "apply-heat": "สมัครสอบ",
-  "apply-final": "สมัครสอบ Final",
-  applications: "ใบสมัครของฉัน",
-  "application-detail": "รายละเอียดใบสมัคร",
-  "lookup-choice": "ค้นหา / แก้ไขใบสมัคร",
-  "check-status": "ค้นหาสถานะ",
-  "edit-verify": "ยืนยันตัวตนเพื่อแก้ไข",
-  "edit-application": "แก้ไขใบสมัคร",
-  "slip-upload": "อัปโหลดสลิปใหม่",
-  "slip-replacement": "ส่งสลิปชำระเงินใหม่",
-  "final-confirm": "ยืนยันสิทธิ์ Final",
-  results: "ประกาศผล",
-  "admin-login": "เข้าสู่ระบบแอดมิน",
-  "admin-home": "ภาพรวมแอดมิน",
-  "admin-review": "ตรวจใบสมัคร",
-  "admin-round": "รายการสอบและกำหนดการ",
-  "admin-form-options": "ข้อมูลตัวเลือกในฟอร์ม",
-  "admin-results": "นำเข้าผลสอบ",
-  "admin-final-ids": "เลขประจำตัว Final",
-  "admin-sheets": "Google Sheets",
-  "admin-mock-papers": "Mock และข้อสอบเก่า",
-  "admin-application-edit": "แก้ไขใบสมัคร (แอดมิน)",
-};
-
-const ADMIN_PORTAL_PATH = "/portal-admin";
-function isAdminPortalPath(pathname = window.location.pathname) {
-  return pathname.replace(/\/+$/, "") === ADMIN_PORTAL_PATH || pathname.startsWith(`${ADMIN_PORTAL_PATH}/`);
-}
-const staticRoutePaths = {
-  home: "/", "apply-heat": "/apply", "apply-final": "/apply/final", applications: "/applications",
-  "lookup-choice": "/lookup", "check-status": "/status", "edit-verify": "/edit/verify",
-  "slip-upload": "/slip-upload", "slip-replacement": "/slip-replacement", "final-confirm": "/final/confirm", results: "/results",
-  "admin-login": ADMIN_PORTAL_PATH, "admin-home": `${ADMIN_PORTAL_PATH}/dashboard`,
-  "admin-review": `${ADMIN_PORTAL_PATH}/review`, "admin-application-edit": `${ADMIN_PORTAL_PATH}/applications`,
-  "admin-round": `${ADMIN_PORTAL_PATH}/exams`, "admin-form-options": `${ADMIN_PORTAL_PATH}/form-options`,
-  "admin-results": `${ADMIN_PORTAL_PATH}/results`, "admin-final-ids": `${ADMIN_PORTAL_PATH}/final-ids`,
-  "admin-sheets": `${ADMIN_PORTAL_PATH}/integrations/sheets`, "admin-mock-papers": `${ADMIN_PORTAL_PATH}/mock-papers`,
-};
-function routeUrlFor(page, applicationId = "") {
-  if (page === "application-detail") return applicationId ? `/applications/${encodeURIComponent(applicationId)}` : "/applications";
-  if (page === "edit-application") return applicationId ? `/applications/${encodeURIComponent(applicationId)}/edit` : "/applications";
-  if (page === "admin-review") return applicationId ? `${ADMIN_PORTAL_PATH}/applications/${encodeURIComponent(applicationId)}` : `${ADMIN_PORTAL_PATH}/review`;
-  if (page === "admin-application-edit") return applicationId ? `${ADMIN_PORTAL_PATH}/applications/${encodeURIComponent(applicationId)}/edit` : `${ADMIN_PORTAL_PATH}/applications`;
-  if (page === "slip-upload") return applicationId ? `/slip-upload/${encodeURIComponent(applicationId)}` : "/slip-upload";
-  if (page === "edit-verify") return applicationId ? `/edit/verify/${encodeURIComponent(applicationId)}` : "/edit/verify";
-  return staticRoutePaths[page] || "/";
-}
-function decodePathSegment(value) {
-  try { return decodeURIComponent(value); } catch { return value; }
-}
-function routeFromLocation() {
-  const pathname = window.location.pathname.replace(/\/+$/, "") || "/";
-  const query = new URLSearchParams(window.location.search);
-  let route = { page: "home", applicationId: "", legacy: false };
-  if (pathname === "/portal-admin") {
-    const oldAdminPage = window.location.hash.slice(1);
-    route = oldAdminPage.startsWith('admin-') && pageLabels[oldAdminPage]
-      ? { page: oldAdminPage, applicationId: '', legacy: true }
-      : { page: "admin-login", applicationId: "" };
-  }
-  else if (pathname.startsWith(`${ADMIN_PORTAL_PATH}/applications/`)) {
-    const match = pathname.match(/^\/portal-admin\/applications\/([^/]+)(\/edit)?$/);
-    if (match) route = { page: match[2] ? "admin-application-edit" : "admin-review", applicationId: decodePathSegment(match[1]) };
-  } else if (pathname.startsWith(`${ADMIN_PORTAL_PATH}/`)) {
-    const pathPage = Object.entries(staticRoutePaths).find(([page, path]) => page.startsWith("admin-") && path === pathname)?.[0];
-    if (pathPage) route = { page: pathPage === "admin-application-edit" ? "admin-review" : pathPage, applicationId: "" };
-  } else if (pathname.startsWith("/applications/")) {
-    const match = pathname.match(/^\/applications\/([^/]+)(\/edit)?$/);
-    if (match) route = { page: match[2] ? "edit-application" : "application-detail", applicationId: decodePathSegment(match[1]) };
-  } else if (pathname.startsWith("/slip-upload/")) {
-    route = { page: "slip-upload", applicationId: decodePathSegment(pathname.slice("/slip-upload/".length)) };
-  } else if (pathname.startsWith("/edit/verify/")) {
-    route = { page: "edit-verify", applicationId: decodePathSegment(pathname.slice("/edit/verify/".length)) };
-  } else {
-    const pathPage = Object.entries(staticRoutePaths).find(([, path]) => path === pathname)?.[0];
-    if (pathPage) route = { page: pathPage, applicationId: "" };
-    if (route.page === "slip-replacement" && !query.has("token") && query.has("slipReplacement")) query.set("token", query.get("slipReplacement"));
-  }
-  if (route.page === "home" && window.location.hash) {
-    const oldPage = window.location.hash.slice(1);
-    if (pageLabels[oldPage]) route = { page: oldPage, applicationId: "", legacy: true };
-  }
-  if (route.page === "home" && pathname !== "/") route.legacy = true;
-  return route;
-}
 const iconGlyphs = {
   home: "home",
   file: "file",
@@ -1166,28 +1081,65 @@ function PublicPortalLayout({ page, navigate, setPersona, authProfile, onSignIn,
 function LandingPage({ navigate, setPersona, authProfile, onSignIn, onSignOut, onStartApplication, resultPublished, examCatalog }) {
   const openExams = examCatalog.filter((exam) => exam.isOpen);
   const openExamCount = openExams.length;
-  const heroOpenExams = openExams.slice(0, 2);
+  const featuredExam = openExams[0];
   const orderedExams = [...examCatalog].sort((left, right) => Number(Boolean(right.isOpen)) - Number(Boolean(left.isOpen)));
+  const carouselExams = orderedExams.length > 1 ? [...orderedExams, ...orderedExams, ...orderedExams] : orderedExams;
   const examCarouselRef = useRef(null);
-  const [examScrollState, setExamScrollState] = useState({ canPrevious: false, canNext: false });
+  const examCarouselPauseRef = useRef({ pointer: false, focus: false });
+  const examCarouselManualPauseUntilRef = useRef(0);
 
   useEffect(() => {
     const track = examCarouselRef.current;
-    if (!track) return undefined;
-    const updateScrollState = () => {
-      const maxScroll = track.scrollWidth - track.clientWidth;
-      setExamScrollState({ canPrevious: track.scrollLeft > 2, canNext: track.scrollLeft < maxScroll - 2 });
+    if (!track || examCatalog.length < 2) return undefined;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let cycleWidth = 0;
+    let inView = typeof IntersectionObserver === "undefined";
+    let frameId = 0;
+    let previousFrameTime = 0;
+
+    const measureCycle = () => {
+      const firstCard = track.children[0];
+      const firstCopy = track.children[examCatalog.length];
+      cycleWidth = firstCard && firstCopy ? firstCopy.offsetLeft - firstCard.offsetLeft : 0;
     };
-    updateScrollState();
-    track.addEventListener("scroll", updateScrollState, { passive: true });
-    window.addEventListener("resize", updateScrollState);
-    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updateScrollState);
+    const advance = (time) => {
+      frameId = 0;
+      if (previousFrameTime && cycleWidth && !examCarouselPauseRef.current.pointer && !examCarouselPauseRef.current.focus && time >= examCarouselManualPauseUntilRef.current) {
+        const distance = Math.min(time - previousFrameTime, 50) * 0.034;
+        const nextPosition = track.scrollLeft + distance;
+        track.scrollLeft = nextPosition >= cycleWidth ? nextPosition - cycleWidth : nextPosition;
+      }
+      previousFrameTime = time;
+      frameId = window.requestAnimationFrame(advance);
+    };
+    const updateAnimation = () => {
+      if (inView && !document.hidden && !reducedMotion.matches) {
+        if (!frameId) frameId = window.requestAnimationFrame(advance);
+      } else {
+        window.cancelAnimationFrame(frameId);
+        frameId = 0;
+        previousFrameTime = 0;
+      }
+    };
+    const observer = typeof IntersectionObserver === "undefined" ? null : new IntersectionObserver(([entry]) => {
+      inView = entry.isIntersecting;
+      updateAnimation();
+    }, { threshold: 0.05 });
+    measureCycle();
     observer?.observe(track);
-    Array.from(track.children).forEach((card) => observer?.observe(card));
+    const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measureCycle);
+    resizeObserver?.observe(track);
+    window.addEventListener("resize", measureCycle);
+    document.addEventListener("visibilitychange", updateAnimation);
+    reducedMotion.addEventListener("change", updateAnimation);
+    updateAnimation();
     return () => {
-      track.removeEventListener("scroll", updateScrollState);
-      window.removeEventListener("resize", updateScrollState);
       observer?.disconnect();
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", measureCycle);
+      document.removeEventListener("visibilitychange", updateAnimation);
+      reducedMotion.removeEventListener("change", updateAnimation);
+      window.cancelAnimationFrame(frameId);
     };
   }, [examCatalog.length]);
 
@@ -1197,59 +1149,48 @@ function LandingPage({ navigate, setPersona, authProfile, onSignIn, onSignOut, o
     if (!track || !firstCard) return;
     const gap = parseFloat(window.getComputedStyle(track).columnGap) || 16;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    track.scrollBy({ left: direction * (firstCard.getBoundingClientRect().width + gap), behavior: reducedMotion ? "auto" : "smooth" });
+    const step = firstCard.getBoundingClientRect().width + gap;
+    const firstCopy = track.children[orderedExams.length];
+    const cycleWidth = firstCopy ? firstCopy.offsetLeft - firstCard.offsetLeft : 0;
+    if (cycleWidth && direction < 0 && track.scrollLeft < step) track.scrollLeft += cycleWidth;
+    if (cycleWidth && direction > 0 && track.scrollLeft + step >= cycleWidth) track.scrollLeft -= cycleWidth;
+    examCarouselManualPauseUntilRef.current = performance.now() + 2200;
+    track.scrollBy({ left: direction * step, behavior: reducedMotion ? "auto" : "smooth" });
   }
 
   return (
-    <div className="public-landing">
+    <div className="public-landing public-landing-home">
       <a className="skip-link" href="#landing-main">ข้ามไปยังเนื้อหาหลัก</a>
-      <ExamScheduleNotice examCatalog={examCatalog} navigate={navigate} />
       <PublicPortalHeader page="home" navigate={navigate} setPersona={setPersona} authProfile={authProfile} onSignIn={onSignIn} onSignOut={onSignOut} />
 
       <main id="landing-main" tabIndex="-1">
-        <section className="landing-hero">
+        <section className="landing-hero landing-sky-hero">
           <div className="landing-hero-copy">
             <div className="landing-hero-heading">
-              <h1>เลือกรายการที่เปิด<br /><em>สมัครในฟอร์มเดียว</em></h1>
+              <h1>เลือกสนามสอบที่ใช่<br />สมัครได้ในที่เดียว</h1>
             </div>
-            <p>ตรวจสอบรอบที่เปิดรับ แล้วเลือกรายการที่ต้องการสมัครได้ในฟอร์มเดียว</p>
+            <p>ดูรายการสอบที่เปิดรับ สมัครได้หลายรายการในฟอร์มเดียว<br className="landing-desktop-break" /> แล้วติดตามสถานะใบสมัครได้ทุกเวลา</p>
             <div className="landing-hero-actions">
-              <Button icon="arrow" onClick={onStartApplication}>สมัครสอบได้ที่นี่</Button>
-              <Button variant="text" icon="search" onClick={() => navigate("lookup-choice")}>ค้นหาสถานะใบสมัคร</Button>
+              <button className="landing-sky-cta landing-sky-cta-apply" type="button" onClick={onStartApplication}>
+                <span>สมัครสอบได้ที่นี่</span><span className="landing-sky-cta-icon" aria-hidden="true"><svg viewBox="0 0 64 64" fill="none"><path d="M19 9h21l8 8v34a5 5 0 0 1-5 5H19a5 5 0 0 1-5-5V14a5 5 0 0 1 5-5Z" fill="#FFF4DE" stroke="#E57B00" strokeWidth="3" strokeLinejoin="round"/><path d="M40 9v9h8M22 27h18M22 34h11" stroke="#E57B00" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/><circle cx="41" cy="43" r="11" fill="#FF980B"/><path d="m36 43 4 4 7-8" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"/></svg></span>
+              </button>
+              <button className="landing-sky-cta landing-sky-cta-status" type="button" onClick={() => navigate("lookup-choice")}>
+                <span>ค้นหาสถานะใบสมัคร</span><span className="landing-sky-cta-icon" aria-hidden="true"><svg viewBox="0 0 64 64" fill="none"><rect x="12" y="10" width="30" height="38" rx="6" fill="#FFF0F9" stroke="#DB3E9B" strokeWidth="3"/><path d="M20 21h14M20 29h10" stroke="#DB3E9B" strokeWidth="3" strokeLinecap="round"/><circle cx="39" cy="40" r="11" fill="white" stroke="#F055AF" strokeWidth="4"/><path d="m47 48 8 8" stroke="#F055AF" strokeWidth="5" strokeLinecap="round"/></svg></span>
+              </button>
             </div>
-            <div className="landing-hero-trust"><span><Icon name="check" size={15} /> เลือกได้หลายรายการในฟอร์มเดียว</span><span><Icon name="calendar" size={15} /> เห็นวันปิดรับก่อนสมัคร</span></div>
           </div>
-          <div className={`landing-hero-art${heroOpenExams.length === 1 ? " landing-hero-art-single" : ""}`} role="group" aria-label={`รายการสอบที่เปิดรับสมัคร ${openExamCount} รายการ`}>
-            <div className="landing-art-sun" />
-            <div className="landing-art-orbit landing-art-orbit-one" />
-            <div className="landing-art-orbit landing-art-orbit-two" />
-            {heroOpenExams.length ? heroOpenExams.map((exam, index) => <div className={`landing-art-card ${index === 0 ? "landing-art-card-front" : "landing-art-card-back"}`} key={exam.id}>
-              <ExamLogo exam={exam} className={`art-mini-mark ${index === 0 ? "art-mark-teal" : "art-mark-muted"}`} iconSize={18} />
-              <span><small><i className="landing-art-open-dot" />เปิดรับสมัคร · {EXAM_ROUND_LABELS[getExamRoundType(exam)] || exam.round}</small><strong>{exam.title} {exam.year}</strong></span>
-              <Icon name="arrow" size={16} />
-            </div>) : <div className="landing-art-card landing-art-card-front"><span className="art-mini-mark art-mark-muted"><Icon name="clock" size={18} /></span><span><small>ยังไม่มีรายการเปิดรับ</small><strong>ติดตามกำหนดการรอบถัดไป</strong></span><Icon name="clock" size={16} /></div>}
-            <div className="landing-art-count"><span>เปิดรับ</span><strong>{openExamCount}</strong><span>รายการ</span></div>
-            <span className="landing-art-spark landing-art-spark-a"><Icon name="sparkle" size={19} /></span>
-            <span className="landing-art-spark landing-art-spark-b"><Icon name="sparkle" size={14} /></span>
+          <div className="landing-sky-phone" aria-hidden="true">
+            <div className="landing-sky-phone-screen">
+              <div className="landing-sky-phone-top"><span>9:41</span><i /></div>
+              <div className="landing-sky-phone-brand"><img src="/ocec-logo.png" alt="" /><span>OCEC Portal</span></div>
+              <p className="landing-sky-phone-label">พร้อมเริ่มต้นหรือยัง?</p>
+              <strong className="landing-sky-phone-title">{openExamCount ? <>เปิดรับสมัคร<br />{openExamCount} รายการ</> : <>ติดตาม<br />รอบถัดไป</>}</strong>
+              <div className="landing-sky-phone-card"><span className="landing-sky-phone-dot" /><span><small>รายการที่เปิดรับ</small><strong>{featuredExam ? featuredExam.title : "ติดตามรอบถัดไป"}</strong></span></div>
+              <div className="landing-sky-phone-progress"><span /><span /><span /></div>
+              <div className="landing-sky-phone-bottom"><span>ค้นหารายการสอบ</span><span>ดูสถานะใบสมัคร</span></div>
+            </div>
           </div>
         </section>
-
-        <div className="landing-ribbon-bridge" aria-hidden="true">
-          <svg className="landing-ribbon-bridge-lines" viewBox="0 0 1320 110" preserveAspectRatio="none" focusable="false">
-            <defs>
-              <linearGradient id="landing-bridge-pink" x1="1250" y1="0" x2="120" y2="90" gradientUnits="userSpaceOnUse"><stop stopColor="#ed78a7" stopOpacity=".92" /><stop offset="1" stopColor="#ed78a7" stopOpacity="0" /></linearGradient>
-              <linearGradient id="landing-bridge-lilac" x1="1200" y1="0" x2="180" y2="100" gradientUnits="userSpaceOnUse"><stop stopColor="#aaa5ee" stopOpacity=".9" /><stop offset="1" stopColor="#aaa5ee" stopOpacity="0" /></linearGradient>
-              <linearGradient id="landing-bridge-gold" x1="1170" y1="0" x2="240" y2="105" gradientUnits="userSpaceOnUse"><stop stopColor="#f8c461" stopOpacity=".95" /><stop offset="1" stopColor="#f8c461" stopOpacity="0" /></linearGradient>
-            </defs>
-            <path d="M1120 -18 C1198 12 1165 64 1040 66 C857 69 751 114 526 91 C381 76 252 80 117 102" stroke="url(#landing-bridge-lilac)" strokeWidth="13" strokeLinecap="round" fill="none" />
-            <path d="M1188 -15 C1257 25 1162 80 1025 75 C813 67 761 118 511 101 C378 92 270 96 171 109" stroke="url(#landing-bridge-pink)" strokeWidth="9" strokeLinecap="round" fill="none" />
-            <path d="M1090 -16 C1153 31 1109 83 975 84 C810 86 679 114 492 105 C391 100 319 105 243 111" stroke="url(#landing-bridge-gold)" strokeWidth="6" strokeLinecap="round" fill="none" />
-          </svg>
-          <span className="landing-bridge-medal"><Icon name="award" size={28} /></span>
-          <span className="landing-bridge-spark landing-bridge-spark-one"><Icon name="sparkle" size={17} /></span>
-          <span className="landing-bridge-spark landing-bridge-spark-two"><Icon name="sparkle" size={12} /></span>
-          <span className="landing-bridge-spark landing-bridge-spark-three"><Icon name="sparkle" size={10} /></span>
-        </div>
 
         <section className="landing-section" id="open-exams">
           <div className="landing-section-heading">
@@ -1257,24 +1198,27 @@ function LandingPage({ navigate, setPersona, authProfile, onSignIn, onSignOut, o
             <div className="exam-heading-actions">
               <span className="landing-count"><span className="online-dot" />{openExamCount} เปิดรับ</span>
               <span className="exam-total-count">ทั้งหมด {examCatalog.length} รายการ</span>
-              {examScrollState.canPrevious || examScrollState.canNext ? (
+              {orderedExams.length > 1 ? (
                 <div className="exam-carousel-controls" role="group" aria-label="เลื่อนดูรายการสอบ">
-                  <button className="exam-carousel-button" aria-label="เลื่อนรายการสอบไปทางซ้าย" disabled={!examScrollState.canPrevious} onClick={() => scrollExamCarousel(-1)}><Icon name="arrow" className="exam-arrow-left" size={17} /></button>
-                  <button className="exam-carousel-button" aria-label="เลื่อนรายการสอบไปทางขวา" disabled={!examScrollState.canNext} onClick={() => scrollExamCarousel(1)}><Icon name="arrow" size={17} /></button>
+                  <button className="exam-carousel-button" aria-label="เลื่อนรายการสอบไปทางซ้าย" onClick={() => scrollExamCarousel(-1)}><Icon name="arrow" className="exam-arrow-left" size={17} /></button>
+                  <button className="exam-carousel-button" aria-label="เลื่อนรายการสอบไปทางขวา" onClick={() => scrollExamCarousel(1)}><Icon name="arrow" size={17} /></button>
                 </div>
               ) : null}
             </div>
           </div>
-          <div className="exam-list-grid" ref={examCarouselRef} role="region" tabIndex={0} aria-label="รายการสอบทั้งหมด เลื่อนไปด้านข้างเพื่อดูรายการเพิ่มเติม">
-            {orderedExams.map((exam) => (
-              <article className={`exam-listing-card exam-card-${exam.accent}${exam.isOpen ? "" : " exam-card-upcoming"}`} key={exam.id}>
+          <div className="exam-list-grid" ref={examCarouselRef} role="region" tabIndex={0} aria-label="รายการสอบทั้งหมด เลื่อนไปด้านข้างเพื่อดูรายการเพิ่มเติม" onPointerEnter={(event) => { if (event.pointerType === "mouse" || event.pointerType === "pen") examCarouselPauseRef.current.pointer = true; }} onPointerLeave={(event) => { if (event.pointerType === "mouse" || event.pointerType === "pen") examCarouselPauseRef.current.pointer = false; }} onFocusCapture={() => { examCarouselPauseRef.current.focus = true; }} onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) examCarouselPauseRef.current.focus = false; }}>
+            {carouselExams.map((exam, index) => {
+              const roundType = getExamRoundType(exam);
+              return (
+              <article className={`exam-listing-card exam-card-${exam.accent}${exam.isOpen ? "" : " exam-card-upcoming"}`} key={`${exam.id}-${index}`} aria-hidden={index >= orderedExams.length ? "true" : undefined}>
                 <div className="exam-card-top"><ExamLogo exam={exam} iconSize={21} /><span className={exam.isOpen ? "exam-open-label" : "exam-upcoming-label"}><i />{exam.isOpen ? "เปิดรับสมัคร" : exam.finalRegistrationStatus === "waiting-results" ? "รอประกาศผล HEAT" : exam.finalRegistrationStatus === "no-eligible-applicants" ? "ไม่มีผู้มีสิทธิ์ Final" : exam.finalRegistrationStatus === "closed-manual" ? "ปิดรับสมัครโดยแอดมิน" : exam.finalRegistrationStatus === "closed-deadline" ? "ปิดรับสมัครแล้ว" : "ยังไม่เปิดรับ"}</span></div>
-                <p className="exam-round-label">{exam.round} · ปีการศึกษา {exam.year}</p>
+                <div className="exam-round-meta"><span className={`exam-round-badge exam-round-badge-${roundType.toLowerCase().replace(/[^a-z0-9-]/g, "-")}`}><strong>{roundType === "HEAT" ? "HEAT" : roundType === "FINAL" ? "FINAL" : roundType === "FINAL_X" ? "FINAL X" : exam.round || roundType}</strong><small>{roundType === "HEAT" ? "รอบคัดเลือก" : roundType === "FINAL" ? "รอบชิงชนะเลิศ" : "รอบสอบ"}</small></span><span className="exam-year-label">ปีการศึกษา {exam.year}</span></div>
                 <h3>{exam.title}</h3>
                 <p className="exam-card-description">{exam.description}</p>
                 <div className="exam-deadline"><span className="exam-deadline-icon"><Icon name={exam.isOpen ? "calendar" : "clock"} size={16} /></span><span><small>{exam.isOpen ? `ปิดรับ ${formatThaiDate(exam.closeDate)}` : "กำหนดการ"}</small><strong>สอบ {formatExamSession(exam)}</strong></span></div>
               </article>
-            ))}
+              );
+            })}
           </div>
           {resultPublished ? (
             <button className="final-opportunity-link" onClick={() => navigate("final-confirm")}><span className="final-opportunity-icon"><Icon name="award" /></span><span><strong>ผ่าน OCEC Heat แล้วใช่ไหม?</strong><small>ตรวจสอบสิทธิ์และขั้นตอนสมัคร OCEC Final</small></span><Icon name="arrow" size={17} /></button>
@@ -1299,10 +1243,47 @@ function LandingPage({ navigate, setPersona, authProfile, onSignIn, onSignOut, o
   );
 }
 
+function getSchoolApplicationGroups(applications) {
+  const schoolGroups = new Map();
+  applications.filter((application) => application.source === "school" && application.batchId).forEach((application) => {
+    (application.competitions || []).forEach((competition) => {
+      const key = `${application.batchId}:${competition.roundId || `${competition.id}:${competition.roundType}:${application.year}`}`;
+      const group = schoolGroups.get(key) || { key, batchId: application.batchId, school: application.school, competition, year: application.year, rows: [] };
+      group.rows.push({ application, competition });
+      schoolGroups.set(key, group);
+    });
+  });
+  return [...schoolGroups.values()];
+}
+
+function SchoolApplicationGroupPage({ applications, groupKey, navigate }) {
+  const group = getSchoolApplicationGroups(applications).find((item) => item.key === groupKey);
+  if (!group) return <div className="page-stack"><PageHeading eyebrow="ใบสมัครของฉัน" title="ไม่พบชุดใบสมัคร" action={<Button variant="outline" icon="arrow" onClick={() => navigate("applications")}>กลับไปใบสมัครของฉัน</Button>} /></div>;
+  return <div className="page-stack">
+    <PageHeading eyebrow={`สมัครผ่านโรงเรียน · ปีการศึกษา ${group.year}`} title={`${group.competition.name || group.competition.short} · รอบ ${group.competition.roundType === "FINAL" ? "Final" : "Heat"}`} description={`${group.school || "ไม่ระบุโรงเรียน"} · ผู้สมัคร ${group.rows.length} คน`} action={<Button variant="outline" icon="arrow" onClick={() => navigate("applications")}>กลับไปใบสมัครของฉัน</Button>} />
+    <section className="surface school-application-detail" aria-label="รายชื่อผู้สมัครผ่านโรงเรียน">
+      <div className="school-application-detail-heading"><span className="school-application-card-icon"><Icon name="users" size={23} /></span><div><strong>รายชื่อผู้สมัคร</strong><small>{group.competition.short} · {group.competition.roundType === "FINAL" ? "Final" : "Heat"} · {group.rows.length} คน</small></div></div>
+      <div className="school-application-table-wrap"><table className="school-application-table"><thead><tr><th>เลขประจำตัวสอบ</th><th>ชื่อผู้สมัคร</th><th>ระดับชั้น</th><th>เบอร์โทร</th><th>สถานะ</th><th><span className="sr-only">รายละเอียด</span></th></tr></thead><tbody>{group.rows.map(({ application, competition }) => (
+        <tr key={`${application.id}:${competition.applicationItemId || competition.id}`}>
+          <td data-label="เลขประจำตัวสอบ"><strong className="mono-number">{competition.examNumber || "รอออกเลข"}</strong></td>
+          <td data-label="ชื่อผู้สมัคร"><strong>{application.candidate}</strong></td>
+          <td data-label="ระดับชั้น">{competition.grade || "—"}</td>
+          <td data-label="เบอร์โทร">{getApplicationPhone(application) || "—"}</td>
+          <td data-label="สถานะ"><StatusBadge status={application.status} /></td>
+          <td><button type="button" className="school-application-open" onClick={() => navigate("application-detail", application.id)} aria-label={`ดูใบสมัครของ ${application.candidate}`}>ดูรายละเอียด <Icon name="arrow" size={15} /></button></td>
+        </tr>
+      ))}</tbody></table></div>
+    </section>
+  </div>;
+}
+
 function ApplicationsPage({ applications, navigate, resultRows = [], examCatalog = [], today, authProfile, onConfirmFinal }) {
   const [filter, setFilter] = useState("ทั้งหมด");
   const filters = ["ทั้งหมด", "รอตรวจ", "อนุมัติแล้ว"];
-  const visible = applications.filter((item) => filter === "ทั้งหมด" || (filter === "รอตรวจ" ? item.status === "pending" : item.status === "confirmed"));
+  const matchesFilter = (application) => filter === "ทั้งหมด" || (filter === "รอตรวจ" ? application.status === "pending" : application.status === "confirmed");
+  const visibleSchoolGroups = getSchoolApplicationGroups(applications).filter((group) => group.rows.some(({ application }) => matchesFilter(application)));
+  const visibleIndividuals = applications.filter((application) => !(application.source === "school" && application.batchId) && matchesFilter(application));
+  const visibleCount = visibleSchoolGroups.length + visibleIndividuals.length;
   return (
     <div className="page-stack">
       <PageHeading
@@ -1314,10 +1295,21 @@ function ApplicationsPage({ applications, navigate, resultRows = [], examCatalog
         <div className="segmented-control" role="group" aria-label="กรองตามสถานะใบสมัคร">
           {filters.map((item) => <button key={item} className={filter === item ? "segment-active" : ""} onClick={() => setFilter(item)}>{item}</button>)}
         </div>
-        <span className="result-count">พบ {visible.length} ใบสมัคร</span>
+        <span className="result-count">พบ {visibleCount} รายการ</span>
       </div>
       <div className="application-card-list">
-        {visible.map((application) => (
+        {visibleSchoolGroups.map((group) => (
+          <button type="button" className="school-application-card" key={group.key} onClick={() => navigate("school-application-group", group.key)} aria-label={`ดูผู้สมัคร ${group.competition.name || group.competition.short} รอบ ${group.competition.roundType === "FINAL" ? "Final" : "Heat"} โรงเรียน ${group.school} ${group.rows.length} คน`}>
+            <span className="school-application-card-summary">
+              <span className="school-application-card-icon"><Icon name="users" size={23} /></span>
+              <span className="school-application-card-heading"><small>สมัครผ่านโรงเรียน · ปีการศึกษา {group.year}</small><strong>{group.competition.name || group.competition.short}</strong><span>{group.competition.roundType === "FINAL" ? "รอบ Final" : "รอบ Heat"} · {group.competition.short}</span></span>
+              <span className="school-application-card-count"><strong>{group.rows.length}</strong><small>คน</small></span>
+              <span className="school-application-card-school"><Icon name="building" size={17} /><span>{group.school || "ไม่ระบุโรงเรียน"}</span></span>
+              <span className="school-application-card-action">ดูรายชื่อ <Icon name="arrow" size={15} /></span>
+            </span>
+          </button>
+        ))}
+        {visibleIndividuals.map((application) => (
           <ApplicationCard
             key={application.id}
             application={application}
@@ -1330,7 +1322,7 @@ function ApplicationsPage({ applications, navigate, resultRows = [], examCatalog
             onConfirmFinal={onConfirmFinal}
           />
         ))}
-        {visible.length === 0 ? (
+        {visibleCount === 0 ? (
           <div className="empty-inline application-list-empty"><Icon name="file" size={17} />{filter === "ทั้งหมด" ? "ยังไม่มีใบสมัครในบัญชีนี้" : "ไม่พบใบสมัครตามสถานะที่เลือก"}</div>
         ) : null}
       </div>
@@ -1789,7 +1781,7 @@ function ApiFinalConfirmationPage({ authProfile, onContinue, onSignIn }) {
   const schoolChoices = authorized.filter((choice) => choice.schoolGrant);
   return <div className="page-stack final-rights-page">
     <PageHeading eyebrow="OCEC Final" title="ยืนยันสิทธิ์สมัคร Final" description="ผู้สมัครเองใช้บัญชี Google เดิม ผู้ที่โรงเรียนสมัครให้ค้นชื่อ เลือกรายการสอบ และยืนยันเบอร์โทรศัพท์ 4 ตัวท้ายก่อนเข้าสู่ระบบ" />
-    <section className="surface final-rights-workspace">
+    <section className="surface final-rights-workspace final-rights-api-workspace">
       <div className="final-rights-paths" role="tablist" aria-label="วิธียืนยันสิทธิ์">
         <button type="button" role="tab" aria-selected={path === "account"} className={path === "account" ? "final-rights-path selected" : "final-rights-path"} onClick={() => { setPath("account"); setError(""); }}>สมัครด้วยบัญชีตนเอง</button>
         <button type="button" role="tab" aria-selected={path === "school"} className={path === "school" ? "final-rights-path selected" : "final-rights-path"} onClick={() => { setPath("school"); setError(""); }}>โรงเรียนสมัครให้</button>
@@ -1801,7 +1793,7 @@ function ApiFinalConfirmationPage({ authProfile, onContinue, onSignIn }) {
       </div> : <div role="tabpanel" className="final-rights-school-panel">
         {schoolChoices.length ? <div className="final-rights-match-list">{schoolChoices.map((choice) => <div className="final-rights-match" key={`${choice.sourceHeatApplicationId}-${choice.item.roundId}`}><div><strong>{choice.applicant.firstNameEn} {choice.applicant.lastNameEn}</strong><small>{choice.item.competition} · {choice.item.year}</small></div><Button onClick={() => onContinue(choice)}>สมัคร Final</Button></div>)}</div> : <>
           {verified ? <div className="notice notice-blue"><Icon name="check" /><div><strong>ยืนยันเบอร์โทรศัพท์แล้ว</strong><p>เข้าสู่ระบบด้วยบัญชี Google ที่ต้องการเก็บใบสมัคร Final</p><Button onClick={() => window.location.assign(`/api/auth/google/start?flow=final&returnTo=${encodeURIComponent("/final/confirm")}`)}>เข้าสู่ระบบ Google แล้วสมัคร</Button></div></div> : <>
-            <form onSubmit={search}><Field label="ชื่อและนามสกุลภาษาอังกฤษ" required><input value={query} onChange={(event) => setQuery(event.target.value)} minLength={3} maxLength={255} required autoComplete="off" /></Field><Button type="submit" disabled={busy}>ค้นหาสิทธิ์ Final</Button></form>
+            <form className="final-rights-eligibility-search" onSubmit={search}><Field label="ชื่อและนามสกุลภาษาอังกฤษ" required><input value={query} onChange={(event) => setQuery(event.target.value)} minLength={3} maxLength={255} required autoComplete="off" /></Field><Button type="submit" disabled={busy}>ค้นหาสิทธิ์ Final</Button></form>
             {choices.length ? <form onSubmit={verify}><Field label="เลือกรายการสอบ" required><select value={selectedRoundId} onChange={(event) => setSelectedRoundId(event.target.value)} required><option value="">เลือกรายการสอบ</option>{choices.map((choice) => <option value={choice.finalRoundId} key={choice.finalRoundId}>{choice.competition} · {choice.round} · {choice.year}</option>)}</select></Field><Field label="เลข 4 ตัวท้ายของเบอร์โทรศัพท์" required><input inputMode="numeric" pattern="[0-9]{4}" maxLength={4} value={lastFour} onChange={(event) => setLastFour(event.target.value.replace(/\D/g, "").slice(0, 4))} required /></Field><Button type="submit" disabled={busy || !selectedRoundId}>ยืนยันตัวตน</Button></form> : null}
           </>}
         </>}
@@ -2271,11 +2263,11 @@ function ApplicationFormPage({ kind, prefill, applicationMode, allowedRoundIds, 
             <div className="payment-total-grid"><div><span>ข้อสอบเก่า</span><small>Past Papers Total</small><strong>฿{pastPapersTotal.toLocaleString()}</strong></div><div><span>ค่าสมัครสอบ</span><small>Competition Registration Fee</small><strong>฿{registrationFee.toLocaleString()}</strong></div><div className="payment-total-grand"><span>ยอดที่ต้องชำระ</span><small>Total Payment</small><strong>฿{totalPayment.toLocaleString()}</strong></div></div>
             <PaymentAccountCards accounts={formPaymentAccounts} />
             <div className="refund-warning"><Icon name="info" /><div><strong>REGISTRATION FEES: NON-REFUNDABLE</strong><span>ค่าธรรมเนียมการสมัครขอสงวนสิทธิ์ไม่คืนเงินทุกกรณี กรุณาตรวจสอบข้อมูลให้เรียบร้อยก่อนชำระเงิน</span></div></div>
-            <label className="file-drop file-drop-inline">
+            <label className={`file-drop file-drop-inline registration-slip${slipFile?.dataUrl ? " slip-file-ready" : ""}`}>
               <input type="file" accept="image/jpeg,image/png,application/pdf,.pdf" onChange={(event) => { selectSlip(event.target.files?.[0]); event.target.value = ""; }} aria-label="แนบหลักฐานการชำระเงิน" />
-              <span className="file-drop-icon"><Icon name="upload" /></span>
-              <span className="file-drop-copy"><strong>{fileName || "แนบหลักฐานการชำระเงิน"}</strong><small>รองรับ JPG, PNG หรือ PDF · ไม่เกิน 10 MB · แอดมินจะเห็นภาพสลิปในใบสมัคร</small></span>
-              <span className="file-select-label">เลือกไฟล์</span>
+              <span className="file-drop-icon"><Icon name={slipFile?.dataUrl ? "check" : "upload"} /></span>
+              <span className="file-drop-copy" aria-live="polite"><strong>{slipFile?.dataUrl ? "แนบสลิปแล้ว" : fileName || "แนบหลักฐานการชำระเงิน"}</strong>{slipFile?.dataUrl ? <small className="slip-file-name" title={fileName}>{fileName} · พร้อมส่งพร้อมใบสมัคร</small> : null}<small>รองรับ JPG, PNG หรือ PDF · ไม่เกิน 10 MB · แอดมินจะเห็นภาพสลิปในใบสมัคร</small></span>
+              <span className="file-select-label">{slipFile?.dataUrl ? "เปลี่ยนไฟล์" : "เลือกไฟล์"}</span>
             </label>
             {fileError ? <p className="inline-error" role="alert"><Icon name="info" size={16} />{fileError}</p> : null}
             <label className="confirm-check"><input type="checkbox" checked={form.confirmDetails} onChange={(event) => { update("confirmDetails", event.target.checked); setSelectionError(""); setPaymentError(""); }} /><span>ข้าพเจ้ารับทราบและตรวจสอบข้อมูลเรียบร้อยแล้ว และต้องการยืนยันส่งแบบฟอร์มนี้ <b>*</b></span></label>
@@ -2482,6 +2474,17 @@ function SchoolBatchForm({ kind, prefill, batch, setBatch, onSubmit, navigate, o
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
+    const schoolFor = (applicant) => (applicant.schoolName === "Other" ? applicant.certificateSchoolName : applicant.schoolName).normalize("NFKC").trim().replace(/\s+/g, " ");
+    const firstSchool = schoolFor(batch.applicants[0]);
+    const differentSchoolIndex = batch.applicants.findIndex((applicant) => schoolFor(applicant).toLowerCase() !== firstSchool.toLowerCase());
+    if (differentSchoolIndex >= 0) {
+      const applicant = batch.applicants[differentSchoolIndex];
+      setBatch((current) => ({ ...current, activeId: applicant.id }));
+      setFormError(`ชื่อโรงเรียนในชุดใบสมัครต้องตรงกันทุกคน: ${applicant.firstName} ${applicant.lastName} ระบุ “${schoolFor(applicant)}” แต่คนแรกระบุ “${firstSchool}” กรุณาแก้ชื่อโรงเรียนของผู้สมัครคนนี้`);
+      setErrorSection("applicant");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
     if (!formPaymentAccounts.length) {
       setFormError("ขณะนี้ยังไม่มีบัญชีรับโอนที่เปิดแสดงในฟอร์ม กรุณาติดต่อผู้ดูแลระบบ");
       setErrorSection("payment");
@@ -2542,7 +2545,7 @@ function SchoolBatchForm({ kind, prefill, batch, setBatch, onSubmit, navigate, o
     });
     setIsSubmitting(true);
     try {
-      await onSubmit({
+      const outcome = await onSubmit({
         source: "school",
         kind,
         batchId,
@@ -2551,6 +2554,11 @@ function SchoolBatchForm({ kind, prefill, batch, setBatch, onSubmit, navigate, o
         paymentAccountsSnapshot: formPaymentAccounts.map((account) => ({ ...account })),
         schoolBatch: { source: batch.source || "manual", paymentSlipFileName: batch.paymentSlipFileName, paymentSlipFile: batch.paymentSlipFile, marketingConsent: Boolean(batch.marketingConsent) },
       });
+      if (outcome?.ok === false) {
+        setFormError(outcome.error);
+        setErrorSection("payment");
+        document.getElementById("school-payment-zone")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -2665,7 +2673,7 @@ function SchoolBatchForm({ kind, prefill, batch, setBatch, onSubmit, navigate, o
             })}</div>
             <PaymentAccountCards accounts={formPaymentAccounts} />
             <div className="refund-warning"><Icon name="info" /><div><strong>REGISTRATION FEES: NON-REFUNDABLE</strong><span>ค่าธรรมเนียมการสมัครขอสงวนสิทธิ์ไม่คืนเงินทุกกรณี กรุณาตรวจสอบข้อมูลให้เรียบร้อยก่อนชำระเงิน</span></div></div>
-            <label className="file-drop file-drop-inline school-batch-slip"><input type="file" accept="image/jpeg,image/png,application/pdf,.pdf" aria-label="แนบสลิปยอดรวมของชุดใบสมัคร" onChange={async (event) => {
+            <label className={`file-drop file-drop-inline school-batch-slip registration-slip${batch.paymentSlipFile?.dataUrl ? " slip-file-ready" : ""}`}><input type="file" accept="image/jpeg,image/png,application/pdf,.pdf" aria-label="แนบสลิปยอดรวมของชุดใบสมัคร" onChange={async (event) => {
               const input = event.currentTarget;
               const file = input.files?.[0];
               input.value = "";
@@ -2687,7 +2695,7 @@ function SchoolBatchForm({ kind, prefill, batch, setBatch, onSubmit, navigate, o
               } catch (error) {
                 setBatch((current) => ({ ...current, paymentSlipFileName: "", paymentSlipFile: null, paymentSlipError: error.message || "อ่านไฟล์สลิปไม่สำเร็จ" }));
               }
-            }} /><span className="file-drop-icon"><Icon name="upload" /></span><span className="file-drop-copy"><strong>{batch.paymentSlipFileName || "แนบสลิปยอดชำระรวม 1 ไฟล์"}</strong><small>ยอด {totalLabel(batchTotals.totalPayment)} · JPG, PNG หรือ PDF · ไม่เกิน 10 MB{batch.paymentSlipError ? ` · ${batch.paymentSlipError}` : ""}</small></span><span className="file-select-label">{batch.paymentSlipFileName ? "เปลี่ยนไฟล์" : "เลือกไฟล์"}</span></label>
+            }} /><span className="file-drop-icon"><Icon name={batch.paymentSlipFile?.dataUrl ? "check" : "upload"} /></span><span className="file-drop-copy" aria-live="polite"><strong>{batch.paymentSlipFile?.dataUrl ? "แนบสลิปแล้ว" : batch.paymentSlipFileName || "แนบสลิปยอดชำระรวม 1 ไฟล์"}</strong>{batch.paymentSlipFile?.dataUrl ? <small className="slip-file-name" title={batch.paymentSlipFileName}>{batch.paymentSlipFileName} · พร้อมส่งพร้อมใบสมัคร</small> : null}<small>ยอด {totalLabel(batchTotals.totalPayment)} · JPG, PNG หรือ PDF · ไม่เกิน 10 MB{batch.paymentSlipError ? ` · ${batch.paymentSlipError}` : ""}</small></span><span className="file-select-label">{batch.paymentSlipFile?.dataUrl ? "เปลี่ยนไฟล์" : "เลือกไฟล์"}</span></label>
             <label className="confirm-check"><input type="checkbox" checked={batch.confirmDetails} onChange={(event) => { setBatch((current) => ({ ...current, confirmDetails: event.target.checked })); setFormError(""); setErrorSection(""); }} /><span>ข้าพเจ้าตรวจสอบข้อมูลผู้สมัครทุกคน ยอดชำระรวม และสลิปเรียบร้อยแล้ว <b>*</b></span></label>
             <label className="confirm-check confirm-check-optional"><input type="checkbox" checked={batch.marketingConsent} onChange={(event) => setBatch((current) => ({ ...current, marketingConsent: event.target.checked }))} /><span>ข้าพเจ้ายินยอมให้ OCEC Thailand เผยแพร่ชื่อผู้สมัคร ผลการแข่งขัน และรางวัล ผ่านช่องทางประชาสัมพันธ์อย่างเป็นทางการ</span></label>
             {formError && errorSection === "payment" ? <p className="inline-error school-form-error" role="alert"><Icon name="info" size={16} />{formError}</p> : null}
@@ -2711,7 +2719,8 @@ function SchoolBatchForm({ kind, prefill, batch, setBatch, onSubmit, navigate, o
 }
 
 function AdminHomePage({ applications, examCatalog, resultWorkflows, navigate, resultPublished }) {
-  const pendingApps = applications.filter((item) => item.status === "pending");
+  const pendingPaymentsFor = (item) => (item.paymentRecords || []).filter((payment) => payment.status === "pending");
+  const pendingApps = applications.filter((item) => item.status === "pending" || pendingPaymentsFor(item).length);
   const confirmedApps = applications.filter((item) => item.status === "confirmed");
   const heatApps = applications.filter((item) => item.kind === "Heat");
   const finalApps = applications.filter((item) => item.kind === "Final");
@@ -2737,7 +2746,12 @@ function AdminHomePage({ applications, examCatalog, resultWorkflows, navigate, r
     groups[item.year].open += item.isOpen ? 1 : 0;
     return groups;
   }, {}));
-  const totalDue = pendingApps.reduce((sum, item) => sum + (item.totalPayment || 0), 0);
+  const totalDue = pendingApps.reduce((sum, item) => {
+    const payments = pendingPaymentsFor(item);
+    return sum + (payments.length
+      ? payments.reduce((paymentSum, payment) => paymentSum + Number(payment.expectedAmount || 0), 0)
+      : Number(item.totalPayment || 0));
+  }, 0);
 
   return (
     <div className="page-stack admin-home-page">
@@ -2874,6 +2888,10 @@ function getAdminReviewExamLabel(item) {
   return `${examName} ${round} · ${format}`;
 }
 
+function getReviewCompetitionKey(competition) {
+  return String(competition?.short || competition?.name || competition?.id || "").trim().toLocaleUpperCase("en");
+}
+
 function DemoTransferSlip({ application, amount }) {
   const displayAmount = Number(amount || 0).toLocaleString("th-TH");
   const recipient = application.paymentAccountType === "president" ? "บัญชีประธาน" : "บัญชีอื่น";
@@ -2884,22 +2902,22 @@ function DemoTransferSlip({ application, amount }) {
       <path d="M40 18h360a18 18 0 0 1 18 18v83H22V36a18 18 0 0 1 18-18Z" fill="#45499a" />
       <circle cx="68" cy="58" r="19" fill="#fff" fillOpacity=".16" />
       <path d="m59 58 6 6 12-14" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-      <text x="99" y="55" fill="#fff" fontFamily="Noto Sans Thai, sans-serif" fontSize="16" fontWeight="700">โอนเงินสำเร็จ</text>
-      <text x="99" y="78" fill="#e2e5ff" fontFamily="Noto Sans Thai, sans-serif" fontSize="11">สลิปตัวอย่าง · ข้อมูลจำลอง</text>
-      <text x="220" y="155" fill="#7a8799" textAnchor="middle" fontFamily="Noto Sans Thai, sans-serif" fontSize="12">จำนวนเงินที่โอน</text>
-      <text x="220" y="198" fill="#263554" textAnchor="middle" fontFamily="Noto Sans Thai, sans-serif" fontSize="34" fontWeight="700">฿{displayAmount}</text>
+      <text x="99" y="55" fill="#fff" fontFamily="Kanit, sans-serif" fontSize="16" fontWeight="700">โอนเงินสำเร็จ</text>
+      <text x="99" y="78" fill="#e2e5ff" fontFamily="Kanit, sans-serif" fontSize="11">สลิปตัวอย่าง · ข้อมูลจำลอง</text>
+      <text x="220" y="155" fill="#7a8799" textAnchor="middle" fontFamily="Kanit, sans-serif" fontSize="12">จำนวนเงินที่โอน</text>
+      <text x="220" y="198" fill="#263554" textAnchor="middle" fontFamily="Kanit, sans-serif" fontSize="34" fontWeight="700">฿{displayAmount}</text>
       <line x1="52" y1="226" x2="388" y2="226" stroke="#e9ecf2" strokeDasharray="4 5" />
-      <text x="54" y="263" fill="#8692a3" fontFamily="Noto Sans Thai, sans-serif" fontSize="11">จาก</text>
-      <text x="54" y="286" fill="#34465f" fontFamily="Noto Sans Thai, sans-serif" fontSize="14" fontWeight="600">{application.candidate || "ผู้สมัคร"}</text>
-      <text x="54" y="327" fill="#8692a3" fontFamily="Noto Sans Thai, sans-serif" fontSize="11">ไปยัง</text>
-      <text x="54" y="350" fill="#34465f" fontFamily="Noto Sans Thai, sans-serif" fontSize="14" fontWeight="600">OCEC Thailand · {recipient}</text>
-      <text x="54" y="391" fill="#8692a3" fontFamily="Noto Sans Thai, sans-serif" fontSize="11">วันและเวลา</text>
-      <text x="54" y="414" fill="#34465f" fontFamily="Noto Sans Thai, sans-serif" fontSize="13" fontWeight="600">{application.transferDateTime || "ยังไม่มีข้อมูลเวลาโอน"}</text>
+      <text x="54" y="263" fill="#8692a3" fontFamily="Kanit, sans-serif" fontSize="11">จาก</text>
+      <text x="54" y="286" fill="#34465f" fontFamily="Kanit, sans-serif" fontSize="14" fontWeight="600">{application.candidate || "ผู้สมัคร"}</text>
+      <text x="54" y="327" fill="#8692a3" fontFamily="Kanit, sans-serif" fontSize="11">ไปยัง</text>
+      <text x="54" y="350" fill="#34465f" fontFamily="Kanit, sans-serif" fontSize="14" fontWeight="600">OCEC Thailand · {recipient}</text>
+      <text x="54" y="391" fill="#8692a3" fontFamily="Kanit, sans-serif" fontSize="11">วันและเวลา</text>
+      <text x="54" y="414" fill="#34465f" fontFamily="Kanit, sans-serif" fontSize="13" fontWeight="600">{application.transferDateTime || "ยังไม่มีข้อมูลเวลาโอน"}</text>
       <line x1="52" y1="448" x2="388" y2="448" stroke="#e9ecf2" />
-      <text x="54" y="484" fill="#8692a3" fontFamily="Noto Sans Thai, sans-serif" fontSize="11">เลขอ้างอิง</text>
-      <text x="54" y="507" fill="#34465f" fontFamily="monospace" fontSize="13">DEMO-{String(application.id || "SLIP").slice(-8).toUpperCase()}</text>
+      <text x="54" y="484" fill="#8692a3" fontFamily="Kanit, sans-serif" fontSize="11">เลขอ้างอิง</text>
+      <text x="54" y="507" fill="#34465f" fontFamily="Kanit, sans-serif" fontSize="13">DEMO-{String(application.id || "SLIP").slice(-8).toUpperCase()}</text>
       <rect x="54" y="542" width="332" height="42" rx="9" fill="#fff6df" />
-      <text x="220" y="568" fill="#8a641d" textAnchor="middle" fontFamily="Noto Sans Thai, sans-serif" fontSize="11" fontWeight="600">ใช้แสดงตัวอย่างหน้าตรวจสอบเท่านั้น</text>
+      <text x="220" y="568" fill="#8a641d" textAnchor="middle" fontFamily="Kanit, sans-serif" fontSize="11" fontWeight="600">ใช้แสดงตัวอย่างหน้าตรวจสอบเท่านั้น</text>
     </svg>
   );
 }
@@ -2932,67 +2950,41 @@ function ReviewSlipDialog({ application, amount, fileName, dataUrl, fileType, on
   );
 }
 
-function AdminNotesPanel({ applicationId }) {
-  const [notes, setNotes] = useState([]);
-  const [history, setHistory] = useState([]);
-  const [draft, setDraft] = useState("");
-  const [editingId, setEditingId] = useState("");
-  const [error, setError] = useState("");
+function ReviewRejectDialog({ application, onReject, onClose }) {
+  const dialogRef = useRef(null);
+  const reasonId = useId();
+  const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
-  const [loading, setLoading] = useState(true);
 
-  async function load(signal) {
-    const response = await fetch(`/api/admin/applications/${encodeURIComponent(applicationId)}/notes?includeHistory=true`, { credentials: "same-origin", signal });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.error || "โหลดบันทึกภายในไม่สำเร็จ");
-    setNotes(result.notes || []);
-    setHistory(result.history || []);
-  }
   useEffect(() => {
-    const controller = new AbortController();
-    setNotes([]); setHistory([]); setDraft(""); setEditingId(""); setError(""); setLoading(true);
-    load(controller.signal).catch((requestError) => { if (!controller.signal.aborted) setError(requestError.message); })
-      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
-    return () => controller.abort();
-  }, [applicationId]);
+    const dialog = dialogRef.current;
+    if (dialog && !dialog.open) dialog.showModal();
+  }, []);
 
-  async function save(event) {
+  function closeDialog() {
+    if (!busy && dialogRef.current?.open) dialogRef.current.close();
+  }
+
+  async function submit(event) {
     event.preventDefault();
-    const body = draft.trim();
-    if (!body || body.length > 4000) { setError("บันทึกต้องมีข้อความไม่เกิน 4,000 ตัวอักษร"); return; }
-    if (editingId && !window.confirm("บันทึกการแก้ไขหมายเหตุนี้หรือไม่?")) return;
-    setBusy(true); setError("");
+    if (busy) return;
+    setBusy(true);
     try {
-      const response = await fetch(`/api/admin/applications/${encodeURIComponent(applicationId)}/notes${editingId ? `/${encodeURIComponent(editingId)}` : ""}`, {
-        method: editingId ? "PATCH" : "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify({ body }),
-      });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error || "บันทึกหมายเหตุไม่สำเร็จ");
-      await load();
-      setDraft(""); setEditingId("");
-    } catch (requestError) { setError(requestError.message || "บันทึกหมายเหตุไม่สำเร็จ"); }
-    finally { setBusy(false); }
+      if (await onReject(application.id, reason.trim())) dialogRef.current?.close();
+    } finally { setBusy(false); }
   }
 
-  async function remove(noteId) {
-    if (!window.confirm("ลบหมายเหตุนี้โดยเก็บประวัติไว้หรือไม่?")) return;
-    setBusy(true); setError("");
-    try {
-      const response = await fetch(`/api/admin/applications/${encodeURIComponent(applicationId)}/notes/${encodeURIComponent(noteId)}`, { method: "DELETE", credentials: "same-origin" });
-      if (!response.ok) { const result = await response.json().catch(() => ({})); throw new Error(result.error || "ลบหมายเหตุไม่สำเร็จ"); }
-      await load();
-      if (editingId === noteId) { setEditingId(""); setDraft(""); }
-    } catch (requestError) { setError(requestError.message || "ลบหมายเหตุไม่สำเร็จ"); }
-    finally { setBusy(false); }
-  }
-
-  return <section className="review-notes-panel" aria-label="บันทึกภายในของแอดมิน">
-    <div className="review-section-heading"><span className="review-section-icon"><Icon name="file" size={16} /></span><div><strong>บันทึกภายในของแอดมิน</strong><small>เห็นได้เฉพาะผู้ดูแลระบบ · เก็บประวัติการแก้ไขและลบ</small></div></div>
-    {loading ? <p>กำลังโหลดบันทึก…</p> : notes.length ? <div className="review-notes-list">{notes.map((note) => <article key={note.id} className="review-note"><p>{note.body}</p><small>บันทึก {new Date(note.createdAt).toLocaleString("th-TH", { timeZone: "Asia/Bangkok" })}</small><div><Button variant="text" disabled={busy} onClick={() => { setEditingId(note.id); setDraft(note.body); }}>แก้ไข</Button><Button variant="text" disabled={busy} onClick={() => remove(note.id)}>ลบ</Button></div></article>)}</div> : <p>ยังไม่มีบันทึกภายใน</p>}
-    <form onSubmit={save}><Field label={editingId ? "แก้ไขบันทึกภายใน" : "เพิ่มบันทึกภายใน"}><textarea value={draft} maxLength={4000} onChange={(event) => setDraft(event.target.value)} /></Field><Button type="submit" disabled={busy || !draft.trim()}>{busy ? "กำลังบันทึก…" : editingId ? "บันทึกการแก้ไข" : "เพิ่มบันทึก"}</Button>{editingId ? <Button type="button" variant="text" onClick={() => { setEditingId(""); setDraft(""); }}>ยกเลิก</Button> : null}</form>
-    {error ? <p className="inline-error" role="alert">{error}</p> : null}
-    <details><summary>ประวัติหมายเหตุ · {history.length} รายการ</summary>{history.length ? <ol>{history.map((entry) => <li key={entry.id}><strong>{entry.action}</strong> · {entry.actor?.name || entry.actor?.email} · {new Date(entry.createdAt).toLocaleString("th-TH", { timeZone: "Asia/Bangkok" })}<div>ก่อน: {entry.before?.body || "—"} → หลัง: {entry.after?.body || "—"}</div></li>)}</ol> : <p>ยังไม่มีประวัติ</p>}</details>
-  </section>;
+  return <dialog ref={dialogRef} className="review-reject-dialog" aria-labelledby="review-reject-title" onClose={onClose} onCancel={(event) => { if (busy) event.preventDefault(); }} onClick={(event) => { if (event.target === dialogRef.current) closeDialog(); }}>
+    <form onSubmit={submit}>
+      <div className="review-reject-dialog-heading"><span className="review-reject-dialog-icon"><Icon name="close" size={20} /></span><button type="button" className="review-slip-dialog-close" aria-label="ปิดหน้าต่าง" disabled={busy} onClick={closeDialog}><Icon name="close" size={17} /></button></div>
+      <h2 id="review-reject-title">ไม่อนุมัติใบสมัคร?</h2>
+      <p>ใบสมัครของ <strong>{application.candidate}</strong> จะเปลี่ยนเป็นสถานะไม่อนุมัติ และระบบจะส่งอีเมลแจ้งผล</p>
+      <label htmlFor={reasonId}>เหตุผลที่ไม่อนุมัติ <span>(ไม่บังคับ)</span></label>
+      <textarea id={reasonId} value={reason} onChange={(event) => setReason(event.target.value)} maxLength={240} placeholder="ระบุเหตุผลเพิ่มเติม หากต้องการแจ้งผู้สมัคร" autoFocus />
+      <small>{reason.length}/240 ตัวอักษร · เว้นว่างได้</small>
+      <div className="review-reject-dialog-actions"><Button type="button" variant="outline" disabled={busy} onClick={closeDialog}>ยกเลิก</Button><Button type="submit" disabled={busy}>{busy ? "กำลังบันทึก…" : "ยืนยันไม่อนุมัติ"}</Button></div>
+    </form>
+  </dialog>;
 }
 
 function AdminReviewPage({ applications, schoolBatches = [], onApprove, onReject, onSlipIssue, notify, navigate, activeApplicationId }) {
@@ -3003,13 +2995,13 @@ function AdminReviewPage({ applications, schoolBatches = [], onApprove, onReject
   const [statusFilter, setStatusFilter] = useState(activeApplicationId ? "all" : "pending");
   const [kindFilter, setKindFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("all");
-  const [reviewView, setReviewView] = useState(activeApplicationId ? "all" : "school-groups");
+  const [competitionFilters, setCompetitionFilters] = useState([]);
+  const [reviewView, setReviewView] = useState("all");
   const [selectedGroupKey, setSelectedGroupKey] = useState("");
   const [slipPreviewOpen, setSlipPreviewOpen] = useState(false);
   const [loadedSlip, setLoadedSlip] = useState(null);
   const [selectedPaymentId, setSelectedPaymentId] = useState("");
-  const [rejectReason, setRejectReason] = useState("");
-  const [reviewBusy, setReviewBusy] = useState(false);
+  const [rejectApplicationId, setRejectApplicationId] = useState("");
   const schoolApplications = applications.filter((item) => item.source === "school");
   const schoolGroups = Object.values(schoolApplications.reduce((groups, item) => {
     const key = `${item.year}|${item.exam}`;
@@ -3018,6 +3010,11 @@ function AdminReviewPage({ applications, schoolBatches = [], onApprove, onReject
     return groups;
   }, {})).map((group) => ({ ...group, pending: group.applications.filter((item) => item.status === "pending" || hasUnreviewedPayment(item)).length }));
   const selectedGroup = schoolGroups.find((group) => group.key === selectedGroupKey);
+  const competitionOptions = [...new Map(applications.flatMap((item) => item.competitions || [])
+    .map((competition) => [getReviewCompetitionKey(competition), competition.short || competition.name || competition.id])
+    .filter(([key]) => key)).entries()]
+    .map(([key, label]) => ({ key, label }))
+    .sort((a, b) => a.label.localeCompare(b.label, "en"));
   const reviewPool = reviewView === "school-groups"
     ? selectedGroup?.applications || []
     : applications;
@@ -3028,9 +3025,12 @@ function AdminReviewPage({ applications, schoolBatches = [], onApprove, onReject
     const matchesSearch = !query || [item.candidate, item.id, applicationNumber, item.school, item.contactEmail, item.heatId, item.finalId, item.exam, item.year, ...competitionTerms].filter(Boolean).some((value) => String(value).toLowerCase().includes(query));
     const matchesStatus = statusFilter === "all"
       || (statusFilter === "pending" ? item.status === "pending" || hasUnreviewedPayment(item) : item.status === statusFilter && !hasUnreviewedPayment(item));
-    return matchesSearch && matchesStatus && (kindFilter === "all" || item.kind === kindFilter) && (sourceFilter === "all" || (sourceFilter === "school" ? item.source === "school" : item.source !== "school"));
+    const matchesCompetition = reviewView !== "all" || competitionFilters.length === 0
+      || (item.competitions || []).some((competition) => competitionFilters.includes(getReviewCompetitionKey(competition)));
+    return matchesSearch && matchesStatus && matchesCompetition && (kindFilter === "all" || item.kind === kindFilter) && (sourceFilter === "all" || (sourceFilter === "school" ? item.source === "school" : item.source !== "school"));
   });
   const selected = filteredApplications.find((item) => item.id === selectedId) || filteredApplications[0];
+  const rejectTarget = applications.find((item) => item.id === rejectApplicationId);
   const selectedSchoolBatch = selected?.batchId ? schoolBatches.find((item) => item.id === selected.batchId) : null;
   const paymentRecords = selected?.paymentRecords || [];
   const selectedPayment = paymentRecords.find((payment) => payment.id === selectedPaymentId) || paymentRecords[0] || null;
@@ -3103,8 +3103,8 @@ function AdminReviewPage({ applications, schoolBatches = [], onApprove, onReject
       <div className="review-layout">
         <section className="surface review-queue">
           <div className="admin-review-mode" role="tablist" aria-label="มุมมองคิวใบสมัคร">
-            <button type="button" role="tab" aria-label={`ส่งผ่านโรงเรียน · ${schoolApplications.length} ใบสมัครทั้งหมด`} aria-selected={reviewView === "school-groups"} className={reviewView === "school-groups" ? "active" : ""} onClick={() => { setReviewView("school-groups"); setSelectedGroupKey(""); setSearch(""); setSourceFilter("all"); setKindFilter("all"); }}>ส่งผ่านโรงเรียน <span title={`${schoolApplications.length} ใบสมัครจากโรงเรียนทั้งหมด`}>{schoolApplications.length}</span></button>
             <button type="button" role="tab" aria-selected={reviewView === "all"} className={reviewView === "all" ? "active" : ""} onClick={() => { setReviewView("all"); setSelectedGroupKey(""); setSearch(""); }}>ใบสมัครทั้งหมด <span>{applications.length}</span></button>
+            <button type="button" role="tab" aria-label={`ส่งผ่านโรงเรียน · ${schoolApplications.length} ใบสมัครทั้งหมด`} aria-selected={reviewView === "school-groups"} className={reviewView === "school-groups" ? "active" : ""} onClick={() => { setReviewView("school-groups"); setSelectedGroupKey(""); setSearch(""); setSourceFilter("all"); setKindFilter("all"); }}>ส่งผ่านโรงเรียน <span title={`${schoolApplications.length} ใบสมัครจากโรงเรียนทั้งหมด`}>{schoolApplications.length}</span></button>
           </div>
           {reviewView === "school-groups" && !selectedGroup ? (
             <>
@@ -3117,6 +3117,11 @@ function AdminReviewPage({ applications, schoolBatches = [], onApprove, onReject
               <label className="input-with-icon review-search"><Icon name="search" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ค้นหาชื่อ โรงเรียน หรือเลขสอบ" /></label>
               <div className="review-filter-row" role="group" aria-label="กรองสถานะใบสมัคร">{[{ id: "pending", label: "รอตรวจ" }, { id: "confirmed", label: "ยืนยันแล้ว" }, { id: "all", label: "ทั้งหมด" }].map((filter) => <button type="button" key={filter.id} className={statusFilter === filter.id ? "review-filter-active" : ""} aria-pressed={statusFilter === filter.id} onClick={() => setStatusFilter(filter.id)}>{filter.label}<span>{scopedStatusCount(filter.id)}</span></button>)}</div>
               <div className="review-filter-selects"><label><span>ประเภท</span><select value={kindFilter} onChange={(event) => setKindFilter(event.target.value)}><option value="all">Heat และ Final</option><option value="Heat">Heat</option><option value="Final">Final</option></select></label>{reviewView === "all" ? <label><span>ผู้สมัคร</span><select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}><option value="all">ทุกช่องทาง</option><option value="school">ผ่านโรงเรียน</option><option value="self">สมัครด้วยตนเอง</option></select></label> : null}</div>
+              {reviewView === "all" && competitionOptions.length > 0 ? <fieldset className="review-competition-filter">
+                <legend>รายการสอบ</legend>
+                <div className="review-competition-filter-heading"><span>เลือกได้หลายรายการ · ตรงอย่างน้อย 1 รายการจะแสดง · ไม่เลือกคือทั้งหมด</span>{competitionFilters.length > 0 ? <button type="button" onClick={() => setCompetitionFilters([])}>ล้างที่เลือก</button> : null}</div>
+                <div className="review-competition-options">{competitionOptions.map((option) => <label key={option.key} className={competitionFilters.includes(option.key) ? "selected" : ""}><input type="checkbox" checked={competitionFilters.includes(option.key)} onChange={(event) => { const checked = event.target.checked; setCompetitionFilters((current) => checked ? [...current, option.key] : current.filter((key) => key !== option.key)); }} /><span>{option.label}</span></label>)}</div>
+              </fieldset> : null}
               <div className="review-list">
                 {filteredApplications.map((item) => (
                   <button className={`review-list-item ${selected?.id === item.id ? "review-list-selected" : ""}`} key={item.id} onClick={() => setSelectedId(item.id)}>
@@ -3197,19 +3202,21 @@ function AdminReviewPage({ applications, schoolBatches = [], onApprove, onReject
               </section>
             </div>
             <details className="review-history-collapsible"><summary>ประวัติการแก้ไข · {(selected.changeHistory || []).length} ครั้ง</summary>{selected.changeHistory?.length ? <div className="review-history-list">{selected.changeHistory.map((entry) => <article className="review-history-entry" key={entry.id}><div className="review-history-meta"><strong>{entry.editor}</strong><time>{entry.at}</time></div><div className="review-history-changes">{entry.changes.map((change, index) => <div key={`${entry.id}-${index}`}><span>{change.label}</span><div><del>{change.oldValue || "—"}</del><Icon name="arrow" size={13} /><strong>{change.newValue || "—"}</strong></div></div>)}</div></article>)}</div> : <p className="review-history-empty">ยังไม่มีประวัติการแก้ไข</p>}</details>
-            {BACKEND_ENABLED ? <AdminNotesPanel key={selected.id} applicationId={selected.id} /> : null}
             <div className="review-actions">
               <div className="review-action-label"><strong>ผลการตรวจสอบ</strong><small>{pendingAdditionalPayment ? "ใบสมัครอนุมัติแล้ว · ตรวจสลิปยอดชำระเพิ่ม" : selected.status === "confirmed" ? "ใบสมัครนี้อนุมัติแล้ว" : selected.slipIssue ? "รอสลิปใหม่ก่อนอนุมัติ" : !hasReviewableSlip ? "ยังเปิดสลิปไม่ได้ จึงยังอนุมัติไม่ได้" : "ตรวจสอบสลิปแล้วอนุมัติใบสมัคร"}</small></div>
               <div className="review-action-buttons">
                 {selected.status !== "confirmed" && !selected.slipIssue && selectedPayment?.status !== "confirmed" ? <div className="template-menu"><span>ส่งเทมเพลตแจ้งปัญหาสลิป</span><div><Button variant="outline" icon="mail" onClick={() => onSlipIssue(selected.id, "สลิปไม่ถูกต้อง", selectedPayment?.id)}>สลิปไม่ถูกต้อง</Button><Button variant="outline" icon="mail" onClick={() => onSlipIssue(selected.id, "เปิดสลิปไม่ได้", selectedPayment?.id)}>เปิดสลิปไม่ได้</Button></div></div> : null}
-              <Button icon="check" disabled={(selected.status === "confirmed" && !pendingAdditionalPayment) || Boolean(selected.slipIssue) || !hasReviewableSlip} onClick={() => onApprove(selected.id, selectedPayment?.id)} title={!hasReviewableSlip ? "เปิดสลิปก่อนอนุมัติ หรือแจ้งปัญหาสลิป" : undefined}>{pendingAdditionalPayment ? "ยืนยันยอดชำระเพิ่ม" : selected.status === "confirmed" ? "อนุมัติแล้ว" : "อนุมัติใบสมัคร"}</Button>
+                <div className="review-decision-buttons">
+                  <Button icon="check" disabled={(selected.status === "confirmed" && !pendingAdditionalPayment) || Boolean(selected.slipIssue) || !hasReviewableSlip} onClick={() => onApprove(selected.id, selectedPayment?.id)} title={!hasReviewableSlip ? "เปิดสลิปก่อนอนุมัติ หรือแจ้งปัญหาสลิป" : undefined}>{pendingAdditionalPayment ? "ยืนยันยอดชำระเพิ่ม" : selected.status === "confirmed" ? "อนุมัติแล้ว" : "อนุมัติใบสมัคร"}</Button>
+                  {selected.status !== "confirmed" && selected.status !== "rejected" ? <Button variant="outline" className="review-reject-trigger" onClick={() => setRejectApplicationId(selected.id)}>ไม่อนุมัติใบสมัคร</Button> : null}
+                </div>
               </div>
-              {selected.status !== "confirmed" && selected.status !== "rejected" ? <form className="review-reject-form" onSubmit={async (event) => { event.preventDefault(); if (!rejectReason.trim()) return; setReviewBusy(true); try { const ok = await onReject(selected.id, rejectReason.trim()); if (ok) setRejectReason(""); } finally { setReviewBusy(false); } }}><Field label="เหตุผลสั้น ๆ ที่ไม่อนุมัติ" required><textarea value={rejectReason} maxLength={240} onChange={(event) => setRejectReason(event.target.value)} required /></Field><Button type="submit" variant="outline" disabled={reviewBusy || !rejectReason.trim()}>ไม่อนุมัติใบสมัคร</Button></form> : null}
             </div>
           </section>
         ) : reviewView === "school-groups" && !selectedGroup ? <section className="surface review-group-guide"><span><Icon name="grid" size={22} /></span><p className="eyebrow">ตรวจใบสมัครจากโรงเรียน</p><h2>เลือกกลุ่มรายการสอบ</h2><p>แต่ละกลุ่มรวมใบสมัครตามรายการสอบและปีการศึกษา เมื่อเลือกกลุ่มแล้วจะแสดงรายชื่อผู้สมัคร พร้อมตัวกรองสถานะและค้นหาชื่อ</p></section> : <div className="surface empty-state">เลือกใบสมัครเพื่อดูรายละเอียด</div>}
       </div>
       {slipPreviewOpen && selected ? <ReviewSlipDialog key={selected.id} application={selected} amount={expectedTransferAmount} fileName={selectedSlipFileName} dataUrl={selectedSlipDataUrl} fileType={selectedSlipType} onClose={() => setSlipPreviewOpen(false)} /> : null}
+      {rejectTarget ? <ReviewRejectDialog key={rejectTarget.id} application={rejectTarget} onReject={onReject} onClose={() => setRejectApplicationId("")} /> : null}
     </div>
   );
 }
@@ -3491,7 +3498,7 @@ function GradeSelectionList({ grades, selectedGrades, onChange, label }) {
   );
 }
 
-function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onSetManualClosed = async () => {}, onAddExam, onRemoveExam, onSaveCatalog, onSavePaymentAccounts = onSaveCatalog, catalogDirty = false, registrationOpen, onGenerateHeatIds, centerCatalog, setCenterCatalog, gradeCatalog, setGradeCatalog, competitionCatalog = DEFAULT_COMPETITION_CATALOG, setCompetitionCatalog = () => {}, applications, pastPaperCatalog, setPastPaperCatalog, paymentAccounts = [], setPaymentAccounts = () => {}, notify }) {
+function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onSetManualClosed = async () => {}, onAddExam, onRemoveExam, onSaveCatalog, onSaveExam, onRequestAutoSave = () => {}, dirtyExamIds = [], catalogSaveState = { status: "idle", error: "" }, catalogDirty = false, registrationOpen, onGenerateHeatIds, centerCatalog, setCenterCatalog, gradeCatalog, setGradeCatalog, competitionCatalog = DEFAULT_COMPETITION_CATALOG, setCompetitionCatalog = () => {}, applications, pastPaperCatalog, setPastPaperCatalog, paymentAccounts = [], setPaymentAccounts = () => {}, notify }) {
   const [centerFile, setCenterFile] = useState("");
   const [centerPreview, setCenterPreview] = useState(null);
   const [pendingExamAction, setPendingExamAction] = useState(null);
@@ -3528,7 +3535,7 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onSetM
       { ...newPaymentAccount, id: `payment-account-${Date.now()}`, accountNumber, active: true },
     ]);
     setNewPaymentAccount({ bankName: "", accountName: "", accountNumber: "", category: "other", showInForm: true });
-    notify("เพิ่มบัญชีแล้ว · กรุณาบันทึกเพื่อใช้จริง");
+    notify("เพิ่มบัญชีแล้ว · กำลังบันทึกอัตโนมัติ");
   }
   useEffect(() => {
     if (!pendingExamAction) return undefined;
@@ -3634,7 +3641,8 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onSetM
     setCompetitionCatalog((current) => [...current, { id, short, name, subject, active: true }]);
     updateNewExam("competitionId", id);
     setNewCompetitionName("");
-    notify(`เพิ่มตัวเลือก ${short} แล้ว · กดบันทึกแค็ตตาล็อกเพื่อเก็บข้อมูล`);
+    onRequestAutoSave();
+    notify(`เพิ่มตัวเลือก ${short} แล้ว · กำลังบันทึกอัตโนมัติ`);
   }
   function updateCompetitionChoice(id, field, value) {
     const nextValue = String(value || "").trimStart();
@@ -3643,6 +3651,7 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onSetM
       return;
     }
     setCompetitionCatalog((current) => current.map((item) => item.id === id ? { ...item, [field]: nextValue } : item));
+    onRequestAutoSave();
     const selected = competitionCatalog.find((item) => item.id === id);
     if (field === "name" && selected) examCatalog.filter((exam) => exam.competitionId === id).forEach((exam) => onUpdateExam(exam.id, { title: nextValue }));
   }
@@ -3691,9 +3700,14 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onSetM
     setNewExamLogo("");
     setNewExamError("");
     setShowNewExamForm(false);
+    onRequestAutoSave();
     notify(`เพิ่ม ${title} ${selectedRoundLabels.filter((_, index) => newExam.roundTypes[index]).join(" · ")} แล้ว · ปิดรับสมัครไว้จนกว่าจะเปิดจากการ์ด`);
   }
   function requestExamStatusChange(exam) {
+    if (catalogDirty) {
+      notify("บันทึกการเปลี่ยนแปลงของรายการสอบก่อนเปลี่ยนสถานะรับสมัคร");
+      return;
+    }
     const withinWindow = isWithinRegistrationWindow(exam);
     if (getExamRoundType(exam) === "FINAL") {
       if (!exam.isOpen || !withinWindow) return;
@@ -3728,6 +3742,10 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onSetM
     });
   }
   function requestHeatIdGeneration(exam) {
+    if (catalogDirty) {
+      notify("บันทึกการเปลี่ยนแปลงของรายการสอบก่อนสร้างเลขประจำตัวสอบ");
+      return;
+    }
     const registrationEnded = Boolean(exam.finalManuallyClosed || (exam.closeDate && getBangkokTodayISO() > exam.closeDate));
     if (!registrationEnded) {
       notify("ปิดรับสมัครก่อน หรือรอให้พ้นวันปิดรับสมัครจึงสร้างเลขประจำตัวสอบได้");
@@ -3750,6 +3768,10 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onSetM
     });
   }
   function restoreFinalAutoStatus(exam) {
+    if (catalogDirty) {
+      notify("บันทึกการเปลี่ยนแปลงของรายการสอบก่อนเปลี่ยนสถานะรับสมัคร");
+      return;
+    }
     if (!isWithinRegistrationWindow(exam)) {
       notify("คืนสถานะเปิดรับได้เฉพาะภายในช่วงวันที่กำหนด");
       return;
@@ -3768,7 +3790,8 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onSetM
     setSavingExamStatus(true);
     try {
       if (action === "heat-generate") {
-        await onGenerateHeatIds(id);
+        const generated = await onGenerateHeatIds(id);
+        if (!generated) return;
       } else {
         const manualClosed = action === "final-close" || (!action && !nextIsOpen);
         await onSetManualClosed(id, manualClosed);
@@ -3795,6 +3818,7 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onSetM
     setNewCenterCode(""); setNewCenterName(""); notify("เพิ่มศูนย์สอบตัวอย่างแล้ว");
   }
   function deactivateCenter(center) {
+    if (!window.confirm(`ปิดใช้งานศูนย์สอบ ${center.name} หรือไม่?`)) return;
     setCenterCatalog((current) => current.map((item) => item.id === center.id ? { ...item, active: false } : item));
     examCatalog.forEach((exam) => onUpdateExam(exam.id, { centerIds: (exam.centerIds || []).filter((id) => id !== center.id) }));
     setNewExam((current) => ({ ...current, centerIds: current.centerIds.filter((id) => id !== center.id) }));
@@ -3820,11 +3844,12 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onSetM
   function addPastPaper() {
     if (!newPaperName.trim()) return;
     setPastPaperCatalog((current) => [...current, { id: `paper-${Date.now()}`, group: newPaperGroup, name: newPaperName.trim(), price: Number(newPaperPrice) || 0, active: true }]);
-    setNewPaperName(""); notify("เพิ่มรายการแล้ว · กรุณาบันทึกเพื่อใช้จริง");
+    setNewPaperName(""); notify("เพิ่มรายการแล้ว · กำลังบันทึกอัตโนมัติ");
   }
   function removePastPaper(paper) {
+    if (!window.confirm(`ลบข้อสอบเก่า ${paper.title || paper.name} หรือไม่?`)) return;
     setPastPaperCatalog((current) => current.filter((item) => item.id !== paper.id));
-    notify(`นำ ${paper.title || paper.name} ออกจากรายการแล้ว · กรุณาบันทึกเพื่อใช้จริง`);
+    notify(`นำ ${paper.title || paper.name} ออกจากรายการแล้ว · กำลังบันทึกอัตโนมัติ`);
   }
   function addGradeOption() {
     const grade = newGradeName.trim();
@@ -3843,6 +3868,7 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onSetM
       notify("ปิดรับสมัครรายการสอบที่ใช้ระดับชั้นนี้ก่อนลบระดับชั้นสุดท้าย");
       return;
     }
+    if (!window.confirm(`ลบระดับชั้น ${grade} ออกจากตัวเลือกและรายการสอบที่ใช้หรือไม่?`)) return;
     setGradeCatalog((current) => current.filter((item) => item !== grade));
     examCatalog.filter((exam) => (exam.gradeOptions || []).includes(grade)).forEach((exam) => {
       onUpdateExam(exam.id, { gradeOptions: (exam.gradeOptions || []).filter((item) => item !== grade) });
@@ -3853,7 +3879,10 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onSetM
   return (
     <div className="page-stack">
       <PageHeading eyebrow="รอบสอบและข้อมูลตั้งต้น" title={pageMode === "form-options" ? "ข้อมูลตัวเลือกในฟอร์ม" : "รายการสอบและกำหนดการ"} description={pageMode === "form-options" ? "จัดการระดับชั้น ศูนย์สอบ และข้อสอบเก่าที่ใช้เป็นตัวเลือกในฟอร์มสมัคร" : "แก้ไขรายการสอบและบันทึกการเปลี่ยนแปลงลงฐานข้อมูล"} action={pageMode === "form-options" ? <span className="admin-data-note"><Icon name="building" size={14} />ระดับชั้น {gradeCatalog.length} ระดับ · ศูนย์สอบ {centerCatalog.filter((center) => center.active !== false).length} แห่ง</span> : <span className={registrationOpen ? "schedule-open" : "closed-badge"}>{registrationOpen ? `เปิดรับ ${examCatalog.filter((exam) => exam.isOpen).length} รายการ` : "ปิดรับสมัครทั้งหมด"}</span>} />
-      {catalogDirty ? <p className="admin-unsaved-indicator" role="status">มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก</p> : null}
+      {catalogSaveState.status === "error" ? <p className="admin-save-feedback admin-save-feedback-error" role="alert">บันทึกไม่สำเร็จ: {catalogSaveState.error} <Button type="button" variant="outline" onClick={() => catalogSaveState.examId ? onSaveExam(catalogSaveState.examId) : onSaveCatalog()}>ลองอีกครั้ง</Button></p>
+        : catalogSaveState.status === "saving" ? <p className="admin-save-feedback" role="status">กำลังบันทึกการเปลี่ยนแปลง…</p>
+        : catalogDirty ? <p className="admin-save-feedback" role="status">{pageMode === "form-options" ? "มีการเปลี่ยนแปลง · จะบันทึกอัตโนมัติ" : "มีการเปลี่ยนแปลง · กดบันทึกในการ์ดรายการสอบ"}</p>
+        : catalogSaveState.status === "saved" ? <p className="admin-save-feedback admin-save-feedback-saved" role="status">บันทึกแล้ว</p> : null}
       {pendingExamAction ? <div className="admin-status-confirm-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setPendingExamAction(null); }}>
         <section className="admin-status-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="admin-status-confirm-title" aria-describedby="admin-status-confirm-message">
           <span className={`admin-status-confirm-icon${pendingExamAction.action === "heat-generate" ? " admin-status-confirm-icon-generate" : pendingExamAction.action === "final-restore" || pendingExamAction.nextIsOpen ? " admin-status-confirm-icon-open" : " admin-status-confirm-icon-close"}`}><Icon name={pendingExamAction.action === "heat-generate" ? "hash" : pendingExamAction.action === "final-restore" || pendingExamAction.nextIsOpen ? "check" : "close"} size={21} /></span>
@@ -3876,7 +3905,7 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onSetM
           <div className="admin-exam-create-fields">
             <div className="admin-exam-title-round-row">
               <fieldset className="admin-competition-choice"><legend>ชื่อรายการสอบ <b>*</b></legend><div><select aria-label="ชื่อรายการสอบ" value={newExam.competitionId} onChange={(event) => updateNewExam("competitionId", event.target.value)} required><option value="">เลือกรายการสอบ</option>{competitionCatalog.filter((competition) => competition.active !== false).map((competition) => <option key={competition.id} value={competition.id}>{competition.short || competition.name}</option>)}</select><Button type="button" variant="outline" icon="settings" onClick={() => setShowCompetitionManager((current) => !current)}>{showCompetitionManager ? "ปิดจัดการชื่อ" : "เพิ่ม/แก้ชื่อ"}</Button></div>
-                {showCompetitionManager ? <section className="admin-competition-manager" aria-label="จัดการตัวเลือกรายการสอบ"><div className="admin-competition-manager-add"><label><span>เพิ่มชื่อรายการสอบ</span><input value={newCompetitionName} maxLength={255} onChange={(event) => setNewCompetitionName(event.target.value)} placeholder="เช่น HKIMO" /></label><Button type="button" icon="plus" onClick={addCompetitionChoice}>เพิ่มชื่อ</Button></div>{selectedCompetition ? <div className="admin-competition-manager-edit"><span className="admin-exam-field-label">แก้ไขตัวเลือกที่เลือก · {selectedCompetition.short}</span><label><span>ชื่อใน dropdown</span><input value={selectedCompetition.short || ""} maxLength={30} onChange={(event) => updateCompetitionChoice(selectedCompetition.id, "short", event.target.value)} /></label><label><span>ชื่อเต็มที่แสดงในรายการสอบ</span><input value={selectedCompetition.name || ""} maxLength={255} onChange={(event) => updateCompetitionChoice(selectedCompetition.id, "name", event.target.value)} /></label></div> : <small>เลือกรายการสอบด้านบนเพื่อแก้ไขชื่อ</small>}<div className="admin-competition-manager-save"><small>เพิ่มหรือแก้ชื่อแล้วกดบันทึก เพื่อเก็บรายการไว้ใช้งานครั้งต่อไป</small><Button type="button" variant="outline" icon="check" onClick={onSaveCatalog}>บันทึกชื่อรายการ</Button></div></section> : null}
+                {showCompetitionManager ? <section className="admin-competition-manager" aria-label="จัดการตัวเลือกรายการสอบ"><div className="admin-competition-manager-add"><label><span>เพิ่มชื่อรายการสอบ</span><input value={newCompetitionName} maxLength={255} onChange={(event) => setNewCompetitionName(event.target.value)} placeholder="เช่น HKIMO" /></label><Button type="button" icon="plus" onClick={addCompetitionChoice}>เพิ่มชื่อ</Button></div>{selectedCompetition ? <div className="admin-competition-manager-edit"><span className="admin-exam-field-label">แก้ไขตัวเลือกที่เลือก · {selectedCompetition.short}</span><label><span>ชื่อใน dropdown</span><input value={selectedCompetition.short || ""} maxLength={30} onChange={(event) => updateCompetitionChoice(selectedCompetition.id, "short", event.target.value)} /></label><label><span>ชื่อเต็มที่แสดงในรายการสอบ</span><input value={selectedCompetition.name || ""} maxLength={255} onChange={(event) => updateCompetitionChoice(selectedCompetition.id, "name", event.target.value)} /></label></div> : <small>เลือกรายการสอบด้านบนเพื่อแก้ไขชื่อ</small>}<div className="admin-competition-manager-save"><small>เพิ่มหรือแก้ชื่อแล้วระบบจะบันทึกอัตโนมัติ</small></div></section> : null}
               </fieldset>
               <fieldset className="admin-round-choice"><legend>รอบสอบ <b>*</b></legend><div>{Object.entries(EXAM_ROUND_LABELS).map(([roundType, label]) => <label key={roundType} className={newExam.roundTypes.includes(roundType) ? "admin-round-choice-selected" : ""}><input type="checkbox" checked={newExam.roundTypes.includes(roundType)} onChange={() => toggleNewExamRound(roundType)} /><span>{label}</span></label>)}</div><small>เลือกได้หลายรอบ ระบบจะแยกสร้างเป็นการ์ดคนละใบ</small></fieldset>
             </div>
@@ -3946,7 +3975,7 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onSetM
                         {isHeatRound ? <Button type="button" variant={heatIdsToGenerate ? "outline" : "success"} icon={heatIdsToGenerate ? "hash" : "check"} disabled={!registrationEnded || !heatIdsToGenerate} ariaLabel={`สร้างเลขประจำตัวสอบ ${exam.title} ${roundLabel} ปี ${exam.year}${!registrationEnded ? " · รอปิดรับสมัคร" : ""}`} title={!registrationEnded ? "ปิดรับสมัครก่อน หรือรอให้พ้นวันปิดรับสมัคร" : heatIdsToGenerate ? `สร้างเลขให้ ${heatIdsToGenerate} รายการสอบ` : "ไม่มีเลขประจำตัวที่ต้องสร้าง"} onClick={() => requestHeatIdGeneration(exam)}>{!registrationEnded ? "รอปิดรับก่อนสร้างเลข" : heatIdsToGenerate ? `สร้างเลขสอบ · ${heatIdsToGenerate} รายการ${heatHasExistingNumbers ? "ใหม่" : ""}` : heatItems.length ? "สร้างเลขแล้ว" : "ยังไม่มีผู้สมัคร"}</Button> : null}
                       </>}
                     {!exam.isOpen ? <Button type="button" variant="outline" icon="download" className="center-summary-download" onClick={() => downloadCenterSummary(exam)}>สรุปศูนย์สอบ</Button> : null}
-                    <Button variant="outline" className="admin-round-delete" icon="trash" ariaLabel={`ลบ ${exam.title} ${exam.round || ""} ปี ${exam.year}`} title="ลบการ์ดรายการสอบนี้" onClick={() => { onRemoveExam(exam.id); notify(BACKEND_ENABLED ? `นำ ${exam.title} ${exam.round} ปี ${exam.year} ออกจากรายการ · กดบันทึกแค็ตตาล็อกเพื่อยืนยัน` : `นำ ${exam.title} ${exam.round} ปี ${exam.year} ออกจากรายการตัวอย่างแล้ว`); }}>ลบ</Button>
+                    <Button variant="outline" className="admin-round-delete" icon="trash" ariaLabel={`ลบ ${exam.title} ${exam.round || ""} ปี ${exam.year}`} title="ลบการ์ดรายการสอบนี้" onClick={() => { if (!window.confirm(`ลบ ${exam.title} ${roundLabel} ปี ${exam.year} หรือไม่?`)) return; onRemoveExam(exam.id); onRequestAutoSave(); notify(`ลบ ${exam.title} ${roundLabel} ปี ${exam.year} แล้ว · กำลังบันทึก`); }}>ลบ</Button>
                   </div>
                 </div>
                 {isFinalRound ? <div className="admin-final-auto-note"><Icon name="info" size={14} /><span>เมื่อประกาศผล HEAT ระบบเปิดสิทธิ์ให้ผู้ผ่านยืนยันได้ภายในช่วงวันรับสมัคร Final โดยใช้วันปิดรับสมัครเดียวกัน</span></div> : null}
@@ -3969,12 +3998,12 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onSetM
                     <CenterSelectionList centers={centerCatalog} selectedIds={exam.centerIds || []} onChange={(centerIds) => onUpdateExam(exam.id, { centerIds })} label="ศูนย์สอบ Paper-Based ที่เปิดในรอบนี้" />
                   </div>
                   <div className="admin-round-logo-row"><span>โลโก้รายการ</span><label className="admin-exam-logo-button"><Icon name="upload" size={14} />{exam.logoDataUrl ? "เปลี่ยนรูป" : "อัปโหลดรูป"}<input type="file" accept="image/png,image/jpeg,image/webp" aria-label={`อัปโหลดโลโก้ ${exam.title} ${exam.round}`} onChange={(event) => { readLogoFile(event.target.files?.[0], (logoDataUrl) => onUpdateExam(exam.id, { logoDataUrl })); event.target.value = ""; }} /></label><small>PNG · JPG · WEBP ไม่เกิน 5 MB</small></div>
+                  <div className="admin-round-card-save"><span>{dirtyExamIds.includes(exam.id) ? "มีการเปลี่ยนแปลงในรอบนี้" : "ข้อมูลรอบนี้บันทึกแล้ว"}</span><Button type="button" variant="outline" icon="check" disabled={!dirtyExamIds.includes(exam.id) || catalogSaveState.status === "saving"} onClick={() => onSaveExam(exam.id)}>{catalogSaveState.status === "saving" ? "กำลังบันทึก…" : "บันทึกรอบนี้"}</Button></div>
                 </div>
               </div>
             </details>;
           })}</div>
         </section>)}{!visibleExams.length ? <div className="empty-inline"><Icon name="calendar" /><span>ยังไม่มีรายการสอบในปีการศึกษานี้</span></div> : null}</div>
-        <div className="form-footer admin-round-save"><span><Icon name="info" size={15} />การเปลี่ยนแปลงจะมีผลกับหน้าสมัครหลังบันทึก</span><Button variant="outline" onClick={onSaveCatalog}>บันทึกกำหนดการ</Button></div>
       </section>
       </> : null}
       {pageMode === "form-options" ? <div className="admin-form-options-accordions">
@@ -3992,7 +4021,7 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onSetM
               <label><span>เลขบัญชี</span><input aria-label={`เลขบัญชี ${account.accountName}`} value={account.accountNumber || ""} onChange={(event) => updatePaymentAccount(account.id, "accountNumber", event.target.value)} /></label>
               <label><span>ประเภทบัญชี</span><select value={account.category === "president" ? "president" : "other"} onChange={(event) => updatePaymentAccount(account.id, "category", event.target.value)}><option value="president">บัญชีประธาน · ไม่ต้องลงบัญชี</option><option value="other">บัญชีอื่น · ต้องลงบัญชีภายนอก</option></select></label>
             </div>
-            <div className="admin-payment-account-actions"><label className="admin-payment-show"><input type="radio" name="form-payment-account" checked={selectedPaymentAccountId === account.id} onChange={() => updatePaymentAccount(account.id, "showInForm", true)} /><span>แสดงในฟอร์มสมัคร</span></label><button type="button" className="admin-paper-delete" aria-label={`ลบบัญชี ${account.bankName} ${account.accountNumber}`} title="ลบบัญชีรับโอน" onClick={() => setPaymentAccounts((current) => current.filter((item) => item.id !== account.id))}><Icon name="close" size={15} /></button></div>
+            <div className="admin-payment-account-actions"><label className="admin-payment-show"><input type="radio" name="form-payment-account" checked={selectedPaymentAccountId === account.id} onChange={() => updatePaymentAccount(account.id, "showInForm", true)} /><span>แสดงในฟอร์มสมัคร</span></label><button type="button" className="admin-paper-delete" aria-label={`ลบบัญชี ${account.bankName} ${account.accountNumber}`} title="ลบบัญชีรับโอน" onClick={() => { if (window.confirm(`ลบบัญชี ${account.bankName} ${account.accountNumber} หรือไม่?`)) setPaymentAccounts((current) => current.filter((item) => item.id !== account.id)); }}><Icon name="close" size={15} /></button></div>
           </article>)}
           {!paymentAccounts.length ? <p className="admin-payment-empty">ยังไม่มีบัญชีรับโอน · เพิ่มบัญชีใหม่ด้านล่าง</p> : null}
         </div>
@@ -4004,7 +4033,7 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onSetM
           <label className="admin-payment-show"><input type="checkbox" checked={newPaymentAccount.showInForm} onChange={(event) => setNewPaymentAccount((current) => ({ ...current, showInForm: event.target.checked }))} /><span>แสดงในฟอร์มสมัคร</span></label>
           <Button type="submit" variant="outline" icon="plus">เพิ่มบัญชี</Button>
         </form>
-          <div className="admin-fee-foot"><span><Icon name="info" size={14} />เลือกบัญชีที่จะแสดงในหน้าสมัครได้ครั้งละ 1 บัญชี</span><Button variant="outline" onClick={onSavePaymentAccounts}>บันทึกบัญชีรับโอน</Button></div>
+          <div className="admin-fee-foot"><span><Icon name="info" size={14} />เลือกบัญชีที่จะแสดงในหน้าสมัครได้ครั้งละ 1 บัญชี · ระบบบันทึกอัตโนมัติ</span></div>
       </AdminFormOptionAccordion>
       <AdminFormOptionAccordion
         title="ข้อสอบเก่าและราคา"
@@ -4014,7 +4043,7 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onSetM
       >
         <div className="admin-paper-table-wrap"><table className="admin-paper-table"><thead><tr><th>กลุ่ม / รายการ</th><th>ราคา</th><th>สถานะ</th><th>จัดการ</th></tr></thead><tbody>{pastPaperCatalog.length ? pastPaperCatalog.map((paper) => <tr key={paper.id}><td><small>{paper.group}</small><strong>{paper.name}</strong></td><td><label className="admin-paper-price"><span>฿</span><input aria-label={`ราคาของ ${paper.name}`} type="number" min="0" value={paper.price} onChange={(event) => setPastPaperCatalog((current) => current.map((item) => item.id === paper.id ? { ...item, price: Math.max(0, Number(event.target.value) || 0) } : item))} /></label></td><td><span className={paper.active ? "schedule-open" : "closed-badge"}>{paper.active ? "เปิดขาย" : "ปิดขาย"}</span></td><td><div className="admin-paper-actions"><Button variant="text" onClick={() => setPastPaperCatalog((current) => current.map((item) => item.id === paper.id ? { ...item, active: !item.active } : item))}>{paper.active ? "ปิดรายการ" : "เปิดรายการ"}</Button><button type="button" className="admin-paper-delete" aria-label={`ลบข้อสอบเก่า ${paper.title || paper.name}`} title={`ลบข้อสอบเก่า ${paper.title || paper.name}`} onClick={() => removePastPaper(paper)}><Icon name="close" size={15} /></button></div></td></tr>) : <tr><td className="admin-paper-empty" colSpan="4">ยังไม่มีรายการข้อสอบเก่า · เพิ่มรายการใหม่ได้ด้านล่าง</td></tr>}</tbody></table></div>
         <div className="admin-add-paper"><select aria-label="กลุ่มข้อสอบเก่า" value={newPaperGroup} onChange={(event) => setNewPaperGroup(event.target.value)}>{paperGroupOptions.map((group) => <option key={group}>{group}</option>)}</select><input aria-label="ชื่อรายการข้อสอบเก่าใหม่" placeholder="ชื่อข้อสอบเก่าใหม่" value={newPaperName} onChange={(event) => setNewPaperName(event.target.value)} /><label><span>ราคา</span><input type="number" min="0" value={newPaperPrice} onChange={(event) => setNewPaperPrice(event.target.value)} /></label><Button variant="outline" disabled={!newPaperName.trim()} onClick={addPastPaper}>เพิ่มข้อสอบเก่า</Button></div>
-        <div className="admin-fee-foot"><span>รายการ ราคา และสถานะจะใช้ในหน้าสมัครหลังบันทึก</span><Button variant="outline" onClick={onSaveCatalog}>บันทึกรายการ</Button></div>
+        <div className="admin-fee-foot"><span>รายการ ราคา และสถานะจะบันทึกอัตโนมัติ</span></div>
       </AdminFormOptionAccordion>
       <AdminFormOptionAccordion
         title="ระดับชั้น"
@@ -4027,7 +4056,7 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onSetM
             return <div className="admin-grade-catalog-row" key={grade}><span>{grade}</span><small>{usedBy ? `ใช้ใน ${usedBy} รายการสอบ` : "ยังไม่ใช้ในรายการสอบ"}</small><button type="button" className="admin-grade-remove" aria-label={`ลบระดับชั้น ${grade}`} title={`ลบระดับชั้น ${grade}`} onClick={() => removeGradeOption(grade)}><Icon name="close" size={15} /></button></div>;
           })}</div>
           <form className="admin-add-grade" onSubmit={(event) => { event.preventDefault(); addGradeOption(); }}><label htmlFor="new-grade-option">เพิ่มระดับชั้น</label><input id="new-grade-option" value={newGradeName} onChange={(event) => setNewGradeName(event.target.value)} placeholder="เช่น Primary 1" /><Button type="submit" variant="outline" disabled={!newGradeName.trim()} icon="plus">เพิ่มระดับชั้น</Button></form>
-          <div className="admin-grade-catalog-note"><Icon name="info" size={14} /><span>เมื่อลบระดับชั้น ระบบจะปิดการใช้งานและนำออกจากตัวเลือกรอบสอบ แต่ข้อมูลใบสมัครเดิมยังอยู่</span><Button variant="outline" onClick={onSaveCatalog}>บันทึกระดับชั้น</Button></div>
+          <div className="admin-grade-catalog-note"><Icon name="info" size={14} /><span>เมื่อลบระดับชั้น ระบบจะปิดการใช้งานและนำออกจากตัวเลือกรอบสอบ แต่ข้อมูลใบสมัครเดิมยังอยู่ · ระบบบันทึกอัตโนมัติ</span></div>
       </AdminFormOptionAccordion>
       <AdminFormOptionAccordion
         title="ศูนย์สอบกลาง"
@@ -4047,7 +4076,7 @@ function AdminRoundPage({ pageMode = "rounds", examCatalog, onUpdateExam, onSetM
           </div>
           <div className="centers-table"><div className="center-row center-row-head"><span>รหัส</span><span>ชื่อศูนย์สอบ</span><span>สถานะและจัดการ</span></div>{centerCatalog.map((center) => <div className={`center-row center-row-editable${center.active === false ? " center-row-inactive" : ""}`} key={center.id}><input aria-label={`รหัสศูนย์สอบ ${center.name}`} value={center.code} onChange={(event) => changeCenterField(center, "code", event.target.value)} /><input aria-label={`ชื่อศูนย์สอบ ${center.code}`} value={center.name} onChange={(event) => changeCenterField(center, "name", event.target.value)} /><div className="center-row-actions"><span className={center.active === false ? "closed-badge" : "schedule-open"}>{center.active === false ? "ปิดใช้" : "ใช้งาน"}</span>{center.active === false ? <Button type="button" variant="text" onClick={() => updateCenter(center.id, "active", true)}>เปิดใช้</Button> : <Button type="button" variant="text" className="center-delete-button" disabled={center.code === ONLINE_CENTER_CODE} onClick={() => deactivateCenter(center)}>ลบ</Button>}</div></div>)}</div>
           <div className="admin-add-center"><input aria-label="รหัสศูนย์สอบใหม่" placeholder="รหัสใหม่" value={newCenterCode} onChange={(event) => setNewCenterCode(event.target.value)} /><input aria-label="ชื่อศูนย์สอบใหม่" placeholder="ชื่อศูนย์สอบใหม่" value={newCenterName} onChange={(event) => setNewCenterName(event.target.value)} /><Button variant="outline" disabled={!newCenterCode.trim() || !newCenterName.trim()} onClick={addCenter}>เพิ่มศูนย์</Button></div>
-          <div className="admin-fee-foot"><span>จำนวนผู้สมัครไม่แสดงในรายการศูนย์ · การปิดใช้ศูนย์จะไม่ลบข้อมูลใบสมัครเดิม</span><Button variant="outline" onClick={onSaveCatalog}>บันทึกศูนย์สอบ</Button></div>
+          <div className="admin-fee-foot"><span>การปิดใช้ศูนย์จะไม่ลบข้อมูลใบสมัครเดิม · ระบบบันทึกอัตโนมัติ</span></div>
       </AdminFormOptionAccordion>
     </div> : null}
     </div>
@@ -4058,14 +4087,9 @@ function AdminResultsPage({ applications, examCatalog, resultWorkflows, onImport
   const [conflictsOpen, setConflictsOpen] = useState(false);
   const [busyImport, setBusyImport] = useState(false);
   const [manualMatches, setManualMatches] = useState({});
-  const years = [...new Set(examCatalog.map((exam) => exam.year).filter(Boolean))].sort((left, right) => Number(right) - Number(left));
-  const [selectedYear, setSelectedYear] = useState(years[0] || '');
-  const yearExams = examCatalog.filter((exam) => exam.year === selectedYear);
-  const competitions = [...new Map(yearExams.map((exam) => [exam.competitionId, exam.title])).entries()];
-  const [selectedCompetitionId, setSelectedCompetitionId] = useState(() => yearExams.find((exam) => exam.competitionId === 'bbb')?.competitionId || yearExams[0]?.competitionId || '');
-  const competitionExams = yearExams.filter((exam) => exam.competitionId === selectedCompetitionId);
-  const [selectedRoundType, setSelectedRoundType] = useState(() => competitionExams.find((exam) => getExamRoundType(exam) === 'HEAT') ? 'HEAT' : getExamRoundType(competitionExams[0] || {}));
-  const selectedTarget = competitionExams.find((exam) => getExamRoundType(exam) === selectedRoundType) || competitionExams[0];
+  const [targetId, setTargetId] = useState('');
+  const selectedTarget = examCatalog.find((exam) => exam.id === targetId) || null;
+  const targetOptions = [...examCatalog].sort((left, right) => Number(right.year) - Number(left.year) || left.title.localeCompare(right.title, 'th') || getExamRoundType(left).localeCompare(getExamRoundType(right)));
   const workflow = selectedTarget ? resultWorkflows[selectedTarget.id] || {} : {};
   const rows = workflow.rows || [];
   const finalEligibleRows = rows.filter((row) => isFinalEligibleAward(row.award, selectedTarget?.competitionId));
@@ -4099,24 +4123,24 @@ function AdminResultsPage({ applications, examCatalog, resultWorkflows, onImport
   }
 
   return <div className="page-stack">
-    <PageHeading eyebrow="ผลการสอบ · ฐานข้อมูลจริง" title="นำเข้าและประกาศผลสอบ" description="นำเข้า Excel เป็นฉบับร่าง ตรวจรายการจับคู่ผิดปกติ แล้วจึงยืนยันประกาศผล" action={<span className={isPublished ? 'schedule-open' : workflow.id ? 'draft-badge' : 'closed-badge'}>{isPublished ? 'ประกาศแล้ว · ล็อกข้อมูล' : workflow.id ? 'ฉบับร่าง' : 'รอเลือกไฟล์'}</span>} />
-    <section className="surface results-target-toolbar results-admin-target-toolbar">
-      <label><span>ปีการศึกษา</span><select value={selectedYear} onChange={(event) => { const nextYear = event.target.value; const nextExam = examCatalog.find((exam) => exam.year === nextYear); setSelectedYear(nextYear); if (nextExam) { setSelectedCompetitionId(nextExam.competitionId); setSelectedRoundType(getExamRoundType(nextExam)); } }}>{years.map((year) => <option key={year} value={year}>{year}</option>)}</select></label>
-      <label><span>รายการสอบ</span><select value={selectedCompetitionId} onChange={(event) => { const nextCompetition = examCatalog.find((exam) => exam.year === selectedYear && exam.competitionId === event.target.value); setSelectedCompetitionId(event.target.value); if (nextCompetition) setSelectedRoundType(getExamRoundType(nextCompetition)); }}>{competitions.map(([id, title]) => <option key={id} value={id}>{title}</option>)}</select></label>
-      <label><span>รอบสอบ</span><select value={selectedTarget ? getExamRoundType(selectedTarget) : selectedRoundType} onChange={(event) => setSelectedRoundType(event.target.value)}>{competitionExams.map((exam) => <option key={exam.id} value={getExamRoundType(exam)}>{EXAM_ROUND_LABELS[getExamRoundType(exam)] || exam.round}</option>)}</select></label>
-      {selectedTarget ? <span className={isPublished ? 'schedule-open' : 'draft-badge'}>{isPublished ? 'ประกาศผลแล้ว' : workflow.id ? 'มีฉบับร่าง' : 'ยังไม่ได้นำเข้า'}</span> : null}
+    <PageHeading eyebrow="ผลการสอบ · ฐานข้อมูลจริง" title="นำเข้าและประกาศผลสอบ" description="เลือกรายการสอบและรอบก่อนนำเข้า Excel เพื่อตรวจข้อมูลแล้วจึงประกาศผล" />
+    <section className="surface results-import-setup" aria-label="เตรียมนำเข้าผลสอบ">
+      <div className="results-import-setup-heading"><div><p className="eyebrow">นำเข้าผลสอบ</p><h2>เตรียมไฟล์สำหรับรอบสอบ</h2><p>เลือกการ์ดรายการสอบที่สร้างไว้ แล้วอัปโหลดผลสอบของรอบนั้น</p></div><span className={isPublished ? 'schedule-open' : workflow.id ? 'draft-badge' : 'closed-badge'}>{isPublished ? 'ประกาศผลแล้ว' : workflow.id ? 'มีฉบับร่าง' : selectedTarget ? 'พร้อมอัปโหลด' : 'รอเลือกรายการสอบ'}</span></div>
+      <div className="results-import-setup-steps">
+        <div className="results-import-setup-step"><div className="results-import-step-heading"><span className="results-import-step-number">1</span><div><strong>เลือกรายการสอบและรอบ</strong><small>รายชื่อดึงจากรายการสอบที่มีอยู่ในระบบ</small></div></div><select aria-label="เลือกรายการสอบและรอบเพื่อนำเข้าผลสอบ" value={selectedTarget?.id || ''} onChange={(event) => { setTargetId(event.target.value); setConflictsOpen(false); setManualMatches({}); }} required><option value="">เลือกรายการสอบและรอบ</option>{targetOptions.map((exam) => <option key={exam.id} value={exam.id}>{exam.title} · {exam.round || EXAM_ROUND_LABELS[getExamRoundType(exam)]} · {exam.year}</option>)}</select>{!targetOptions.length ? <small className="results-import-step-help">ยังไม่มีรายการสอบในระบบ กรุณาเพิ่มรายการสอบก่อน</small> : null}</div>
+        <div className={`results-import-setup-step${!selectedTarget ? ' results-import-setup-step-locked' : ''}`}><div className="results-import-step-heading"><span className="results-import-step-number">2</span><div><strong>อัปโหลดไฟล์ผลสอบ</strong><small>{selectedTarget ? resultTargetLabel(selectedTarget) : 'เลือกข้อ 1 ก่อนเพื่อเปิดการอัปโหลด'}</small></div></div><label className={`file-drop file-drop-inline results-import-file-drop${!selectedTarget || isPublished ? ' file-disabled' : ''}`}><input type="file" accept=".xlsx,.csv" disabled={!selectedTarget || isPublished || busyImport} onChange={(event) => { const file = event.target.files?.[0]; importFile(file); event.target.value = ''; }} /><span className="file-drop-icon"><Icon name={selectedTarget ? 'upload' : 'file'} /></span><span className="file-drop-copy"><strong>{busyImport ? 'กำลังอ่านและจับคู่…' : workflow.fileName || (selectedTarget ? 'เลือกไฟล์ Excel ผลสอบ' : 'รอเลือกรายการสอบ')}</strong><small>ไฟล์ .xlsx หรือ .csv · CANDIDATE NO, GRADE, SCHOOL NAME, CANDIDATE NAME, AWARD</small></span><span className="file-select-label">{isPublished ? 'ล็อกแล้ว' : !selectedTarget ? 'รอเลือก' : workflow.id ? 'แทนฉบับร่าง' : 'เลือกไฟล์'}</span></label></div>
+      </div>
     </section>
-    {!selectedTarget ? <section className="surface empty-inline"><Icon name="info" /><span>ไม่พบรอบสอบสำหรับรายการที่เลือก กรุณาตรวจสอบรายการสอบในเมนูรอบสอบ</span></section> : <>
+    {selectedTarget ? <>
       {isPublished ? <div className="notice notice-green"><Icon name="check" /><div><strong>ประกาศผล {resultTargetLabel(selectedTarget)} แล้ว</strong><p>ผลสอบแสดงในหน้าประกาศผลและล็อกไม่ให้แก้ไข</p></div></div> : null}
       <div className="results-admin-grid"><section className="surface import-card">
-        <div className="section-heading"><div><p className="eyebrow">{resultTargetLabel(selectedTarget)}</p><h2>นำเข้าผลสอบฉบับร่าง</h2></div><span className={isPublished ? 'schedule-open' : 'draft-badge'}>{isPublished ? 'ประกาศแล้ว' : workflow.id ? 'ฉบับร่าง' : 'รอไฟล์'}</span></div>
-        <label className={`file-drop file-drop-inline ${isPublished ? 'file-disabled' : ''}`}><input type="file" accept=".xlsx,.csv" disabled={isPublished || busyImport} onChange={(event) => { const file = event.target.files?.[0]; importFile(file); event.target.value = ''; }} /><span className="file-drop-icon"><Icon name="upload" /></span><span className="file-drop-copy"><strong>{busyImport ? 'กำลังอ่านและจับคู่…' : workflow.fileName || 'เลือกไฟล์ Excel ผลสอบ'}</strong><small>ไฟล์ .xlsx หรือ .csv · คอลัมน์ CANDIDATE NO, GRADE, SCHOOL NAME, CANDIDATE NAME และ AWARD · บันทึกเป็นฉบับร่างก่อน</small></span><span className="file-select-label">{workflow.id && !isPublished ? 'แทนฉบับร่าง' : 'เลือกไฟล์'}</span></label>
+        <div className="section-heading"><div><p className="eyebrow">ตรวจข้อมูลก่อนประกาศ</p><h2>ผลการนำเข้า · {resultTargetLabel(selectedTarget)}</h2></div><span className={isPublished ? 'schedule-open' : 'draft-badge'}>{isPublished ? 'ประกาศแล้ว' : workflow.id ? 'ฉบับร่าง' : 'รอไฟล์'}</span></div>
         {workflow.id ? <div className="import-summary"><span className="summary-icon summary-green"><Icon name="check" /></span><div><strong>{isPublished ? 'ประกาศผลแล้ว · ล็อกข้อมูล' : 'บันทึกฉบับร่างแล้ว'}</strong><small>บันทึก {rows.length} รายการ · {workflow.fileName}</small></div><span className="summary-pill">มีสิทธิ์ Final {finalEligibleRows.length} ราย</span></div> : null}
         <div className="results-count-strip"><span><strong>{rows.length}</strong> ผู้เข้าสอบ</span><span><strong>{finalEligibleRows.length}</strong> มีสิทธิ์ไป Final</span><span><strong>{matchedRows.length}</strong> จับคู่ได้</span><button type="button" className={`results-count-review ${hasConflict ? 'has-conflicts' : 'all-clear'}`} disabled={!workflow.id} aria-label={`${issueRows.length} รายการที่ต้องตรวจ · กดเพื่อเปิดรายการ`} title="กดเพื่อเปิดรายการที่ต้องตรวจ" aria-haspopup="dialog" aria-expanded={conflictsOpen} onClick={() => setConflictsOpen(true)}><strong>{issueRows.length}</strong><span className="results-review-action">รายการที่ต้องตรวจ</span><span className="results-review-indicator" aria-hidden="true"><Icon name="cursor" size={18} /></span></button></div>
         <div className="results-award-breakdown" aria-label="จำนวนผู้เข้าสอบตามรางวัล">{awardBreakdown.map(({ award, count }) => <div className={`results-award-count award-count-${award.toLowerCase().replaceAll(' ', '-')}`} key={award}><span>{award}</span><strong>{count}</strong></div>)}</div>
         <div className="result-preview-heading"><div><strong>รายชื่อผู้เข้าสอบทั้งหมด</strong><small>ตรวจเลขสอบ ระดับชั้น โรงเรียน ชื่อ และรางวัลก่อนประกาศ</small></div><span>{rows.length} ราย</span></div>
         {rows.length ? <div className="responsive-table admin-results-table-wrap"><table className="admin-results-table"><thead><tr><th>CANDIDATE NO</th><th>GRADE</th><th>SCHOOL NAME</th><th>CANDIDATE NAME</th><th>AWARD</th><th>จับคู่</th></tr></thead><tbody>{rows.map((row) => <tr className={row.matchStatus !== 'matched' ? 'admin-result-row-unmatched' : ''} key={row.id}><td data-label="CANDIDATE NO"><strong className="mono-number">{row.candidateNo}</strong></td><td data-label="GRADE">{row.grade}</td><td data-label="SCHOOL NAME">{row.schoolName}</td><td data-label="CANDIDATE NAME">{row.candidateName}</td><td data-label="AWARD"><span className={`award-badge award-${String(row.award || '').toLowerCase().replaceAll(' ', '-')}`}>{row.award}</span></td><td data-label="จับคู่">{row.matchStatus === 'matched' ? <span className="match-status match-ok"><Icon name="check" size={13} />จับคู่แล้ว</span> : <span className="match-status match-wait"><Icon name="info" size={13} />{row.matchNote || (row.matchStatus === 'data_mismatch' ? 'ข้อมูลไม่ตรง' : row.matchStatus === 'duplicate' ? 'เลขซ้ำ' : 'ไม่พบเลขสอบ')}</span>}</td></tr>)}</tbody></table></div> : <div className="empty-inline"><Icon name="info" /><span>นำเข้าไฟล์ผลสอบของรายการนี้เพื่อสร้างฉบับร่าง</span></div>}
-        <div className="publish-box"><div><strong>{isPublished ? 'ประกาศผลแล้ว' : 'ยืนยันประกาศผล'}</strong><small>{isPublished ? 'ประกาศผลแล้วและล็อกข้อมูล' : hasConflict ? `ยังประกาศไม่ได้ · แก้รายการที่ต้องตรวจอีก ${issueRows.length} รายการ` : selectedRoundType === 'HEAT' ? 'เมื่อประกาศ Heat ผู้ได้เหรียญ หรือผู้ได้อันดับ 1st–3rd ของ BBB จะได้สิทธิ์ Final อัตโนมัติ' : 'เมื่อประกาศแล้วจะแสดงผลสาธารณะและล็อกข้อมูล'}</small></div><Button icon="check" disabled={!workflow.id || hasConflict || isPublished || !rows.length} onClick={() => onPublishResult(selectedTarget)}>{isPublished ? 'ผลสอบถูกล็อก' : 'ประกาศผล'}</Button></div>
+        <div className="publish-box"><div><strong>{isPublished ? 'ประกาศผลแล้ว' : 'ยืนยันประกาศผล'}</strong><small>{isPublished ? 'ประกาศผลแล้วและล็อกข้อมูล' : hasConflict ? `ยังประกาศไม่ได้ · แก้รายการที่ต้องตรวจอีก ${issueRows.length} รายการ` : getExamRoundType(selectedTarget) === 'HEAT' ? 'เมื่อประกาศ Heat ผู้ได้เหรียญ หรือผู้ได้อันดับ 1st–3rd ของ BBB จะได้สิทธิ์ Final อัตโนมัติ' : 'เมื่อประกาศแล้วจะแสดงผลสาธารณะและล็อกข้อมูล'}</small></div><Button icon="check" disabled={!workflow.id || hasConflict || isPublished || !rows.length} onClick={() => onPublishResult(selectedTarget)}>{isPublished ? 'ผลสอบถูกล็อก' : 'ประกาศผล'}</Button></div>
       </section></div>
       {conflictsOpen ? <div className="results-conflict-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setConflictsOpen(false); }}><section className="results-conflict-dialog" role="dialog" aria-modal="true" aria-labelledby="results-conflict-title">
         <div className="results-conflict-dialog-head"><div><p className="eyebrow">ตรวจสอบก่อนประกาศผล</p><h2 id="results-conflict-title">รายการที่ต้องตรวจ</h2><small>ยืนยันหรือจับคู่กับใบสมัครของรอบนี้ให้ครบก่อนประกาศ</small></div><span className={hasConflict ? 'conflict-count' : 'conflict-count conflict-count-clear'}>{issueRows.length} รายการ</span><button type="button" className="results-conflict-close" aria-label="ปิดหน้าต่าง" onClick={() => setConflictsOpen(false)}><Icon name="close" size={18} /></button></div>
@@ -4128,15 +4152,19 @@ function AdminResultsPage({ applications, examCatalog, resultWorkflows, onImport
           </article>;
         })}</div>}</div>
       </section></div> : null}
-    </>}
+    </> : null}
   </div>;
 }
 
 function AdminFinalIdsPage({ applications, examCatalog, publishedHeatResults, onImport, onResolveRow, onApply, notify, navigate }) {
   const finalRounds = examCatalog.filter((exam) => getExamRoundType(exam) === 'FINAL');
-  const [roundId, setRoundId] = useState(() => finalRounds[0]?.id || '');
-  const target = finalRounds.find((exam) => exam.id === roundId) || finalRounds[0];
-  const [workflow, setWorkflow] = useState(null);
+  const [roundId, setRoundId] = useState('');
+  const target = finalRounds.find((exam) => exam.id === roundId) || null;
+  const [workflowRecord, setWorkflowRecord] = useState({ targetId: '', workflow: null });
+  const workflow = workflowRecord.targetId === target?.id ? workflowRecord.workflow : null;
+  function setWorkflow(value) {
+    setWorkflowRecord((current) => ({ targetId: target?.id || '', workflow: typeof value === 'function' ? value(current.targetId === target?.id ? current.workflow : null) : value }));
+  }
   const [fileBusy, setFileBusy] = useState(false);
   const [manualMatches, setManualMatches] = useState({});
   const [loading, setLoading] = useState(false);
@@ -4185,20 +4213,26 @@ function AdminFinalIdsPage({ applications, examCatalog, publishedHeatResults, on
     if (!target || conflicts.length || !rows.length || workflow?.applied) return;
     const applied = await onApply(target);
     if (!applied) return;
-    const response = await fetch(`/api/admin/final-ids?roundId=${encodeURIComponent(target.id)}`, { credentials: 'same-origin' });
-    const result = await response.json().catch(() => ({}));
-    if (response.ok) setWorkflow(result.workflow || null);
+    setWorkflow((current) => current ? { ...current, applied: true } : current);
+    try {
+      const response = await fetch(`/api/admin/final-ids?roundId=${encodeURIComponent(target.id)}`, { credentials: 'same-origin' });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'โหลดสถานะเลข Final ไม่สำเร็จ');
+      setWorkflow(result.workflow || null);
+    } catch { notify('บันทึกเลข Final แล้ว แต่โหลดสถานะใหม่ไม่สำเร็จ กรุณารีเฟรชหน้า'); }
   }
 
   return <div className="page-stack">
-    <PageHeading eyebrow="ข้อมูลผู้เข้าสอบ Final · ฐานข้อมูลจริง" title="นำเข้าและจับคู่เลข Final" description="เลือกสนามสอบและรอบ นำเข้าไฟล์จากผู้จัด แล้วตรวจชื่อ โรงเรียน และเลขก่อนบันทึกลงใบสมัคร" action={<span className="queue-indicator"><span />รอตรวจ {conflicts.length} รายการ</span>} />
-    {!target ? <section className="surface empty-inline"><Icon name="info" /><span>ยังไม่มีรายการสอบรอบ Final ในระบบ</span></section> : <>
-      <section className="surface results-target-toolbar results-admin-target-toolbar"><label><span>รายการสอบและรอบ</span><select value={target.id} onChange={(event) => { setRoundId(event.target.value); setWorkflow(null); }}>{finalRounds.map((exam) => <option key={exam.id} value={exam.id}>{exam.title} · {exam.round || EXAM_ROUND_LABELS.FINAL} · {exam.year}</option>)}</select></label><span className={workflow?.applied ? 'schedule-open' : 'draft-badge'}>{workflow?.applied ? 'บันทึกเลขแล้ว' : workflow?.id ? 'ฉบับร่าง' : 'รอไฟล์'}</span></section>
-      <section className="surface final-id-import">
-        <div className="final-id-intro"><span className="final-id-intro-icon"><Icon name="users" /></span><div><h2>นำเข้าไฟล์เลขประจำตัวจากผู้จัด</h2><p>จับคู่ด้วยชื่อภาษาอังกฤษและโรงเรียน · ถ้ามีระดับชั้นในไฟล์จะใช้ตรวจเพิ่ม · รายการที่กำกวมให้จับคู่ด้วยมือ</p></div></div>
-        <label className="file-drop file-drop-inline"><input type="file" accept=".xlsx,.csv" disabled={fileBusy || workflow?.applied} onChange={(event) => { const file = event.target.files?.[0]; chooseFile(file); event.target.value = ''; }} /><span className="file-drop-icon"><Icon name="upload" /></span><span className="file-drop-copy"><strong>{fileBusy ? 'กำลังอ่านและจับคู่…' : workflow?.fileName || 'เลือกไฟล์ Excel เลขประจำตัว Final'}</strong><small>ไฟล์ .xlsx หรือ .csv · คอลัมน์ CANDIDATE NO, CANDIDATE NAME, SCHOOL NAME และ GRADE (ถ้ามี)</small></span><span className="file-select-label">{workflow?.id && !workflow?.applied ? 'แทนฉบับร่าง' : 'เลือกไฟล์'}</span></label>
-        {workflow?.id ? <div className="import-summary"><span className="summary-icon summary-green"><Icon name="check" /></span><div><strong>{workflow.applied ? 'บันทึกเลข Final แล้ว' : 'บันทึกฉบับร่างแล้ว'}</strong><small>จับคู่อัตโนมัติ {matchedCount} ราย · ต้องตรวจด้วยมือ {conflicts.length} ราย</small></div><span className="summary-pill">{rows.length} ราย</span></div> : null}
-      </section>
+    <PageHeading eyebrow="ข้อมูลผู้เข้าสอบ Final · ฐานข้อมูลจริง" title="นำเข้าและจับคู่เลข Final" description="เลือกรายการสอบ Final ก่อนนำเข้าไฟล์จากผู้จัดเพื่อตรวจข้อมูลและบันทึกเลข" />
+    <section className="surface results-import-setup" aria-label="เตรียมนำเข้าเลขประจำตัว Final">
+      <div className="results-import-setup-heading"><div><p className="eyebrow">เลขประจำตัว Final</p><h2>เตรียมไฟล์เลขประจำตัว</h2><p>เลือกรอบ Final ที่สร้างไว้ แล้วอัปโหลดไฟล์จากผู้จัดเพื่อจับคู่ใบสมัคร</p></div><span className={workflow?.applied ? 'schedule-open' : workflow?.id ? 'draft-badge' : 'closed-badge'}>{workflow?.applied ? 'บันทึกเลขแล้ว' : workflow?.id ? `รอตรวจ ${conflicts.length} รายการ` : target ? 'พร้อมอัปโหลด' : 'รอเลือกรายการสอบ'}</span></div>
+      <div className="results-import-setup-steps">
+        <div className="results-import-setup-step"><div className="results-import-step-heading"><span className="results-import-step-number">1</span><div><strong>เลือกรายการสอบและรอบ Final</strong><small>แสดงรอบ Final ที่มีอยู่ในรายการสอบ</small></div></div><select aria-label="เลือกรายการสอบและรอบ Final" value={target?.id || ''} onChange={(event) => { setRoundId(event.target.value); setWorkflow(null); setManualMatches({}); }} required><option value="">เลือกรายการสอบและรอบ Final</option>{finalRounds.map((exam) => <option key={exam.id} value={exam.id}>{exam.title} · {exam.round || EXAM_ROUND_LABELS.FINAL} · {exam.year}</option>)}</select>{!finalRounds.length ? <small className="results-import-step-help">ยังไม่มีรายการสอบรอบ Final ในระบบ</small> : null}</div>
+        <div className={`results-import-setup-step${!target ? ' results-import-setup-step-locked' : ''}`}><div className="results-import-step-heading"><span className="results-import-step-number">2</span><div><strong>อัปโหลดเลขประจำตัว Final</strong><small>{target ? `${target.title} · ปี ${target.year}` : 'เลือกข้อ 1 ก่อนเพื่อเปิดการอัปโหลด'}</small></div></div><label className={`file-drop file-drop-inline results-import-file-drop${!target || workflow?.applied ? ' file-disabled' : ''}`}><input type="file" accept=".xlsx,.csv" disabled={!target || fileBusy || workflow?.applied} onChange={(event) => { const file = event.target.files?.[0]; chooseFile(file); event.target.value = ''; }} /><span className="file-drop-icon"><Icon name={target ? 'upload' : 'file'} /></span><span className="file-drop-copy"><strong>{fileBusy ? 'กำลังอ่านและจับคู่…' : workflow?.fileName || (target ? 'เลือกไฟล์ Excel เลขประจำตัว Final' : 'รอเลือกรายการสอบ Final')}</strong><small>ไฟล์ .xlsx หรือ .csv · CANDIDATE NO, CANDIDATE NAME, SCHOOL NAME และ GRADE (ถ้ามี)</small></span><span className="file-select-label">{workflow?.applied ? 'ล็อกแล้ว' : !target ? 'รอเลือก' : workflow?.id ? 'แทนฉบับร่าง' : 'เลือกไฟล์'}</span></label></div>
+      </div>
+      {workflow?.id ? <div className="results-import-setup-summary import-summary"><span className="summary-icon summary-green"><Icon name="check" /></span><div><strong>{workflow.applied ? 'บันทึกเลข Final แล้ว' : 'บันทึกฉบับร่างแล้ว'}</strong><small>จับคู่อัตโนมัติ {matchedCount} ราย · ต้องตรวจด้วยมือ {conflicts.length} ราย</small></div><span className="summary-pill">{rows.length} ราย</span></div> : null}
+    </section>
+    {target ? <>
       <section className="surface final-match-table">
         <div className="section-heading"><div><p className="eyebrow">{target.title} · ปี {target.year}</p><h2>ผลการนำเข้าเลข Final</h2></div><div className="match-legend"><span><i className="legend-green" />จับคู่แล้ว</span><span><i className="legend-amber" />รอตรวจ</span></div></div>
         {loading ? <div className="empty-inline"><Icon name="sync" /><span>กำลังโหลดสถานะการนำเข้า…</span></div> : <div className="responsive-table"><table><thead><tr><th>ชื่อภาษาอังกฤษ</th><th>โรงเรียน</th><th>ระดับชั้น</th><th>เลขประจำตัว Final</th><th>สถานะจับคู่</th><th>ดำเนินการ</th></tr></thead><tbody>{rows.map((row) => <tr key={row.id}><td>{row.candidateName}</td><td>{row.schoolName}</td><td>{row.grade || '—'}</td><td className="mono-number">{row.candidateNo}</td><td>{row.matchStatus === 'matched' ? <span className="match-status match-ok"><Icon name="check" size={13} />จับคู่แล้ว</span> : <span className="match-status match-wait"><Icon name="info" size={13} />{row.matchNote || 'รอตรวจ'}</span>}</td><td>{row.matchStatus === 'matched' ? <Button variant="text" icon="file" onClick={() => navigate('admin-review', row.applicationId)}>ดูใบสมัคร</Button> : <div className="final-id-row-actions"><select aria-label={`เลือกผู้สมัครจับคู่เลข ${row.candidateNo}`} value={manualMatches[row.id] || ''} onChange={(event) => setManualMatches((current) => ({ ...current, [row.id]: event.target.value }))}><option value="">เลือกใบสมัครในรอบนี้</option>{applicationItems.map(({ application, item }) => <option key={item.applicationItemId} value={item.applicationItemId}>{application.candidate} · {application.school} · {item.grade}</option>)}</select><Button variant="outline" disabled={!manualMatches[row.id]} onClick={() => resolve(row, 'manual_match', manualMatches[row.id])}>จับคู่</Button></div>}</td></tr>)}</tbody></table></div>}
@@ -4206,7 +4240,7 @@ function AdminFinalIdsPage({ applications, examCatalog, publishedHeatResults, on
         <div className="publish-box"><div><strong>{workflow?.applied ? 'บันทึกเลข Final แล้ว' : 'ยืนยันบันทึกเลข Final'}</strong><small>{workflow?.applied ? 'เลขถูกบันทึกลงใบสมัครแล้วและล็อกฉบับนำเข้า' : conflicts.length ? `แก้รายการที่ต้องตรวจก่อน (${conflicts.length} รายการ)` : 'เลขที่จับคู่แล้วจะถูกบันทึกลงใบสมัคร Final'}</small></div><Button icon="check" disabled={!workflow?.id || workflow?.applied || conflicts.length > 0 || !rows.length} onClick={applyNumbers}>{workflow?.applied ? 'บันทึกแล้ว' : 'บันทึกเลข Final'}</Button></div>
       </section>
       <div className="table-footnote"><Icon name="info" size={15} />ไฟล์ที่บันทึกแล้วจะแสดงเลขบนใบสมัคร Final และข้อมูลผู้เข้าสอบ</div>
-    </>}
+    </> : null}
   </div>;
 }
 
@@ -4365,6 +4399,11 @@ function App() {
   const [pastPaperCatalog, setPastPaperCatalog] = useState(BACKEND_ENABLED ? [] : DEMO_PAST_PAPERS);
   const [paymentAccounts, setPaymentAccounts] = useState(BACKEND_ENABLED ? [] : DEFAULT_PAYMENT_ACCOUNTS);
   const [savedCatalogSnapshot, setSavedCatalogSnapshot] = useState(null);
+  const [catalogSaveState, setCatalogSaveState] = useState({ status: "idle", error: "" });
+  const [autoSaveRequested, setAutoSaveRequested] = useState(false);
+  const catalogSaveInFlightRef = useRef(false);
+  const lastFailedCatalogSignatureRef = useRef("");
+  const latestCatalogSignatureRef = useRef("");
   const [activeApplicationId, setActiveApplicationId] = useState(() => routeFromLocation().applicationId);
   const [toast, setToast] = useState("");
   const [authProfile, setAuthProfile] = useState(null);
@@ -4455,8 +4494,19 @@ function App() {
   const effectiveExamCatalog = getFinalRegistrationCatalog(examCatalog, applications, publishedHeatResults, calendarDay);
   const registrationOpen = effectiveExamCatalog.some((exam) => exam.isOpen);
   const catalogSnapshot = { exams: examCatalog, competitions: competitionCatalog, grades: gradeCatalog, centers: centerCatalog, pastPapers: pastPaperCatalog, paymentAccounts };
-  const catalogDirty = BACKEND_ENABLED && Boolean(savedCatalogSnapshot) && JSON.stringify(catalogSnapshot) !== JSON.stringify(savedCatalogSnapshot);
+  const catalogSignature = JSON.stringify(catalogSnapshot);
+  latestCatalogSignatureRef.current = catalogSignature;
+  const catalogDirty = BACKEND_ENABLED && Boolean(savedCatalogSnapshot) && catalogSignature !== JSON.stringify(savedCatalogSnapshot);
+  const dirtyExamIds = savedCatalogSnapshot ? examCatalog.filter((exam) => JSON.stringify(exam) !== JSON.stringify(savedCatalogSnapshot.exams.find((saved) => saved.id === exam.id))).map((exam) => exam.id) : [];
   const catalogPage = page === "admin-round" || page === "admin-form-options";
+  useEffect(() => {
+    if (!BACKEND_ENABLED || !catalogDirty || !(page === "admin-form-options" || autoSaveRequested) || catalogSaveState.status === "saving" || catalogSignature === lastFailedCatalogSignatureRef.current) return undefined;
+    const timer = window.setTimeout(() => { saveAdminCatalog({ silent: true }); }, 1100);
+    return () => window.clearTimeout(timer);
+  }, [page, catalogDirty, catalogSignature, autoSaveRequested, catalogSaveState.status]);
+  useEffect(() => {
+    if (!catalogDirty && autoSaveRequested && catalogSaveState.status !== "saving") setAutoSaveRequested(false);
+  }, [catalogDirty, autoSaveRequested, catalogSaveState.status]);
   useEffect(() => {
     if (!catalogPage || !catalogDirty) return undefined;
     const warnBeforeUnload = (event) => { event.preventDefault(); event.returnValue = ""; };
@@ -4481,7 +4531,9 @@ function App() {
       const route = routeFromLocation();
       const canonicalPath = routeUrlFor(route.page, route.applicationId);
       const currentPath = window.location.pathname;
-      if (route.legacy || currentPath !== canonicalPath) window.history.replaceState(null, "", `${canonicalPath}${window.location.search}`);
+      if (route.legacy || (route.page !== "not-found" && currentPath !== canonicalPath)) {
+        window.history.replaceState(null, "", `${canonicalPath}${window.location.search}`);
+      }
       setAdminPortalPath(isAdminPortalPath() || route.page.startsWith('admin-'));
       setPage(route.page);
       setActiveApplicationId(route.applicationId || "");
@@ -4507,7 +4559,7 @@ function App() {
       }
       return;
     }
-    if (page !== "admin-login") {
+    if (page !== "admin-login" && page !== "not-found") {
       setPage("admin-login");
       window.history.replaceState(null, "", ADMIN_PORTAL_PATH);
     }
@@ -4680,8 +4732,14 @@ function App() {
     return result.exam;
   }
 
-  async function saveAdminCatalog() {
+  async function saveAdminCatalog(options = {}) {
     if (!BACKEND_ENABLED) { notify("โหมดตัวอย่างยังไม่ได้เชื่อมฐานข้อมูล"); return false; }
+    if (catalogSaveInFlightRef.current) return false;
+    const silent = options?.silent === true;
+    const attemptedSignature = catalogSignature;
+    catalogSaveInFlightRef.current = true;
+    lastFailedCatalogSignatureRef.current = "";
+    setCatalogSaveState({ status: "saving", error: "" });
     const selectedPaymentAccountId = paymentAccounts.find((account) => account.active !== false && account.showInForm !== false)?.id || "";
     const normalizedPaymentAccounts = paymentAccounts.map((account) => ({
       ...account,
@@ -4700,38 +4758,69 @@ function App() {
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || "บันทึกข้อมูลตั้งต้นไม่สำเร็จ");
       const catalog = result.catalog;
-      setExamCatalog(catalog.exams);
-      setCompetitionCatalog(catalog.competitions || []);
-      setGradeCatalog(catalog.grades.map((grade) => grade.label));
       setGradeCatalogEntries(catalog.grades);
-      setCenterCatalog(catalog.centers);
-      setPastPaperCatalog(catalog.pastPapers);
-      setPaymentAccounts(catalog.paymentAccounts);
+      if (latestCatalogSignatureRef.current === attemptedSignature) {
+        setExamCatalog(catalog.exams);
+        setCompetitionCatalog(catalog.competitions || []);
+        setGradeCatalog(catalog.grades.map((grade) => grade.label));
+        setCenterCatalog(catalog.centers);
+        setPastPaperCatalog(catalog.pastPapers);
+        setPaymentAccounts(catalog.paymentAccounts);
+        setAutoSaveRequested(false);
+      }
       setSavedCatalogSnapshot({ exams: catalog.exams, competitions: catalog.competitions || [], grades: catalog.grades.map((grade) => grade.label), centers: catalog.centers, pastPapers: catalog.pastPapers, paymentAccounts: catalog.paymentAccounts });
-      notify("บันทึกข้อมูลแค็ตตาล็อกลงฐานข้อมูลแล้ว");
+      setCatalogSaveState({ status: "saved", error: "" });
+      if (!silent) notify("บันทึกข้อมูลแล้ว");
       return true;
-    } catch (error) { notify(error?.message || "บันทึกข้อมูลตั้งต้นไม่สำเร็จ"); return false; }
+    } catch (error) {
+      const message = error?.message || "บันทึกข้อมูลตั้งต้นไม่สำเร็จ";
+      lastFailedCatalogSignatureRef.current = attemptedSignature;
+      setCatalogSaveState({ status: "error", error: message });
+      if (!silent) notify(message);
+      return false;
+    } finally { catalogSaveInFlightRef.current = false; }
   }
 
-  async function saveAdminPaymentAccounts() {
-    if (!BACKEND_ENABLED) { notify("โหมดตัวอย่างยังไม่ได้เชื่อมฐานข้อมูล"); return false; }
-    const selectedPaymentAccountId = paymentAccounts.find((account) => account.active !== false && account.showInForm === true)?.id || "";
-    const normalizedPaymentAccounts = paymentAccounts.map((account) => ({
-      ...account,
-      showInForm: Boolean(selectedPaymentAccountId && account.id === selectedPaymentAccountId),
-    }));
+  async function saveAdminExam(id) {
+    if (!BACKEND_ENABLED || catalogSaveInFlightRef.current) return false;
+    const exam = examCatalog.find((item) => item.id === id);
+    if (!exam) return false;
+    const attemptedExamSignature = JSON.stringify(exam);
+    catalogSaveInFlightRef.current = true;
+    setCatalogSaveState({ status: "saving", error: "", examId: id });
+    const patch = {
+      title: exam.title,
+      openDate: exam.openDate || null,
+      closeDate: exam.closeDate || null,
+      editCloseDate: exam.editCloseDate || null,
+      examDate: exam.examDate || null,
+      examStartTime: exam.examStartTime || null,
+      examEndTime: exam.examEndTime || null,
+      finalConfirmCloseDate: exam.finalConfirmCloseDate || null,
+      accent: exam.accent || null,
+      logoDataUrl: exam.logoDataUrl || "",
+      description: exam.description || "",
+      prices: exam.prices || { paperBased: 0, onlineExam: 0 },
+      gradeOptions: exam.gradeOptions || [],
+      centerIds: exam.centerIds || [],
+    };
     try {
-      const response = await fetch('/api/admin/payment-accounts', {
-        method: 'PUT', credentials: 'same-origin', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ paymentAccounts: normalizedPaymentAccounts }),
+      const response = await fetch(`/api/admin/exams/${encodeURIComponent(id)}`, {
+        method: "PATCH", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify(patch),
       });
       const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error || "บันทึกบัญชีรับโอนไม่สำเร็จ");
-      setPaymentAccounts(result.paymentAccounts || []);
-      setSavedCatalogSnapshot((current) => current ? { ...current, paymentAccounts: result.paymentAccounts || [] } : current);
-      notify("บันทึกบัญชีรับโอนแล้ว · ฟอร์มสมัครจะแสดงบัญชีที่เลือก");
+      if (!response.ok) throw new Error(result.error || "บันทึกรายการสอบไม่สำเร็จ");
+      if (!result.exam) throw new Error("ไม่พบข้อมูลรายการสอบหลังบันทึก");
+      setExamCatalog((current) => current.map((item) => item.id === id && JSON.stringify(item) === attemptedExamSignature ? result.exam : item));
+      setSavedCatalogSnapshot((current) => current ? { ...current, exams: current.exams.map((item) => item.id === id ? result.exam : item) } : current);
+      setCatalogSaveState({ status: "saved", error: "" });
+      notify(`บันทึก ${exam.title} ${exam.round || ""} แล้ว`);
       return true;
-    } catch (error) { notify(error?.message || "บันทึกบัญชีรับโอนไม่สำเร็จ"); return false; }
+    } catch (error) {
+      const message = error?.message || "บันทึกรายการสอบไม่สำเร็จ";
+      setCatalogSaveState({ status: "error", error: message, examId: id });
+      return false;
+    } finally { catalogSaveInFlightRef.current = false; }
   }
 
   function addExam(exam) {
@@ -4752,6 +4841,15 @@ function App() {
     setApplications(savedApplications);
     setSchoolBatches(schoolBatchesFromApplications(savedApplications));
     return savedApplications;
+  }
+
+  async function refreshApplicationsAfterAdminMutation() {
+    try {
+      await refreshApplicationData();
+      return "";
+    } catch {
+      return " · บันทึกแล้ว แต่โหลดรายการใหม่ไม่สำเร็จ กรุณารีเฟรชหน้า";
+    }
   }
 
   async function submitApplication(values) {
@@ -4819,7 +4917,7 @@ function App() {
             setPersona(values.schoolBatch ? "coordinator" : "candidate");
             notify("พบใบสมัครรายการนี้อยู่แล้ว กำลังเปิดใบสมัครเดิม");
             navigate("application-detail", result.existingApplicationId);
-            return;
+            return { ok: true };
           }
           throw new Error(result.error || "ส่งใบสมัครไม่สำเร็จ");
         }
@@ -4830,14 +4928,17 @@ function App() {
         setPersona(values.schoolBatch ? "coordinator" : "candidate");
         notify(values.schoolBatch ? `ส่งใบสมัคร ${result.batch.applicationIds.length} คนและบันทึกลงฐานข้อมูลแล้ว · ยอดรวม ฿${Number(result.batch.total || 0).toLocaleString()}` : "ส่งใบสมัครและบันทึกลงฐานข้อมูลแล้ว");
         navigate("application-detail", firstId);
-        return savedApplications;
+        return { ok: true, applications: savedApplications };
       } catch (error) {
-        notify(error?.message || "ส่งใบสมัครไม่สำเร็จ กรุณาลองอีกครั้ง");
-        return;
+        const message = error?.message === "School name must be the same for all applicants in a batch"
+          ? "ชื่อโรงเรียนในชุดใบสมัครต้องตรงกันทุกคน กรุณาตรวจชื่อโรงเรียนของผู้สมัครแต่ละคน"
+          : error?.message || "ส่งใบสมัครไม่สำเร็จ กรุณาลองอีกครั้ง";
+        notify(message);
+        return { ok: false, error: message };
       }
     }
     notify("โหมดตัวอย่างอ่านอย่างเดียว · ไม่ได้บันทึกใบสมัคร");
-    return;
+    return { ok: false, error: "โหมดตัวอย่างอ่านอย่างเดียว · ไม่ได้บันทึกใบสมัคร" };
 
   }
 
@@ -4918,8 +5019,8 @@ function App() {
         });
         const result = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(result.error || 'อนุมัติใบสมัครไม่สำเร็จ');
-        await refreshApplicationData();
-        notify(result.paymentOnly ? 'ยืนยันยอดชำระเพิ่มแล้ว' : result.waitingPayments ? 'Portal API ยังใช้เงื่อนไขอนุมัติเวอร์ชันเก่า · กรุณารีสตาร์ต API แล้วลองอีกครั้ง' : 'อนุมัติใบสมัครแล้ว');
+        const refreshWarning = await refreshApplicationsAfterAdminMutation();
+        notify((result.paymentOnly ? 'ยืนยันยอดชำระเพิ่มแล้ว' : result.waitingPayments ? 'Portal API ยังใช้เงื่อนไขอนุมัติเวอร์ชันเก่า · กรุณารีสตาร์ต API แล้วลองอีกครั้ง' : 'อนุมัติใบสมัครแล้ว') + refreshWarning);
         return;
       } catch (error) {
         notify(error?.message || 'อนุมัติใบสมัครไม่สำเร็จ กรุณาลองอีกครั้ง');
@@ -4931,17 +5032,17 @@ function App() {
   }
 
   async function rejectApplication(id, reason) {
-    if (!reason?.trim() || reason.trim().length > 240) { notify("กรุณาระบุเหตุผลสั้น ๆ ไม่เกิน 240 ตัวอักษร"); return false; }
+    if (reason?.trim().length > 240) { notify("เหตุผลต้องไม่เกิน 240 ตัวอักษร"); return false; }
     if (!BACKEND_ENABLED) { notify("โหมดตัวอย่างยังไม่ได้เชื่อมฐานข้อมูล"); return false; }
     try {
       const response = await fetch(`/api/admin/applications/${encodeURIComponent(id)}/review`, {
         method: "PATCH", credentials: "same-origin", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ decision: "reject", reason: reason.trim() }),
+        body: JSON.stringify({ decision: "reject", reason: reason?.trim() || "" }),
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || "ไม่อนุมัติใบสมัครไม่สำเร็จ");
-      await refreshApplicationData();
-      notify("บันทึกการไม่อนุมัติและเข้าคิวส่งอีเมลแจ้งผู้สมัครแล้ว");
+      const refreshWarning = await refreshApplicationsAfterAdminMutation();
+      notify("บันทึกการไม่อนุมัติและเข้าคิวส่งอีเมลแจ้งผู้สมัครแล้ว" + refreshWarning);
       return true;
     } catch (error) { notify(error?.message || "ไม่อนุมัติใบสมัครไม่สำเร็จ"); return false; }
   }
@@ -4956,10 +5057,10 @@ function App() {
         });
         const result = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(result.error || 'บันทึกปัญหาสลิปไม่สำเร็จ');
-        await refreshApplicationData();
-        notify(result.emailRecipient === 'coordinator'
+        const refreshWarning = await refreshApplicationsAfterAdminMutation();
+        notify((result.emailRecipient === 'coordinator'
           ? 'บันทึกปัญหาสลิปแล้ว · สร้างลิงก์ใช้ครั้งเดียวและเข้าคิวแจ้งผู้ประสานงาน'
-          : 'บันทึกปัญหาสลิปแล้ว · สร้างลิงก์ใช้ครั้งเดียวและเข้าคิวส่งอีเมล');
+          : 'บันทึกปัญหาสลิปแล้ว · สร้างลิงก์ใช้ครั้งเดียวและเข้าคิวส่งอีเมล') + refreshWarning);
         return;
       } catch (error) {
         notify(error?.message || 'บันทึกปัญหาสลิปไม่สำเร็จ กรุณาลองอีกครั้ง');
@@ -4972,17 +5073,18 @@ function App() {
 
   async function generateHeatIds(examId) {
     const targetExam = examCatalog.find((exam) => exam.id === examId);
-    if (!targetExam || getExamRoundType(targetExam) !== 'HEAT') return;
-    if (!BACKEND_ENABLED) { notify('กรุณาเปิด backend เพื่อสร้างเลขสอบลงฐานข้อมูล'); return; }
+    if (!targetExam || getExamRoundType(targetExam) !== 'HEAT') return false;
+    if (!BACKEND_ENABLED) { notify('กรุณาเปิด backend เพื่อสร้างเลขสอบลงฐานข้อมูล'); return false; }
     try {
       const response = await fetch(`/api/admin/exams/${encodeURIComponent(examId)}/exam-numbers`, {
         method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ confirm: true }),
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || 'สร้างเลขประจำตัวสอบไม่สำเร็จ');
-      await refreshApplicationData();
-      notify(`สร้างเลขประจำตัวสอบ ${targetExam.title} ${targetExam.round || EXAM_ROUND_LABELS.HEAT} แล้ว · ใหม่ ${result.assigned} ราย · มีเลขเดิม ${result.alreadyAssigned} ราย`);
-    } catch (error) { notify(error?.message || 'สร้างเลขประจำตัวสอบไม่สำเร็จ'); }
+      const refreshWarning = await refreshApplicationsAfterAdminMutation();
+      notify(`สร้างเลขประจำตัวสอบ ${targetExam.title} ${targetExam.round || EXAM_ROUND_LABELS.HEAT} แล้ว · ใหม่ ${result.assigned} ราย · มีเลขเดิม ${result.alreadyAssigned} ราย${refreshWarning}`);
+      return true;
+    } catch (error) { notify(error?.message || 'สร้างเลขประจำตัวสอบไม่สำเร็จ'); return false; }
   }
 
   async function importFinalIds(target, fileName, rows) {
@@ -5013,8 +5115,8 @@ function App() {
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || 'บันทึกเลข Final ไม่สำเร็จ');
-      await refreshApplicationData();
-      notify(`บันทึกเลขประจำตัว Final ลงใบสมัคร ${result.rows} รายแล้ว`);
+      const refreshWarning = await refreshApplicationsAfterAdminMutation();
+      notify(`บันทึกเลขประจำตัว Final ลงใบสมัคร ${result.rows} รายแล้ว${refreshWarning}`);
       return true;
     } catch (error) { notify(error?.message || 'บันทึกเลข Final ไม่สำเร็จ'); return false; }
   }
@@ -5054,13 +5156,19 @@ function App() {
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || 'ประกาศผลสอบไม่สำเร็จ');
-      const [publicResponse, workflowResponse, catalogResponse] = await Promise.all([
-        fetch('/api/results'), fetch('/api/admin/results', { credentials: 'same-origin' }), fetch('/api/catalog'),
-      ]);
-      if (publicResponse.ok) setApiPublishedResults((await publicResponse.json()).results || []);
-      if (workflowResponse.ok) setResultWorkflows((await workflowResponse.json()).workflows || {});
-      if (catalogResponse.ok) setExamCatalog((await catalogResponse.json()).exams || []);
-      notify(`ประกาศผล ${resultTargetLabel(target)} แล้ว · ผู้มีสิทธิ์ Final ${result.eligibleForFinal} ราย · เปิดรอบ Final อัตโนมัติ ${result.openedFinalRounds} รอบ`);
+      let refreshWarning = '';
+      try {
+        const [publicResponse, workflowResponse, catalogResponse] = await Promise.all([
+          fetch('/api/results'), fetch('/api/admin/results', { credentials: 'same-origin' }), fetch('/api/catalog'),
+        ]);
+        if (!publicResponse.ok || !workflowResponse.ok || !catalogResponse.ok) throw new Error('Refresh failed');
+        setApiPublishedResults((await publicResponse.json()).results || []);
+        setResultWorkflows((await workflowResponse.json()).workflows || {});
+        setExamCatalog((await catalogResponse.json()).exams || []);
+      } catch {
+        refreshWarning = ' · ประกาศแล้ว แต่โหลดข้อมูลใหม่ไม่สำเร็จ กรุณารีเฟรชหน้า';
+      }
+      notify(`ประกาศผล ${resultTargetLabel(target)} แล้ว · ผู้มีสิทธิ์ Final ${result.eligibleForFinal} ราย · เปิดรอบ Final อัตโนมัติ ${result.openedFinalRounds} รอบ${refreshWarning}`);
     } catch (error) { notify(error?.message || 'ประกาศผลสอบไม่สำเร็จ'); }
   }
 
@@ -5104,6 +5212,8 @@ function App() {
 
   const content = (() => {
     switch (page) {
+      case "not-found":
+        return <NotFoundPage navigate={navigate} />;
       case "admin-login":
         return <AdminLoginPage authProfile={authProfile} authChecked={authChecked} backendEnabled={BACKEND_ENABLED} onSignIn={signInAdmin} onSignOut={signOut} />;
       case "apply-heat":
@@ -5114,6 +5224,8 @@ function App() {
           : <FinalAccessGate navigate={navigate} />;
       case "applications":
         return <ApplicationsPage applications={visibleApplications} navigate={navigate} resultRows={publishedResultRows} examCatalog={effectiveExamCatalog} today={calendarDay} authProfile={authProfile} onConfirmFinal={confirmFinalFromApplicationCard} />;
+      case "school-application-group":
+        return <SchoolApplicationGroupPage applications={visibleApplications} groupKey={activeApplicationId} navigate={navigate} />;
       case "application-detail":
         return <ApplicationDetailPage application={applications.find((item) => item.id === activeApplicationId)} navigate={navigate} resultRows={publishedResultRows} examCatalog={effectiveExamCatalog} today={calendarDay} authProfile={authProfile} hasFinalApplication={applications.some((item) => item.kind === "Final" && item.sourceHeatId === activeApplicationId)} onConfirmFinal={confirmFinalFromApplicationCard} onSaveCertificatePhoto={saveCertificatePhoto} />;
       case "check-status":
@@ -5151,9 +5263,9 @@ function App() {
       case "admin-mock-papers":
         return <AdminMockPapersPage applications={applications} notify={notify} />;
       case "admin-round":
-        return <AdminRoundPage examCatalog={effectiveExamCatalog} onUpdateExam={updateExam} onSetManualClosed={setExamManualClosed} onAddExam={addExam} onRemoveExam={removeExam} onSaveCatalog={saveAdminCatalog} catalogDirty={catalogDirty} registrationOpen={registrationOpen} onGenerateHeatIds={generateHeatIds} centerCatalog={centerCatalog} setCenterCatalog={setCenterCatalog} gradeCatalog={gradeCatalog} setGradeCatalog={setGradeCatalog} competitionCatalog={competitionCatalog} setCompetitionCatalog={setCompetitionCatalog} applications={applications} pastPaperCatalog={pastPaperCatalog} setPastPaperCatalog={setPastPaperCatalog} notify={notify} />;
+        return <AdminRoundPage examCatalog={effectiveExamCatalog} onUpdateExam={updateExam} onSetManualClosed={setExamManualClosed} onAddExam={addExam} onRemoveExam={removeExam} onSaveCatalog={saveAdminCatalog} onSaveExam={saveAdminExam} onRequestAutoSave={() => setAutoSaveRequested(true)} dirtyExamIds={dirtyExamIds} catalogSaveState={catalogSaveState} catalogDirty={catalogDirty} registrationOpen={registrationOpen} onGenerateHeatIds={generateHeatIds} centerCatalog={centerCatalog} setCenterCatalog={setCenterCatalog} gradeCatalog={gradeCatalog} setGradeCatalog={setGradeCatalog} competitionCatalog={competitionCatalog} setCompetitionCatalog={setCompetitionCatalog} applications={applications} pastPaperCatalog={pastPaperCatalog} setPastPaperCatalog={setPastPaperCatalog} notify={notify} />;
       case "admin-form-options":
-        return <AdminRoundPage pageMode="form-options" examCatalog={examCatalog} onUpdateExam={updateExam} onSetManualClosed={setExamManualClosed} onAddExam={addExam} onRemoveExam={removeExam} onSaveCatalog={saveAdminCatalog} onSavePaymentAccounts={saveAdminPaymentAccounts} catalogDirty={catalogDirty} registrationOpen={registrationOpen} onGenerateHeatIds={generateHeatIds} centerCatalog={centerCatalog} setCenterCatalog={setCenterCatalog} gradeCatalog={gradeCatalog} setGradeCatalog={setGradeCatalog} competitionCatalog={competitionCatalog} setCompetitionCatalog={setCompetitionCatalog} applications={applications} pastPaperCatalog={pastPaperCatalog} setPastPaperCatalog={setPastPaperCatalog} paymentAccounts={paymentAccounts} setPaymentAccounts={setPaymentAccounts} notify={notify} />;
+        return <AdminRoundPage pageMode="form-options" examCatalog={examCatalog} onUpdateExam={updateExam} onSetManualClosed={setExamManualClosed} onAddExam={addExam} onRemoveExam={removeExam} onSaveCatalog={saveAdminCatalog} onSaveExam={saveAdminExam} catalogSaveState={catalogSaveState} catalogDirty={catalogDirty} registrationOpen={registrationOpen} onGenerateHeatIds={generateHeatIds} centerCatalog={centerCatalog} setCenterCatalog={setCenterCatalog} gradeCatalog={gradeCatalog} setGradeCatalog={setGradeCatalog} competitionCatalog={competitionCatalog} setCompetitionCatalog={setCompetitionCatalog} applications={applications} pastPaperCatalog={pastPaperCatalog} setPastPaperCatalog={setPastPaperCatalog} paymentAccounts={paymentAccounts} setPaymentAccounts={setPaymentAccounts} notify={notify} />;
       case "admin-results":
         return <AdminResultsPage applications={applications} examCatalog={examCatalog} resultWorkflows={resultWorkflows} onImportDraft={importResultDraft} onResolveConflict={resolveResultConflict} onPublishResult={publishResults} notify={notify} navigate={navigate} />;
       case "admin-final-ids":

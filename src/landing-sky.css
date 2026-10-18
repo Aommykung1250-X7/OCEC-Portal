@@ -1,0 +1,272 @@
+/* Homepage hero based on the supplied sky and rainbow visual reference. */
+.public-landing-home {
+  background: #fff;
+}
+
+.public-landing-home > .landing-header {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 20;
+  min-height: 92px;
+  padding-inline: max(24px, calc((100vw - 1320px) / 2));
+  border: 0;
+  background: linear-gradient(180deg, rgba(232, 250, 255, .78), rgba(232, 250, 255, 0));
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.public-landing-home .landing-brand strong,
+.public-landing-home .landing-nav a,
+.public-landing-home .landing-nav button {
+  color: #10111d;
+}
+
+.public-landing-home .landing-brand small { color: #3a4857; }
+.public-landing-home .landing-nav a:hover,
+.public-landing-home .landing-nav button:hover { color: #a52f7e; }
+.public-landing-home .google-signin-button { border: 0; box-shadow: 0 5px 22px rgba(29, 71, 113, .1); }
+
+.public-landing-home > #landing-main {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+}
+
+.public-landing-home .landing-sky-hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: min(760px, 100svh);
+  min-height: clamp(650px, 100svh, 860px);
+  gap: 0;
+  margin: 0;
+  padding: 164px 26px 170px;
+  overflow: hidden;
+  isolation: isolate;
+  border: 0;
+  border-radius: 0;
+  background: #8cdfff url('/landing-sky-sharp.webp') center center / cover no-repeat;
+  box-shadow: none;
+}
+
+.public-landing-home .landing-sky-hero::before,
+.public-landing-home .landing-sky-hero::after { content: none; }
+
+.public-landing-home .landing-hero-copy {
+  z-index: 3;
+  width: min(100%, 980px);
+  align-self: auto;
+  padding: 0;
+  text-align: center;
+}
+
+.public-landing-home .landing-hero-heading { max-width: none; }
+.public-landing-home .landing-hero-heading h1 {
+  max-width: none;
+  margin: 0;
+  color: #0b0e1a;
+  font-family: "Kanit", sans-serif;
+  font-size: clamp(58px, 6.1vw, 92px);
+  font-weight: 600;
+  line-height: 1.22;
+  letter-spacing: .012em;
+  text-wrap: balance;
+}
+
+.public-landing-home .landing-hero-copy > p {
+  max-width: 850px;
+  margin: 20px auto 0;
+  color: #111522;
+  font-size: clamp(17px, 1.7vw, 24px);
+  font-weight: 500;
+  line-height: 1.5;
+  text-wrap: balance;
+}
+
+.public-landing-home .landing-hero-actions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: nowrap;
+  gap: 14px;
+  margin-top: 38px;
+}
+
+.landing-sky-cta {
+  width: min(33vw, 326px);
+  min-height: 102px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 9px 8px 24px;
+  border: 1px solid rgba(255, 255, 255, .82);
+  border-radius: 30px;
+  color: #fff;
+  box-shadow: 0 10px 0 rgba(16, 24, 44, .06), 0 22px 30px rgba(32, 79, 118, .12), inset 0 2px 2px rgba(255, 255, 255, .38);
+  cursor: pointer;
+  font-family: "Kanit", sans-serif;
+  font-size: clamp(17px, 1.65vw, 23px);
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: .005em;
+  text-align: left;
+  transition: transform .2s ease, box-shadow .2s ease, filter .2s ease;
+}
+
+.landing-sky-cta-apply { background: linear-gradient(135deg, #ff9e16, #ff8000); }
+.landing-sky-cta-status { background: linear-gradient(135deg, #ff70c5, #f44fb0); }
+.landing-sky-cta:hover { transform: translateY(-4px); box-shadow: 0 14px 0 rgba(16, 24, 44, .04), 0 27px 35px rgba(32, 79, 118, .16), inset 0 2px 2px rgba(255, 255, 255, .38); filter: saturate(1.08); }
+.landing-sky-cta:active { transform: translateY(1px); }
+.landing-sky-cta:focus-visible { outline: 4px solid #10111d; outline-offset: 4px; }
+.landing-sky-cta-icon {
+  width: 84px;
+  height: 84px;
+  flex: 0 0 84px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: inset 0 2px 6px rgba(64, 74, 113, .1);
+}
+.landing-sky-cta-icon svg { width: 52px; height: 52px; display: block; }
+
+.landing-sky-phone {
+  position: absolute;
+  z-index: 2;
+  top: 31%;
+  right: max(2.1vw, calc((100vw - 1530px) / 2));
+  width: clamp(190px, 17.8vw, 250px);
+  aspect-ratio: 0.53;
+  padding: 8px;
+  transform: rotate(8deg);
+  border: 2px solid rgba(255, 255, 255, .94);
+  border-radius: 37px;
+  background: linear-gradient(140deg, #fff, #f7d3f5 62%, #e85bcc);
+  box-shadow: 11px 15px 0 rgba(226, 67, 202, .7), 0 28px 54px rgba(45, 100, 145, .22), inset 0 1px 5px #fff;
+  pointer-events: none;
+}
+.landing-sky-phone-screen {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 14px 12px 12px;
+  overflow: hidden;
+  border-radius: 29px;
+  background: linear-gradient(165deg, #fff, #fff 53%, #fff4fa);
+  color: #151423;
+}
+.landing-sky-phone-top { display: flex; justify-content: space-between; align-items: center; height: 18px; font-size: 8px; font-weight: 700; }
+.landing-sky-phone-top i { width: 38%; height: 14px; margin-right: 21%; border-radius: 99px; background: #13131c; }
+.landing-sky-phone-brand { display: flex; align-items: center; gap: 7px; margin-top: 22px; font-size: 12px; font-weight: 750; }
+.landing-sky-phone-brand img { width: 31px; height: 31px; object-fit: contain; }
+.landing-sky-phone-label { margin: 30px 0 4px; color: #747887; font-size: 9px; }
+.landing-sky-phone-title { font-family: "Kanit", sans-serif; font-size: clamp(19px, 2vw, 29px); font-weight: 600; line-height: 1.25; }
+.landing-sky-phone-card { display: flex; align-items: flex-start; gap: 8px; margin-top: 22px; padding: 11px 9px; border: 1px solid #f3e8f1; border-radius: 13px; background: #fff; box-shadow: 0 5px 15px rgba(131, 88, 127, .08); }
+.landing-sky-phone-dot { width: 10px; height: 10px; flex: 0 0 10px; margin-top: 3px; border-radius: 50%; background: #ff8a00; box-shadow: 0 0 0 3px #fff0db; }
+.landing-sky-phone-card small { display: block; color: #8b8d99; font-size: 8px; }
+.landing-sky-phone-card strong { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: 9px; line-height: 1.35; }
+.landing-sky-phone-progress { display: flex; gap: 5px; margin-top: 17px; }
+.landing-sky-phone-progress span { height: 7px; flex: 1; border-radius: 99px; background: #f2e6f3; }
+.landing-sky-phone-progress span:first-child { background: #ff8a00; }
+.landing-sky-phone-bottom { display: flex; gap: 6px; margin-top: auto; }
+.landing-sky-phone-bottom span { flex: 1; padding: 8px 3px; border-radius: 9px; color: #fff; background: #ff8a00; font-size: 7px; font-weight: 700; text-align: center; }
+.landing-sky-phone-bottom span + span { background: #f55ab2; }
+
+.public-landing-home #landing-main > .landing-note {
+  width: 100%;
+  min-height: 43px;
+  border: 0;
+  color: #323449;
+  background: #e8faff;
+  font-size: 12px;
+}
+.public-landing-home #landing-main > .landing-section,
+.public-landing-home #landing-main > .landing-how,
+.public-landing-home #landing-main > .landing-help-strip {
+  width: min(100% - 48px, 1200px);
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.public-landing-home .landing-brand strong,
+.public-landing-home .landing-section-heading h2,
+.public-landing-home .exam-listing-card h3,
+.public-landing-home .landing-steps h3,
+.public-landing-home .landing-sky-phone-title {
+  letter-spacing: .01em;
+}
+.public-landing-home .landing-section-heading h2 { font-weight: 500; }
+
+.public-landing-home .exam-list-grid {
+  padding: 20px 8px 30px;
+  scroll-snap-type: none;
+  scroll-behavior: auto;
+  scrollbar-width: none;
+}
+.public-landing-home .exam-list-grid::-webkit-scrollbar { display: none; }
+.public-landing-home .exam-listing-card {
+  z-index: 0;
+  animation: none;
+  transition: transform .28s cubic-bezier(.2,.75,.2,1), box-shadow .28s ease, background-color .28s ease;
+}
+.public-landing-home .exam-listing-card:hover {
+  z-index: 2;
+  transform: translateY(-8px) scale(1.025);
+  background: #fff;
+  box-shadow: 0 22px 42px rgba(35, 56, 92, .17), 0 4px 12px rgba(35, 56, 92, .07);
+}
+
+@media (max-width: 1120px) {
+  .landing-sky-phone { right: -38px; width: 180px; opacity: .87; }
+  .public-landing-home .landing-hero-heading h1 { font-size: clamp(53px, 6.3vw, 74px); }
+  .public-landing-home .landing-hero-copy { width: min(100%, 780px); }
+}
+
+@media (max-width: 800px) {
+  .public-landing-home .landing-sky-hero { min-height: 710px; padding-top: 160px; padding-bottom: 130px; background-position: 34% center; }
+  .public-landing-home .landing-hero-heading h1 { font-size: clamp(48px, 7.3vw, 65px); }
+  .public-landing-home .landing-hero-copy > p { max-width: 620px; font-size: 17px; }
+  .landing-sky-phone { display: none; }
+  .landing-sky-cta { width: min(44vw, 326px); min-height: 88px; padding-left: 17px; border-radius: 25px; font-size: 17px; }
+  .landing-sky-cta-icon { width: 70px; height: 70px; flex-basis: 70px; border-radius: 19px; }
+  .landing-sky-cta-icon svg { width: 44px; height: 44px; }
+}
+
+@media (max-width: 700px) {
+  .public-landing-home > .landing-header { min-height: 114px; padding: 11px 16px 0; }
+  .public-landing-home .landing-nav { border-color: rgba(18, 52, 83, .14); }
+  .public-landing-home .landing-sky-hero { min-height: 750px; min-height: 100svh; padding: 165px 20px 98px; background-position: 32% center; }
+  .public-landing-home .landing-hero-copy { width: min(100%, 550px); }
+  .public-landing-home .landing-hero-heading h1 { font-size: clamp(39px, 9.4vw, 58px); line-height: 1.25; letter-spacing: .005em; }
+  .public-landing-home .landing-hero-copy > p { margin-top: 18px; font-size: clamp(14px, 3.7vw, 17px); line-height: 1.55; }
+  .landing-desktop-break { display: none; }
+  .public-landing-home .landing-hero-actions { width: min(100%, 480px); flex-direction: column; gap: 11px; margin: 26px auto 0; }
+  .landing-sky-cta { width: 100%; min-height: 77px; padding: 6px 7px 6px 19px; border-radius: 22px; font-size: clamp(17px, 4.5vw, 20px); }
+  .landing-sky-cta-icon { width: 63px; height: 63px; flex-basis: 63px; border-radius: 17px; }
+  .landing-sky-cta-icon svg { width: 40px; height: 40px; }
+  .public-landing-home #landing-main > .landing-section,
+  .public-landing-home #landing-main > .landing-how,
+  .public-landing-home #landing-main > .landing-help-strip { width: min(100% - 32px, 1200px); }
+}
+
+@media (max-width: 390px) {
+  .public-landing-home .landing-sky-hero { padding-top: 150px; padding-bottom: 75px; }
+  .public-landing-home .landing-hero-heading h1 { font-size: 39px; }
+  .landing-sky-cta { font-size: 16px; }
+}
+
+@media (max-width: 350px) {
+  .public-landing-home .landing-brand > span:last-child { display: none; }
+  .public-landing-home > .landing-header { min-height: 110px; }
+  .public-landing-home .landing-hero-heading h1 { font-size: 34px; }
+  .public-landing-home .landing-nav { gap: 12px; }
+  .public-landing-home .landing-nav a,
+  .public-landing-home .landing-nav button { font-size: 11px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-sky-cta,
+  .public-landing-home .exam-listing-card { transition: none; }
+}

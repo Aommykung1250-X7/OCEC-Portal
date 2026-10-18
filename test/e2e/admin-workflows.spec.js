@@ -8,50 +8,17 @@ test.afterAll(closeFixtures);
 async function adminPage(page, id) {
   await page.goto(`/api/auth/google/start?returnTo=${encodeURIComponent(`/portal-admin/applications/${id}`)}&testPersona=admin`);
   await expect(page).toHaveURL(new RegExp(`/portal-admin/applications/${id}`));
-  await expect(page.getByRole('region', { name: 'บันทึกภายในของแอดมิน' })).toBeVisible();
+  await expect(page.locator('.review-detail')).toBeVisible();
 }
-
-test('admin can add edit delete and inspect note history', async ({ page }) => {
-  const fixture = await createReviewFixture();
-  await adminPage(page, fixture.id);
-  const notes = page.getByRole('region', { name: 'บันทึกภายในของแอดมิน' });
-  await notes.getByLabel('เพิ่มบันทึกภายใน').fill('ตรวจเอกสารเพิ่ม');
-  await notes.getByRole('button', { name: 'เพิ่มบันทึก' }).click();
-  await expect(notes.locator('.review-note')).toContainText('ตรวจเอกสารเพิ่ม');
-  await notes.getByRole('button', { name: 'แก้ไข' }).click();
-  await notes.getByLabel('แก้ไขบันทึกภายใน').fill('ตรวจเอกสารเรียบร้อย');
-  page.once('dialog', (dialog) => dialog.accept());
-  await notes.getByRole('button', { name: 'บันทึกการแก้ไข' }).click();
-  await expect(notes.locator('.review-note')).toContainText('ตรวจเอกสารเรียบร้อย');
-  page.once('dialog', (dialog) => dialog.accept());
-  await notes.getByRole('button', { name: 'ลบ' }).click();
-  await expect(notes.locator('.review-note')).toHaveCount(0);
-  await notes.getByText(/ประวัติหมายเหตุ/).click();
-  await expect(notes.locator('ol')).toContainText('ตรวจเอกสารเพิ่ม');
-  await expect(notes.locator('ol')).toContainText('ตรวจเอกสารเรียบร้อย');
-});
-
-test('note API failures do not show success or discard draft', async ({ page }) => {
-  const fixture = await createReviewFixture();
-  await adminPage(page, fixture.id);
-  await page.route(`**/api/admin/applications/${fixture.id}/notes`, async (route) => {
-    if (route.request().method() === 'POST') return route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'test failure' }) });
-    return route.continue();
-  });
-  const notes = page.getByRole('region', { name: 'บันทึกภายในของแอดมิน' });
-  await notes.getByLabel('เพิ่มบันทึกภายใน').fill('ต้องคงข้อความนี้');
-  await notes.getByRole('button', { name: 'เพิ่มบันทึก' }).click();
-  await expect(notes.getByRole('alert')).toContainText('test failure');
-  await expect(notes.getByLabel('เพิ่มบันทึกภายใน')).toHaveValue('ต้องคงข้อความนี้');
-  await expect(notes.locator('.review-note')).toHaveCount(0);
-});
 
 test('admin can reject with reason and applicant receives same reason by email', async ({ page }) => {
   const fixture = await createReviewFixture();
   await adminPage(page, fixture.id);
-  await page.getByLabel('เหตุผลสั้น ๆ ที่ไม่อนุมัติ').fill('ข้อมูลไม่ครบสำหรับรอบนี้');
   await page.getByRole('button', { name: 'ไม่อนุมัติใบสมัคร' }).click();
-  await expect(page.locator('.review-detail')).toContainText('ไม่อนุมัติ');
+  const dialog = page.getByRole('dialog', { name: 'ไม่อนุมัติใบสมัคร?' });
+  await dialog.getByLabel('เหตุผลที่ไม่อนุมัติ').fill('ข้อมูลไม่ครบสำหรับรอบนี้');
+  await dialog.getByRole('button', { name: 'ยืนยันไม่อนุมัติ' }).click();
+  await expect(dialog).not.toBeVisible();
   const response = await page.request.post('/api/public/applications/status', { data: { name: fixture.name } });
   expect(response.ok()).toBeTruthy();
   const status = await response.json();

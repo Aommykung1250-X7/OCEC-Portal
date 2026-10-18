@@ -44,8 +44,8 @@ function displayDate(value) {
   return match ? `${match[3]}/${match[2]}/${match[1]}` : String(value);
 }
 
-export function registrationEmail(summary, { schoolBatchName = '', testMode = false, approved = false, rejectedReason = '' } = {}) {
-  const rejected = Boolean(rejectedReason);
+export function registrationEmail(summary, { schoolBatchName = '', testMode = false, approved = false, rejectedApplication = false, rejectedReason = '' } = {}) {
+  const rejected = rejectedApplication || Boolean(rejectedReason);
   const nameEn = [summary.applicant.firstNameEn, summary.applicant.middleNameEn, summary.applicant.lastNameEn].filter(Boolean).join(' ');
   const nameTh = [summary.applicant.firstNameTh, summary.applicant.lastNameTh].filter(Boolean).join(' ') || '—';
   const address = Object.values(summary.applicant.address || {}).map((part) => String(part || '').trim()).filter(Boolean).join(', ') || '—';
@@ -74,7 +74,7 @@ export function registrationEmail(summary, { schoolBatchName = '', testMode = fa
   const text = [
     rejected ? 'OCEC Portal · ใบสมัครไม่ผ่านการอนุมัติ' : approved ? 'OCEC Portal · อนุมัติการสมัครสอบ' : 'OCEC Portal · สรุปใบสมัครสอบ',
     `เลขที่ใบสมัคร: ${summary.id}`,
-    rejected ? `สถานะ: ใบสมัครไม่ผ่านการอนุมัติ · เหตุผล: ${rejectedReason}` : approved ? `สถานะ: อนุมัติการสมัครสอบแล้ว${testMode ? ' · อีเมลทดสอบ' : ''}` : testMode ? 'อีเมลทดสอบระบบ · ข้อมูลตัวอย่าง (ไม่ใช่ใบสมัครจริง)' : schoolBatchName ? `โรงเรียน: ${schoolBatchName} · รอเจ้าหน้าที่ตรวจสอบการชำระเงินของโรงเรียน` : 'สถานะ: ได้รับใบสมัครแล้ว · รอเจ้าหน้าที่ตรวจสอบสลิป',
+    rejected ? `สถานะ: ใบสมัครไม่ผ่านการอนุมัติ${rejectedReason ? ` · เหตุผล: ${rejectedReason}` : ''}` : approved ? `สถานะ: อนุมัติการสมัครสอบแล้ว${testMode ? ' · อีเมลทดสอบ' : ''}` : testMode ? 'อีเมลทดสอบระบบ · ข้อมูลตัวอย่าง (ไม่ใช่ใบสมัครจริง)' : schoolBatchName ? `โรงเรียน: ${schoolBatchName} · รอเจ้าหน้าที่ตรวจสอบการชำระเงินของโรงเรียน` : 'สถานะ: ได้รับใบสมัครแล้ว · รอเจ้าหน้าที่ตรวจสอบสลิป',
     '',
     'ข้อมูลผู้สมัคร',
     ...applicantText,
@@ -102,7 +102,7 @@ export function registrationEmail(summary, { schoolBatchName = '', testMode = fa
   const detailRow = (label, value) => `<tr><td style="padding:7px 12px 7px 0;color:#737d9a;font-size:13px;vertical-align:top;width:150px">${escapeHtml(label)}</td><td style="padding:7px 0;color:#29345f;font-size:14px;font-weight:600;vertical-align:top;word-break:break-word">${escapeHtml(value || '—')}</td></tr>`;
   const examCards = summary.items.map((item, index) => `<tr><td style="padding:0 0 10px"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #e4e7f2;border-left:4px solid #6358bd;border-radius:10px;background:#fafaff"><tr><td style="padding:14px 16px"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td style="color:#29345f;font-size:16px;font-weight:700">${index + 1}. ${escapeHtml(item.competition)}${item.short ? ` <span style="color:#6158b4">(${escapeHtml(item.short)})</span>` : ''}</td>${approved ? '' : `<td align="right" style="white-space:nowrap;color:#29345f;font-size:15px;font-weight:700">${formatBaht(item.feeSatang)}</td>`}</tr>${item.subject ? `<tr><td colspan="2" style="padding-top:5px;color:#687594;font-size:13px">${escapeHtml(item.subject)}</td></tr>` : ''}<tr><td colspan="2" style="padding-top:9px;color:#424e73;font-size:13px;line-height:1.7">${escapeHtml(item.round)}${item.year ? ` · ${escapeHtml(item.year)}` : ''}<br>ระดับชั้น: ${escapeHtml(item.grade)}<br>รูปแบบ: ${escapeHtml(item.format)}${item.center ? ` · ${escapeHtml(item.center)}` : ''}${item.format === 'Online Exam' && item.examEmail ? `<br>อีเมลเข้าสอบ: ${escapeHtml(item.examEmail)}` : ''}</td></tr></table></td></tr></table></td></tr>`).join('');
   const paperCards = summary.papers.map((paper) => `<tr><td style="padding:10px 12px;border-bottom:1px solid #d9eaf1;color:#344568;font-size:13px">${escapeHtml(paper.title)}${paper.detail ? `<br><span style="color:#74829c;font-size:12px">${escapeHtml(paper.detail)}</span>` : ''}</td><td align="right" style="padding:10px 12px;border-bottom:1px solid #d9eaf1;color:#344568;font-size:13px;font-weight:700;white-space:nowrap">${formatBaht(paper.priceSatang)}</td></tr>`).join('');
-  const statusLabel = rejected ? `ไม่อนุมัติใบสมัคร · ${rejectedReason}` : testMode ? approved ? 'TEST · อนุมัติการสมัครสอบแล้ว (ข้อมูลตัวอย่าง)' : 'อีเมลทดสอบ · ข้อมูลตัวอย่าง ไม่ใช่ใบสมัครจริง' : approved ? 'อนุมัติการสมัครสอบแล้ว' : schoolBatchName ? `สมัครผ่านโรงเรียน ${schoolBatchName} · รอตรวจสอบการชำระเงิน` : 'ได้รับใบสมัครแล้ว · รอเจ้าหน้าที่ตรวจสอบสลิป';
+  const statusLabel = rejected ? `ไม่อนุมัติใบสมัคร${rejectedReason ? ` · ${rejectedReason}` : ''}` : testMode ? approved ? 'TEST · อนุมัติการสมัครสอบแล้ว (ข้อมูลตัวอย่าง)' : 'อีเมลทดสอบ · ข้อมูลตัวอย่าง ไม่ใช่ใบสมัครจริง' : approved ? 'อนุมัติการสมัครสอบแล้ว' : schoolBatchName ? `สมัครผ่านโรงเรียน ${schoolBatchName} · รอตรวจสอบการชำระเงิน` : 'ได้รับใบสมัครแล้ว · รอเจ้าหน้าที่ตรวจสอบสลิป';
   const emailTypeLabel = rejected ? 'APPLICATION REJECTED' : approved ? `APPLICATION APPROVED${testMode ? ' · TEST' : ''}` : 'REGISTRATION SUMMARY';
   const emailTitle = rejected ? 'ใบสมัครไม่ผ่านการอนุมัติ' : approved ? `อนุมัติการสมัครสอบแล้ว${testMode ? ' · อีเมลทดสอบ' : ''}` : 'สรุปข้อมูลการสมัครสอบ';
   const html = `<!doctype html>
@@ -138,7 +138,7 @@ export function registrationEmail(summary, { schoolBatchName = '', testMode = fa
           </tr>
           <tr>
             <td style="padding:0 30px 22px">
-              ${rejected ? `<div style="margin-bottom:18px;padding:13px 15px;border:1px solid #f1c8d0;border-radius:9px;background:#fff5f6;color:#8a3043;font-size:14px;line-height:1.7"><strong>เหตุผลที่ไม่อนุมัติ</strong><br>${escapeHtml(rejectedReason)}</div>` : ''}
+              ${rejectedReason ? `<div style="margin-bottom:18px;padding:13px 15px;border:1px solid #f1c8d0;border-radius:9px;background:#fff5f6;color:#8a3043;font-size:14px;line-height:1.7"><strong>เหตุผลที่ไม่อนุมัติ</strong><br>${escapeHtml(rejectedReason)}</div>` : ''}
               <div style="padding-bottom:9px;border-bottom:1px solid #e8eaf2;color:#302b70;font-size:15px;font-weight:750">ข้อมูลผู้สมัคร</div>
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding-top:8px">
                 ${approved ? [detailRow('Student Name (English)', nameEn), detailRow('ชื่อ - สกุล (ภาษาไทย)', nameTh), detailRow('School Name', summary.applicant.schoolName)].join('') : [detailRow('Student Name (English)', nameEn), detailRow('ชื่อ - สกุล (ภาษาไทย)', nameTh), detailRow('Gender / เพศ', genderLabels[summary.applicant.gender] || summary.applicant.gender || '—'), detailRow('Date of Birth', displayDate(summary.applicant.dateOfBirth)), detailRow('School Name', summary.applicant.schoolName), detailRow('Email', summary.applicant.email), detailRow('เบอร์โทรศัพท์', summary.applicant.phone), detailRow('Address / ที่อยู่', address)].join('')}
@@ -547,10 +547,9 @@ export async function reviewApplication(applicationId, review, adminUserId) {
     if (review.decision === 'reject') {
       if (!['pending', 'slip_issue'].includes(prior.status)) throw invalid('Only applications awaiting review can be rejected', 409);
       const reason = String(review.reason || '').trim().slice(0, 240);
-      if (!reason) throw invalid('ระบุเหตุผลสั้น ๆ สำหรับการไม่อนุมัติใบสมัคร');
-      const rejected = await client.query("UPDATE applications SET status='rejected',review_note=$1,version=version+1 WHERE id=$2 RETURNING version", [reason, applicationId]);
+      const rejected = await client.query("UPDATE applications SET status='rejected',review_note=$1,version=version+1 WHERE id=$2 RETURNING version", [reason || null, applicationId]);
       await client.query(`INSERT INTO audit_logs(actor_user_id,entity_type,entity_id,action,before_data,after_data)
-        VALUES($1,'application',$2,'reject',$3,$4)`, [adminUserId, applicationId, prior, { status: 'rejected', reviewNote: reason }]);
+        VALUES($1,'application',$2,'reject',$3,$4)`, [adminUserId, applicationId, prior, { status: 'rejected', reviewNote: reason || null }]);
       const emailApplications = await loadReviewEmailApplications(client, applicationId);
       const applicant = emailApplications[0]?.applicant || {};
       const rejectionEmail = registrationEmail({
@@ -561,7 +560,7 @@ export async function reviewApplication(applicationId, review, adminUserId) {
         items: emailApplications[0]?.items || [], papers: [],
         registrationTotalSatang: Number(prior.registration_total_satang || 0),
         paperTotalSatang: Number(prior.paper_total_satang || 0), totalSatang: Number(prior.total_satang || 0),
-      }, { rejectedReason: reason });
+      }, { rejectedApplication: true, rejectedReason: reason });
       await queueEmail(client, { to: prior.contact_email, subject: 'OCEC | แจ้งผลการพิจารณาใบสมัครสอบ', ...rejectionEmail },
         `application-rejected:${applicationId}:v${rejected.rows[0].version}`, { sensitive: true });
       return { id: applicationId, status: 'rejected', reason };

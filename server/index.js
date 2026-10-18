@@ -12,6 +12,7 @@ import { completeGoogleWorkspaceAuthorization, createGoogleWorkspaceAuthorizatio
 import { enqueueIntegrationJob, integrationQueueStatus, retryIntegrationJob } from './integrationQueue.js';
 import { applyFinalIds, generateExamNumbers, getFinalIdImport, importFinalIds, importResultRows, listAdminResultWorkflows, listPublishedResults, publishResultBatch, resolveFinalIdImportRow, resolveResultImportRow } from './results.js';
 import { createFinalVerificationGrant, finalGrantCookie, finalGrantTokenFromRequest, listFinalEligibilityForUser, searchSchoolFinalEligibility } from './finalEligibility.js';
+import { isKnownSpaLocation } from '../src/routes.js';
 
 export const app = Fastify({ logger: true, bodyLimit: 16 * 1024 * 1024, trustProxy: true });
 
@@ -321,6 +322,7 @@ if (existsSync(join(distDir, 'index.html'))) {
   app.register(fastifyStatic, { root: distDir, prefix: '/' });
   app.setNotFoundHandler((request, reply) => {
     if (request.url.startsWith('/api/')) return reply.code(404).send({ error: 'Not found' });
-    return reply.type('text/html').sendFile('index.html');
+    const location = new URL(request.url, 'http://localhost');
+    return reply.code(isKnownSpaLocation(location) ? 200 : 404).type('text/html').sendFile('index.html');
   });
 }
