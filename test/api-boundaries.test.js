@@ -16,6 +16,7 @@ test('admin and account data routes reject anonymous requests', async () => {
     ['PUT', '/api/admin/payment-accounts', { paymentAccounts: [] }],
     ['POST', '/api/admin/google-workspace/connect'],
     ['POST', '/api/admin/google-workspace/initialize-drive'],
+    ['POST', '/api/admin/mock-sheets/add', { year: '2569', competition: 'BBB', grade: 'Primary 1', startDate: '2026-10-01', endDate: '2026-10-21' }],
     ['POST', '/api/admin/exams/heat-2026/exam-numbers', { confirm: true }],
     ['POST', '/api/admin/exams/heat-2026/results/publish', { confirm: true }],
     ['POST', '/api/admin/exams/final-2026/final-ids/apply', { confirm: true }],

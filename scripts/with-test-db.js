@@ -26,11 +26,12 @@ export function validateTestDatabaseAdminUrl(value) {
 
 export function isolatedTestEnvironment(databaseUrl) {
   const env = { ...process.env };
+  const webPort = Number(process.env.E2E_WEB_PORT || 5173);
   for (const key of removedEnvironment) delete env[key];
   Object.assign(env, {
     NODE_ENV: 'test', DATABASE_URL: databaseUrl, TEST_DATABASE_URL: databaseUrl,
-    GOOGLE_OAUTH_MODE: 'mock', APP_ORIGIN: 'http://127.0.0.1:5173',
-    GOOGLE_REDIRECT_URI: 'http://127.0.0.1:5173/api/auth/google/callback',
+    GOOGLE_OAUTH_MODE: 'mock', APP_ORIGIN: `http://127.0.0.1:${webPort}`,
+    GOOGLE_REDIRECT_URI: `http://127.0.0.1:${webPort}/api/auth/google/callback`,
     VITE_BACKEND_ENABLED: 'true',
     SESSION_SECRET: 'ocec-local-test-only-session-secret',
     GOOGLE_INTEGRATION_CLIENT_ID: 'ocec-mock-workspace-client',

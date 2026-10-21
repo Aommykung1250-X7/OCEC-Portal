@@ -8,7 +8,7 @@ import { loadCatalog } from '../server/catalog.js';
 import { app } from '../server/index.js';
 import { decryptQueuedEmailText, enqueueIntegrationJob, retryIntegrationJob } from '../server/integrationQueue.js';
 import { processIntegrationJob } from '../server/integrationWorker.js';
-import { completeGoogleWorkspaceAuthorization, createGoogleWorkspaceAuthorizationUrl, deleteGoogleDriveFile, downloadGoogleDriveFile, googleWorkspaceStatus, initializeGoogleDriveFolders, sendGoogleWorkspaceEmail, syncGoogleWorkspaceSheetItem, uploadGoogleDriveFile, GOOGLE_WORKSPACE_REQUIRED_SCOPES } from '../server/googleWorkspace.js';
+import { addFilteredApplicationsToMockSheet, completeGoogleWorkspaceAuthorization, createGoogleWorkspaceAuthorizationUrl, deleteGoogleDriveFile, downloadGoogleDriveFile, googleWorkspaceStatus, initializeGoogleDriveFolders, sendGoogleWorkspaceEmail, syncGoogleWorkspaceSheetItem, uploadGoogleDriveFile, GOOGLE_WORKSPACE_REQUIRED_SCOPES } from '../server/googleWorkspace.js';
 import pg from 'pg';
 import { applyFinalIds, generateExamNumbers, importFinalIds, importResultRows, listPublishedResults, publishResultBatch, resolveResultImportRow } from '../server/results.js';
 
@@ -274,6 +274,7 @@ if (!testUrl) {
     const originalFetch = globalThis.fetch;
     const testEmail = `sheets-${runId}@example.test`;
     const sheetRows = [];
+    const mockRows = [];
     const requests = [];
     let folderNumber = 1;
     let sheetsUnavailable = false;
@@ -292,19 +293,34 @@ if (!testUrl) {
       if (target.hostname === 'openidconnect.googleapis.com') return Response.json({ email: testEmail, email_verified: true });
       if (pathname === '/drive/v3/files' && method === 'POST') return Response.json({ id: `mock-sheets-folder-${folderNumber++}`, ...JSON.parse(options.body) });
       if (pathname === '/drive/v3/files') return Response.json({ files: [] });
+      if (pathname.startsWith('/drive/v3/files/mock-sheets-folder-') && method === 'GET') return Response.json({ id: pathname.split('/').at(-1), mimeType: 'application/vnd.google-apps.folder' });
       if (pathname === '/v4/spreadsheets' && method === 'POST') {
-        const title = JSON.parse(options.body).sheets[0].properties.title;
-        return Response.json({ spreadsheetId: `mock-workbook-${runId}`, spreadsheetUrl: `https://sheets.google.test/${runId}`,
-          properties: { title: `OCEC Applications ${year}` }, sheets: [{ properties: { sheetId: 7, title } }] });
+        const request = JSON.parse(options.body);
+        const title = request.sheets[0].properties.title;
+        const isMock = request.properties.title.startsWith('OCEC Mock');
+        return Response.json({ spreadsheetId: `${isMock ? 'mock-delivery' : 'mock-workbook'}-${runId}`, spreadsheetUrl: `https://sheets.google.test/${isMock ? 'mock-delivery-' : ''}${runId}`,
+          properties: { title: request.properties.title }, sheets: [{ properties: { sheetId: isMock ? 8 : 7, title } }] });
       }
-      if (pathname === `/drive/v3/files/mock-workbook-${runId}` && method === 'GET') return Response.json({ id: `mock-workbook-${runId}`, parents: [] });
-      if (pathname === `/drive/v3/files/mock-workbook-${runId}` && method === 'PATCH') return Response.json({ id: `mock-workbook-${runId}` });
+      if (pathname.startsWith(`/drive/v3/files/`) && (pathname.endsWith(`-${runId}`)) && method === 'GET') return Response.json({ id: pathname.split('/').at(-1), parents: [] });
+      if (pathname.startsWith(`/drive/v3/files/`) && (pathname.endsWith(`-${runId}`)) && method === 'PATCH') return Response.json({ id: pathname.split('/').at(-1) });
+      if (pathname === `/v4/spreadsheets/mock-delivery-${runId}:batchUpdate` && method === 'POST') return Response.json({ replies: [] });
+      if (pathname === `/v4/spreadsheets/mock-delivery-${runId}/values:batchUpdate` && method === 'POST') {
+        for (const update of JSON.parse(options.body).data) {
+          const rowNumber = Number(update.range.match(/!A(\d+):F\d+$/)?.[1]);
+          mockRows[rowNumber - 2].splice(0, 6, ...update.values[0]);
+        }
+        return Response.json({ totalUpdatedRows: JSON.parse(options.body).data.length });
+      }
       if (pathname.includes('/values/') && method === 'GET' && pathname.includes('!A1:')) return Response.json({ values: [] });
+      if (pathname.includes('/values/') && method === 'GET' && pathname.includes('!A2:AK')) return Response.json({ values: sheetRows });
       if (pathname.includes('/values/') && method === 'GET' && pathname.includes('!A2:A')) return Response.json({ values: sheetRows.map((row) => [row[0]]) });
+      if (pathname.includes('/values/') && method === 'GET' && pathname.includes('!H2:H')) return Response.json({ values: mockRows.map((row) => [row[7]]) });
       if (pathname.includes('/values/') && method === 'PUT' && pathname.includes('!A1:')) return Response.json({ updatedRows: 1 });
       if (pathname.endsWith(':append') && method === 'POST') {
-        sheetRows.push(JSON.parse(options.body).values[0]);
-        return Response.json({ updates: { updatedRange: `'BBB - Heat ${year}'!A${sheetRows.length + 1}:AK${sheetRows.length + 1}` } });
+        const isMock = pathname.includes(`mock-delivery-${runId}`);
+        const rows = isMock ? mockRows : sheetRows;
+        rows.push(...JSON.parse(options.body).values);
+        return Response.json({ updates: { updatedRange: `'${isMock ? 'BBB - Mock' : `BBB - Heat ${year}`}'!A${rows.length + 1}:${isMock ? 'H' : 'AK'}${rows.length + 1}` } });
       }
       if (pathname.includes('/values/') && method === 'PUT' && pathname.includes('!A2:')) {
         if (sheetsUnavailable) return new Response(null, { status: 503 });
@@ -338,6 +354,23 @@ if (!testUrl) {
       sheetsUnavailable = false;
       assert.equal((await syncGoogleWorkspaceSheetItem(item.rows[0].id)).outcome, 'updated');
       assert.ok(sheetRows[0].includes('Outage Test School'));
+      const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+      const selection = { year, competition: 'BBB', grade: 'Primary 1', startDate: today, endDate: today };
+      const outside = await addFilteredApplicationsToMockSheet({ ...selection, startDate: '2000-01-01', endDate: '2000-01-01' });
+      assert.equal(outside.selected, 0);
+      assert.equal(mockRows.length, 0);
+      const firstMock = await addFilteredApplicationsToMockSheet(selection);
+      assert.equal(firstMock.inserted, 1);
+      assert.equal(mockRows[0][6], 'รอส่ง');
+      assert.equal(mockRows[0][7], item.rows[0].id);
+      mockRows[0][6] = 'ส่งแล้ว';
+      await getPool().query("UPDATE applicants SET contact_phone='0899999999' WHERE id=(SELECT applicant_id FROM applications WHERE id=$1)", [draft.id]);
+      const secondMock = await addFilteredApplicationsToMockSheet(selection);
+      assert.equal(secondMock.inserted, 0);
+      assert.equal(secondMock.updated, 1);
+      assert.equal(mockRows.length, 1);
+      assert.equal(mockRows[0][3], '0899999999');
+      assert.equal(mockRows[0][6], 'ส่งแล้ว', 'a later sync must preserve the administrator-selected Mock status');
     } finally {
       globalThis.fetch = originalFetch;
       await getPool().query('DELETE FROM google_workspace_connection WHERE account_email=$1', [testEmail]);

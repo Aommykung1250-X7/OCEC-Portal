@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import readXlsxFile from 'read-excel-file/node';
-import { closeFixtures, createReviewFixture, replacementTokenFor } from './fixtures.js';
+import { closeFixtures, createPastPaperFixture, createReviewFixture, createSchoolFinalFixture, replacementTokenFor } from './fixtures.js';
 
 test.afterAll(closeFixtures);
 
@@ -90,19 +90,41 @@ test('replacement link uploads once and rejects replay', async ({ page }) => {
   expect(invalid.status()).toBe(410);
 });
 
-test('admin Excel export contains the filtered API application rows', async ({ page }) => {
-  const fixture = await createReviewFixture();
+test('admin selects an approved Mock batch before adding it to the yearly Google Sheet', async ({ page }) => {
+  const fixture = await createSchoolFinalFixture();
   await page.goto(`/api/auth/google/start?returnTo=${encodeURIComponent('/portal-admin/mock-papers')}&testPersona=admin`);
   await expect(page).toHaveURL(/\/portal-admin\/mock-papers/);
-  await page.getByPlaceholder('ค้นหาชื่อ โรงเรียน หรือรายการสอบ').fill(fixture.firstName);
   await expect(page.locator('.admin-mock-table-wrap')).toContainText(fixture.name);
+  const filters = page.locator('.admin-mock-filters');
+  await expect(filters.getByText('โรงเรียน')).toHaveCount(0);
+  await filters.locator('select').nth(0).selectOption('BBB');
+  await filters.locator('select').nth(1).selectOption('2569');
+  await filters.locator('select').nth(2).selectOption('Primary 1');
+  const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  await filters.locator('input[type="date"]').nth(0).fill(today);
+  await filters.locator('input[type="date"]').nth(1).fill(today);
+  let sent;
+  await page.route('**/api/admin/mock-sheets/add', async (route) => {
+    sent = route.request().postDataJSON();
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ selected: 1, inserted: 1, updated: 0, tab: 'BBB - Mock', spreadsheetUrl: 'https://sheets.google.test/mock#gid=8' }) });
+  });
+  await page.getByRole('button', { name: 'เพิ่มเข้า Google Sheet' }).first().click();
+  await expect(page.getByRole('link', { name: 'เปิด Google Sheet' })).toHaveAttribute('href', 'https://sheets.google.test/mock#gid=8');
+  expect(sent).toEqual({ year: '2569', competition: 'BBB', grade: 'Primary 1', startDate: today, endDate: today });
+});
+
+test('admin Excel export contains the filtered past-paper rows', async ({ page }) => {
+  const fixture = await createPastPaperFixture();
+  await page.goto(`/api/auth/google/start?returnTo=${encodeURIComponent('/portal-admin/mock-papers')}&testPersona=admin`);
+  await page.getByRole('tab', { name: /รายการซื้อข้อสอบเก่า/ }).click();
+  await page.getByPlaceholder('ค้นหาชื่อ โรงเรียน หรือข้อสอบเก่า').fill(fixture.firstName);
+  await expect(page.locator('.admin-mock-table-wrap tbody tr')).toHaveCount(1);
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'ส่งออก Excel' }).first().click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toMatch(/\.xlsx$/);
-  const contents = await readFile(await download.path());
-  const sheets = await readXlsxFile(contents);
-  const rows = sheets[0].data;
-  expect(rows).toHaveLength(2);
-  expect(rows[1]).toContain(fixture.name);
+  const sheets = await readXlsxFile(await readFile(await download.path()));
+  expect(sheets[0].data).toHaveLength(2);
+  expect(sheets[0].data[1]).toContain(fixture.name);
+  expect(sheets[0].data[1].some((cell) => String(cell).includes(fixture.paperTitle))).toBeTruthy();
 });

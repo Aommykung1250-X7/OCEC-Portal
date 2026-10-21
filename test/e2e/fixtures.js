@@ -51,6 +51,14 @@ export async function createReviewFixture() {
   return { id: application.rows[0].id, name: `${firstName} Student`, firstName, email: `review-${suffix}@example.test`, paymentId: payment.rows[0].id };
 }
 
+export async function createPastPaperFixture() {
+  const fixture = await createReviewFixture();
+  const paper = (await pool.query('SELECT id,title,detail,price_satang FROM past_papers WHERE active=true ORDER BY id LIMIT 1')).rows[0];
+  await pool.query(`INSERT INTO application_past_papers(application_id,past_paper_id,price_satang,snapshot)
+    VALUES($1,$2,$3,$4)`, [fixture.id, paper.id, paper.price_satang, { title: paper.title, detail: paper.detail, price: paper.price_satang / 100 }]);
+  return { ...fixture, paperTitle: paper.title };
+}
+
 export async function createSchoolFinalFixture() {
   const suffix = randomBytes(5).toString('hex');
   const firstName = `Browser${suffix}`;

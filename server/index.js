@@ -8,7 +8,7 @@ import { getPool, transaction } from './db.js';
 import { archiveExamRound, loadCatalog, saveCatalogSnapshot, savePaymentAccountsSnapshot, updateExamRound } from './catalog.js';
 import { registerAuthRoutes, requireAdmin, requireUser } from './auth.js';
 import { createApplicationAdminNote, createIndividualDraft, createSchoolDraft, deleteApplicationAdminNote, downloadCertificatePhoto, getPublicApplicationForEdit, getSlipReplacementStatus, listAllApplications, listApplicationAdminNotes, listMyApplications, removeCertificatePhoto, replacePaymentSlip, reviewApplication, searchPublicApplicationStatuses, submitIndividualApplication, submitSchoolBatch, updateAdminApplication, updateApplicationAdminNote, updateOwnedApplicationProfile, updatePublicApplicationProfile, uploadCertificatePhoto } from './applications.js';
-import { completeGoogleWorkspaceAuthorization, createGoogleWorkspaceAuthorizationUrl, downloadGoogleDriveFile, googleWorkspaceStatus, initializeGoogleDriveFolders } from './googleWorkspace.js';
+import { addFilteredApplicationsToMockSheet, completeGoogleWorkspaceAuthorization, createGoogleWorkspaceAuthorizationUrl, downloadGoogleDriveFile, googleWorkspaceStatus, initializeGoogleDriveFolders } from './googleWorkspace.js';
 import { enqueueIntegrationJob, integrationQueueStatus, retryIntegrationJob } from './integrationQueue.js';
 import { applyFinalIds, generateExamNumbers, getFinalIdImport, importFinalIds, importResultRows, listAdminResultWorkflows, listPublishedResults, publishResultBatch, resolveFinalIdImportRow, resolveResultImportRow } from './results.js';
 import { createFinalVerificationGrant, finalGrantCookie, finalGrantTokenFromRequest, listFinalEligibilityForUser, searchSchoolFinalEligibility } from './finalEligibility.js';
@@ -61,7 +61,7 @@ app.get('/api/health', async () => {
 app.get('/api/ready', async (request, reply) => {
   try {
     await getPool().query('SELECT 1');
-    const migrations = await getPool().query("SELECT version FROM schema_migrations WHERE version='014_final_verification_grants.sql'");
+    const migrations = await getPool().query("SELECT version FROM schema_migrations WHERE version='015_mock_delivery_sheets.sql'");
     const latest = await getPool().query('SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1');
     if (!migrations.rowCount) return reply.code(503).send({ ready: false, service: 'ocec-portal-api', reason: 'database_migrations_incomplete', latestMigration: latest.rows[0]?.version || null });
     return { ready: true, service: 'ocec-portal-api', latestMigration: latest.rows[0]?.version || null };
@@ -173,6 +173,18 @@ app.post('/api/admin/integrations/sheets/sync', { preHandler: requireAdmin }, as
     }
   });
   return { queued: result.rowCount };
+});
+app.post('/api/admin/mock-sheets/add', { preHandler: requireAdmin, schema: { body: {
+  type: 'object', additionalProperties: false, required: ['year', 'competition', 'grade', 'startDate', 'endDate'], properties: {
+    year: { type: 'string', minLength: 1, maxLength: 30 },
+    competition: { type: 'string', minLength: 1, maxLength: 80 },
+    grade: { type: 'string', minLength: 1, maxLength: 120 },
+    startDate: { type: 'string', format: 'date' },
+    endDate: { type: 'string', format: 'date' },
+  },
+} } }, async (request, reply) => {
+  if (request.body.startDate > request.body.endDate) return reply.code(400).send({ error: 'วันเริ่มต้นต้องไม่เกินวันสิ้นสุด' });
+  return addFilteredApplicationsToMockSheet(request.body);
 });
 app.post('/api/admin/integration-jobs/:id/retry', { preHandler: requireAdmin, schema: { params: { type: 'object', required: ['id'], properties: { id: { type: 'string', pattern: '^[1-9][0-9]*$' } } } } }, async (request, reply) => {
   const retried = await retryIntegrationJob(request.params.id, request.user.id);

@@ -17,17 +17,19 @@ test('header and footer help open the configured LINE OA safely', async ({ page 
 test('exam schedule reflects catalog date and year after reload', async ({ page }) => {
   await withExamDates({ all: '2027-01-23' }, async () => {
     await page.goto('/');
-    await expect(page.locator('.landing-note')).toContainText('23 มกราคม 2570');
+    await expect(page.locator('#open-exams .landing-gallery-card').first()).toContainText('23 มกราคม 2570');
     await page.reload();
-    await expect(page.locator('.landing-note')).toContainText('23 มกราคม 2570');
+    await expect(page.locator('#open-exams .landing-gallery-card').first()).toContainText('23 มกราคม 2570');
   });
 });
 
-test('schedule with no exam date links to exam listings without a sample date', async ({ page }) => {
+test('schedule with no exam date shows an honest unscheduled state', async ({ page }) => {
   await withExamDates({ all: null }, async () => {
     await page.goto('/');
-    await expect(page.locator('.landing-note')).not.toContainText('13 ธันวาคม 2569');
-    await expect(page.locator('.landing-note a')).toHaveAttribute('href', '/#open-exams');
+    const cards = page.locator('#open-exams .landing-gallery-card');
+    await expect(cards.first()).toContainText('ยังไม่กำหนด');
+    await expect(cards.first()).not.toContainText('13 ธันวาคม 2569');
+    await expect(page.getByRole('link', { name: 'รายการสอบ' })).toHaveAttribute('href', '#open-exams');
   });
 });
 

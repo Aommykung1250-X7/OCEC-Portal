@@ -672,10 +672,14 @@ body { color: var(--foreground); background: var(--background); }
 .admin-mock-search:focus-within { border-color: #756fc0; box-shadow: 0 0 0 3px rgba(90, 80, 177, .11); }
 .admin-mock-search input { width: 100%; min-width: 0; padding: 0; border: 0; outline: 0; color: #2c3a5c; background: transparent; font: inherit; font-size: 12px; }
 .admin-mock-search input::placeholder { color: #9aa4b7; }
-.admin-mock-filters { display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)) auto; align-items: end; gap: 9px; padding: 14px 22px; border-top: 1px solid #f0f1f5; border-bottom: 1px solid #edf0f5; background: #fafaff; }
+.admin-mock-filters { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)) auto; align-items: end; gap: 9px; padding: 14px 22px; border-top: 1px solid #f0f1f5; border-bottom: 1px solid #edf0f5; background: #fafaff; }
 .admin-mock-filters label { min-width: 0; display: grid; gap: 5px; }
 .admin-mock-filters label > span { color: #66758e; font-size: 10px; font-weight: 700; }
-.admin-mock-filters select { width: 100%; min-width: 0; height: 38px; padding: 0 27px 0 10px; border: 1px solid #dfe3ee; border-radius: 9px; color: #3d4b68; background: #fff; font: inherit; font-size: 11px; }
+.admin-mock-filters select, .admin-mock-filters input[type="date"] { width: 100%; min-width: 0; height: 38px; padding: 0 10px; border: 1px solid #dfe3ee; border-radius: 9px; color: #3d4b68; background: #fff; font: inherit; font-size: 11px; }
+.admin-mock-filters select { padding-right: 27px; }
+.admin-mock-filters select:focus-visible, .admin-mock-filters input[type="date"]:focus-visible { outline: 2px solid #756fc0; outline-offset: 2px; }
+.admin-mock-sheet-result { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 9px; padding: 11px 22px; border-bottom: 1px solid #dbe9e2; color: #316848; background: #f1faf4; font-size: 12px; }
+.admin-mock-sheet-result a { color: #246f48; font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
 .admin-mock-reset { min-height: 38px; padding: 0 8px; border: 0; color: #615cb0; background: transparent; font-size: 11px; font-weight: 700; white-space: nowrap; cursor: pointer; }
 .admin-mock-reset:hover { color: #d93972; }
 .admin-mock-breakdown { display: grid; gap: 8px; padding: 14px 22px; border-bottom: 1px solid #edf0f5; }
@@ -778,7 +782,8 @@ body { color: var(--foreground); background: var(--background); }
   .admin-mock-search { width: 100%; }
   .admin-mock-filters { gap: 8px; padding: 12px 14px; }
   .admin-mock-filters label > span { font-size: 9px; }
-  .admin-mock-filters select { font-size: 10px; }
+  .admin-mock-filters select, .admin-mock-filters input[type="date"] { font-size: 10px; }
+  .admin-mock-sheet-result { padding-inline: 14px; }
   .admin-mock-reset { grid-column: 1 / -1; justify-self: end; min-height: 30px; }
   .admin-mock-breakdown { padding-inline: 14px; }
   .admin-mock-footer { align-items: flex-start; flex-direction: column; padding: 12px 14px; }
@@ -864,18 +869,18 @@ body { color: var(--foreground); background: var(--background); }
 .admin-round-choice > div > label.admin-round-choice-selected { border-color: #cac7e9; color: #514d9c; background: #f4f3fc; }
 .admin-round-choice > div input { width: 14px; height: 14px; accent-color: #5954a4; }
 .admin-round-choice > small { display: block; margin-top: 6px; color: #8a95a7; font-size: 9px; }
-.admin-round-price-set { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; align-content: start; gap: 7px; }
-.admin-round-price-set legend { grid-column: 1 / -1; }
+.admin-round-price-set { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; align-content: start; gap: 7px; padding: 12px 14px 14px; border-color: #cbd0ed; background: #eef0fb; }
+.admin-round-price-set legend { grid-column: 1 / -1; color: #454c87; }
 .admin-round-price-set > label { display: grid; gap: 5px; min-width: 0; }
-.admin-round-price-set > label > span { color: #7c899f; font-size: 9px; }
+.admin-round-price-set > label > span { color: #59628d; font-size: 9px; }
 .admin-round-price-set > label > div { display: flex; align-items: center; gap: 4px; }
-.admin-round-price-set input { min-height: 38px !important; font-size: 11px !important; }
-.admin-exam-schedule-fields { grid-column: 1 / -1; min-width: 0; margin: 1px 0 0; padding: 11px; border: 1px solid #dfe1ee; border-radius: 12px; background: linear-gradient(135deg, #f8f8fe, #fff 78%); }
-.admin-exam-schedule-fields > legend { padding: 0 6px; color: #54528f; font-size: 11px; font-weight: 750; }
+.admin-round-price-set input { min-height: 38px !important; border-color: #cbd0e4; font-size: 11px !important; }
+.admin-exam-schedule-fields { grid-column: 1 / -1; min-width: 0; margin: 1px 0 0; padding: 14px; border: 1px solid #ead2b9; border-radius: 12px; background: #fff3e6; }
+.admin-exam-schedule-fields > legend { padding: 0 6px; color: #875b37; font-size: 11px; font-weight: 750; }
 .admin-exam-schedule-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .admin-exam-schedule-grid > label { display: grid; gap: 5px; min-width: 0; }
-.admin-exam-schedule-grid > label > span { color: #65738b; font-size: 10px; font-weight: 650; }
-.admin-exam-schedule-grid input[type="date"], .admin-exam-schedule-grid input[type="time"] { min-height: 42px; padding-inline: 9px; border-color: #d6d9e8; background: #fff; box-shadow: 0 1px 2px rgba(43, 47, 92, .04); }
+.admin-exam-schedule-grid > label > span { color: #765a44; font-size: 10px; font-weight: 650; }
+.admin-exam-schedule-grid input[type="date"], .admin-exam-schedule-grid input[type="time"] { min-height: 42px; padding-inline: 9px; border-color: #e2cdb7; background: #fff; box-shadow: 0 1px 2px rgba(92, 58, 31, .05); }
 .admin-exam-schedule-grid input[type="date"]:focus, .admin-exam-schedule-grid input[type="time"]:focus { border-color: #8d89d1; box-shadow: 0 0 0 3px rgba(88, 84, 171, .12); }
 .admin-exam-form-footer > span { max-width: 55%; }
 @media (max-width: 700px) {
