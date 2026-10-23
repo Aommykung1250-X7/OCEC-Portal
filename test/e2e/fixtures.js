@@ -59,7 +59,7 @@ export async function createPastPaperFixture() {
   return { ...fixture, paperTitle: paper.title };
 }
 
-export async function createSchoolFinalFixture() {
+export async function createSchoolFinalFixture({ includeDecoyFinalRound = false } = {}) {
   const suffix = randomBytes(5).toString('hex');
   const firstName = `Browser${suffix}`;
   const lastName = 'Student';
@@ -74,16 +74,27 @@ export async function createSchoolFinalFixture() {
   const application = await pool.query(`INSERT INTO applications(applicant_id,owner_user_id,school_batch_id,source,status,registration_total_satang)
     VALUES($1,$2,$3,'school','approved',75500) RETURNING id`, [applicant.rows[0].id, coordinator.rows[0].id, batch.rows[0].id]);
   const grade = await pool.query("SELECT id FROM grade_catalog WHERE label='Primary 1'");
-  const center = await pool.query("SELECT id FROM exam_centers WHERE code='554'");
+  const center = await pool.query("SELECT id,name FROM exam_centers WHERE code='554'");
+  const decoyCenter = includeDecoyFinalRound ? await pool.query("SELECT id,name FROM exam_centers WHERE code='555'") : null;
   const item = await pool.query(`INSERT INTO application_items(application_id,exam_round_id,grade_id,format,center_id,fee_satang,snapshot,duplicate_key)
     VALUES($1,'bbb-heat-2569',$2,'paper',$3,75500,'{}',$4) RETURNING id`, [application.rows[0].id, grade.rows[0].id, center.rows[0].id, `browser-${suffix}`]);
   await pool.query(`INSERT INTO exam_rounds(id,competition_id,title,year,round_type,open_date,close_date,exam_date,is_open,active)
     VALUES($1,'bbb','Big Bay Bei (BBB)','2569','FINAL',(now() AT TIME ZONE 'Asia/Bangkok')::date-1,(now() AT TIME ZONE 'Asia/Bangkok')::date+1,(now() AT TIME ZONE 'Asia/Bangkok')::date+20,true,true)`, [roundId]);
+  await pool.query('UPDATE exam_rounds SET paper_price_satang=120000 WHERE id=$1', [roundId]);
   await pool.query('INSERT INTO exam_round_grades(exam_round_id,grade_id) VALUES($1,$2)', [roundId, grade.rows[0].id]);
   await pool.query('INSERT INTO exam_round_centers(exam_round_id,center_id) VALUES($1,$2)', [roundId, center.rows[0].id]);
+  let decoyRoundId = '';
+  if (includeDecoyFinalRound) {
+    decoyRoundId = `${roundId}-decoy`;
+    const decoyGrade = await pool.query("SELECT id FROM grade_catalog WHERE label='Secondary 1'");
+    await pool.query(`INSERT INTO exam_rounds(id,competition_id,title,year,round_type,open_date,close_date,exam_date,is_open,active,paper_price_satang)
+      VALUES($1,'bbb','ZZZ Decoy Final','2569','FINAL',(now() AT TIME ZONE 'Asia/Bangkok')::date-1,(now() AT TIME ZONE 'Asia/Bangkok')::date+1,(now() AT TIME ZONE 'Asia/Bangkok')::date+21,true,true,180000)`, [decoyRoundId]);
+    await pool.query('INSERT INTO exam_round_grades(exam_round_id,grade_id) VALUES($1,$2)', [decoyRoundId, decoyGrade.rows[0].id]);
+    await pool.query('INSERT INTO exam_round_centers(exam_round_id,center_id) VALUES($1,$2)', [decoyRoundId, decoyCenter.rows[0].id]);
+  }
   await pool.query("INSERT INTO results(application_item_id,award,eligible_for_final,published_at) VALUES($1,'1ST AWARD',true,now())", [item.rows[0].id]);
   await pool.query('INSERT INTO final_invitations(heat_application_item_id,final_exam_round_id) VALUES($1,$2)', [item.rows[0].id, roundId]);
-  return { name, firstName, lastName, roundId, heatApplicationId: application.rows[0].id, coordinatorId: coordinator.rows[0].id, gradeId: grade.rows[0].id, centerId: center.rows[0].id, contactEmail: `child-${suffix}@example.test` };
+  return { name, firstName, lastName, roundId, decoyRoundId, heatApplicationId: application.rows[0].id, coordinatorId: coordinator.rows[0].id, gradeId: grade.rows[0].id, centerId: center.rows[0].id, centerName: center.rows[0].name, decoyCenterName: decoyCenter?.rows[0]?.name || '', contactEmail: `child-${suffix}@example.test` };
 }
 
 export async function finalClaimState(heatApplicationId) {

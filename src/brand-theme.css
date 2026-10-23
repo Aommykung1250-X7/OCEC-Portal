@@ -1,0 +1,115 @@
+/* OCEC palette shared by the public portal and admin workspace. */
+:root {
+  --primary: #3A0F34;
+  --primary-dark: #2B0926;
+  --primary-soft: #F3EAF1;
+  --logo-pink: #3A0F34;
+  --logo-pink-soft: #F3EAF1;
+  --brand-accent: #FF2D95;
+  --brand-accent-soft: #FFE3F0;
+  --brand-accent-hover: #FFF0F7;
+  --foreground: #1F2937;
+  --muted: #53616F;
+  --muted-strong: #374151;
+  --border: #D9DEE5;
+  --background: #F7F8FA;
+  --violet: #3A0F34;
+  --violet-soft: #F3EAF1;
+  --shadow-card: 0 12px 32px rgba(58, 15, 52, .07);
+}
+
+html, body, .app-shell, .main-column,
+.admin-shell, .admin-shell .main-column,
+.public-landing, .public-landing-home, .public-portal-page {
+  color: var(--foreground);
+  background-color: var(--background);
+}
+
+::selection { color: var(--primary); background: #FFE3F0; }
+:focus-visible, .public-landing :focus-visible { outline-color: #FF2D95; }
+
+.page-heading::before { background: linear-gradient(180deg, #3A0F34 0 72%, #FF2D95 72%); }
+.page-heading h1, .section-heading h2, .eyebrow { color: var(--primary); }
+
+.button-primary,
+.button-primary:hover:not(:disabled) {
+  color: #fff;
+  border-color: var(--primary);
+  background: var(--primary);
+  box-shadow: 0 7px 17px rgba(58, 15, 52, .16);
+}
+.button-primary:hover:not(:disabled) { background: var(--primary-dark); }
+.button-outline { color: var(--primary); border: 1px solid #C7CDD2; background: #fff; }
+.button-outline:hover:not(:disabled) { color: var(--primary); border-color: var(--primary); background: var(--primary-soft); }
+.button-text { color: var(--primary); }
+.button-text:hover:not(:disabled) { color: var(--primary-dark); background: var(--primary-soft); }
+.icon-button:hover, .exam-carousel-button:hover:not(:disabled) {
+  color: var(--primary);
+  border-color: #FF2D95;
+  background: #FFE3F0;
+}
+
+.field:not(.application-field) input:focus, .field:not(.application-field) select:focus, .input-with-icon:focus-within,
+.review-search input:focus, .admin-shell input:focus, .admin-shell select:focus,
+.admin-shell textarea:focus {
+  border-color: #FF2D95;
+  box-shadow: 0 0 0 4px rgba(255, 45, 149, .2);
+}
+
+.public-landing .landing-nav a::after,
+.public-landing .landing-nav button::after { background: #FF2D95; }
+.public-landing .landing-gallery-actions button .ocec-icon { color: #3A0F34; background: #FF2D95; }
+.public-landing .landing-gallery-actions .landing-gallery-secondary .ocec-icon { color: #3A0F34; background: #FFE3F0; }
+.public-landing .landing-gallery-primary:hover,
+.public-landing .landing-gallery-secondary:hover { border-color: #FF2D95; background: #FFF0F7; }
+.public-landing .field-hint,
+.public-landing .form-hint,
+.public-landing .help-text,
+.public-landing .page-description { color: #615663; }
+.public-landing .button-primary,
+.public-landing .button-primary:hover:not(:disabled) { color: #fff; background: #3A0F34; }
+.public-landing .button-primary:hover:not(:disabled) { background: #2B0926; }
+.public-landing .button-outline { color: #3A0F34; border-color: #C7CDD2; background: #fff; }
+.public-landing .button-outline:hover:not(:disabled) { color: #3A0F34; border-color: #FF2D95; background: #FFF0F7; }
+
+.admin-shell {
+  --admin-ink: #3A0F34;
+  --admin-muted: #615663;
+  --admin-accent: #FF2D95;
+  --admin-line: #C7CDD2;
+}
+.admin-shell .topbar { border-bottom-color: #C7CDD2; background: rgba(255, 255, 255, .9); }
+.admin-shell .sidebar { border-right-color: #C7CDD2; background: #fff; }
+.admin-shell .surface { border-color: #D2D6DA; }
+.admin-shell .eyebrow, .admin-home-page .page-heading .eyebrow { color: #3A0F34; }
+.admin-shell .admin-brand-symbol { color: #3A0F34; background: #FF2D95; box-shadow: 0 7px 15px rgba(255, 45, 149, .18); }
+.admin-shell .nav-link-active,
+.admin-shell .nav-link-active:hover { color: #3A0F34; background: #F3EAF1; }
+.admin-shell .nav-link-active .ocec-icon { color: #3A0F34; }
+.admin-home-nav a.active { color: #fff; background: #3A0F34; }
+.admin-home-hero {
+  background: radial-gradient(circle at 70% -20%, rgba(255, 45, 149, .28), transparent 37%), linear-gradient(112deg, #3A0F34, #54204B);
+  box-shadow: 0 19px 35px rgba(58, 15, 52, .15);
+}
+.admin-hero-action { color: #3A0F34; }
+.admin-hero-action:hover { background: #FFE3F0; }
+.admin-hero-track span, .admin-bar-track span, .status-confirmed-dot { background: #FF2D95; }
+.status-pending-dot { background: #3A0F34; }
+.status-other-dot { background: #CBD0D5; }
+.admin-home-page .stat-link { color: #3A0F34; }
+
+.admin-login-page { background: #F7F8FA; }
+.admin-login-card h1 { color: #3A0F34; }
+.admin-login-eyebrow, .admin-login-back { color: #3A0F34; }
+.admin-login-description { color: #615663; }
+.admin-login-mark { color: #3A0F34; background: #FFE3F0; }
+.admin-login-button { color: #fff; background: #3A0F34; }
+.admin-login-button:hover { color: #fff; background: #2B0926; }
+
+.hero-panel { background: linear-gradient(112deg, #3A0F34, #54204B); box-shadow: 0 14px 30px rgba(58, 15, 52, .16); }
+.hero-copy h2 span { color: #FF2D95; }
+
+.exam-card-yellow::before,
+.exam-card-pink::before { background: var(--brand-accent); }
+.exam-card-yellow .exam-type-mark,
+.exam-card-pink .exam-type-mark { color: var(--primary); background: var(--brand-accent-soft); }

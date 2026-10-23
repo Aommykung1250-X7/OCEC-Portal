@@ -6,7 +6,7 @@ import { migrate } from './migrate.js';
 const competitions = [
   { id: 'bbb', short: 'BBB', name: 'Big Bay Bei (BBB)', subject: 'Mathematics', grades: ['Primary 1', 'Primary 2', 'Primary 3', 'Primary 4', 'Primary 5', 'Primary 6', 'Secondary 1', 'Secondary 2', 'Secondary 3', 'Senior Secondary'], start: '11:15', end: '12:30', accent: 'coral' },
   { id: 'hkiso', short: 'HKISO', name: 'HKISO', subject: 'Science', grades: ['Primary 2', 'Primary 3', 'Primary 4', 'Primary 5', 'Primary 6', 'Secondary 1', 'Secondary 2', 'Secondary 3', 'Senior Secondary'], start: '09:45', end: '10:45', accent: 'violet' },
-  { id: 'hkico', short: 'HKICO', name: 'HKICO', subject: 'Computer', grades: ['Primary 2 — Scratch', 'Primary 3 — Scratch', 'Primary 4 — Scratch', 'Primary 5 — Blockly', 'Primary 6 — Blockly', 'Secondary 1 — Blockly', 'Secondary 2 — Python', 'Secondary 3 — Python', 'Senior Secondary — Python'], start: '08:30', end: '09:30', accent: 'yellow' },
+  { id: 'hkico', short: 'HKICO', name: 'HKICO', subject: 'Computer', grades: ['Primary 2 — Scratch', 'Primary 3 — Scratch', 'Primary 4 — Scratch', 'Primary 5 — Blockly', 'Primary 6 — Blockly', 'Secondary 1 — Blockly', 'Secondary 2 — Python', 'Secondary 3 — Python', 'Senior Secondary — Python'], start: '08:30', end: '09:30', accent: 'pink' },
 ];
 const competitionChoices = [
   ['hkimo', 'HKIMO', 'HKIMO', 'Mathematics'],

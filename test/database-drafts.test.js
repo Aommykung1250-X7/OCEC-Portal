@@ -4,7 +4,7 @@ import test from 'node:test';
 import { getPool } from '../server/db.js';
 import { seed } from '../server/seed.js';
 import { createIndividualDraft, createSchoolDraft, getPublicApplicationForEdit, getSlipReplacementStatus, listAllApplications, listMyApplications, reviewApplication, searchPublicApplicationStatuses, updateAdminApplication, updateOwnedApplicationProfile, updatePublicApplicationProfile, uploadCertificatePhoto } from '../server/applications.js';
-import { loadCatalog } from '../server/catalog.js';
+import { loadCatalog, saveCatalogSnapshot } from '../server/catalog.js';
 import { app } from '../server/index.js';
 import { decryptQueuedEmailText, enqueueIntegrationJob, retryIntegrationJob } from '../server/integrationQueue.js';
 import { processIntegrationJob } from '../server/integrationWorker.js';
@@ -79,6 +79,29 @@ if (!testUrl) {
     assert.equal(heat.isOpen, true);
     assert.ok(heat.gradeOptions.includes('Primary 1'));
     assert.ok(heat.centerIds.includes('center-554'));
+  });
+
+  test('deleting a past paper hides it while preserving purchases; closing a paper keeps it manageable', async () => {
+    const removedId = `removed-paper-${runId}`;
+    const closedId = `closed-paper-${runId}`;
+    const catalog = await loadCatalog();
+    const makePaper = (id, active) => ({ id, competitionId: 'bbb', group: 'Big Bay Bei Past Papers', title: id, detail: '', price: 250, active });
+    const saved = await saveCatalogSnapshot({ ...catalog, pastPapers: [
+      ...catalog.pastPapers, makePaper(removedId, true), makePaper(closedId, false),
+    ] }, adminId);
+    assert.ok(saved.pastPapers.some((paper) => paper.id === removedId));
+    assert.ok(saved.pastPapers.some((paper) => paper.id === closedId && !paper.active));
+
+    const input = candidate('ArchivedPaper');
+    input.pastPaperIds = [removedId];
+    const application = await createIndividualDraft(input, ownerId);
+    const after = await saveCatalogSnapshot({ ...saved, pastPapers: saved.pastPapers.filter((paper) => paper.id !== removedId) }, adminId);
+    assert.ok(!after.pastPapers.some((paper) => paper.id === removedId));
+    assert.ok(after.pastPapers.some((paper) => paper.id === closedId && !paper.active));
+    const stored = await getPool().query('SELECT active,archived FROM past_papers WHERE id=$1', [removedId]);
+    assert.deepEqual(stored.rows[0], { active: false, archived: true });
+    const purchase = await getPool().query('SELECT 1 FROM application_past_papers WHERE application_id=$1 AND past_paper_id=$2', [application.id, removedId]);
+    assert.equal(purchase.rowCount, 1);
   });
 
   test('a logged-in non-admin is forbidden while configured admin can read admin results', async () => {
@@ -254,7 +277,7 @@ if (!testUrl) {
     }
   });
 
-  test('mock Google Sheets inserts one approved item and updates the same row after a web edit', async () => {
+  test('mock Google Sheets includes submitted non-rejected items, adds notes, and preserves delivery edits', async () => {
     const existing = await getPool().query('SELECT account_email FROM google_workspace_connection WHERE singleton=true');
     assert.equal(existing.rowCount, 0, 'Sheets mock requires an unconnected disposable database');
     const roundId = `bbb-sheets-test-${runId}`;
@@ -268,6 +291,15 @@ if (!testUrl) {
     const draft = await createIndividualDraft(candidate('Sheets', roundId), ownerId);
     await getPool().query("UPDATE applications SET status='approved',submitted_at=now(),approved_at=now() WHERE id=$1", [draft.id]);
     const item = await getPool().query('SELECT id FROM application_items WHERE application_id=$1', [draft.id]);
+    const pendingDraft = await createIndividualDraft(candidate('SheetsPending', roundId), ownerId);
+    await getPool().query("UPDATE applications SET status='pending',submitted_at=now() WHERE id=$1", [pendingDraft.id]);
+    const pendingItem = await getPool().query('SELECT id FROM application_items WHERE application_id=$1', [pendingDraft.id]);
+    const slipIssueDraft = await createIndividualDraft(candidate('SheetsSlipIssue', roundId), ownerId);
+    await getPool().query("UPDATE applications SET status='slip_issue',submitted_at=now() WHERE id=$1", [slipIssueDraft.id]);
+    const slipIssueItem = await getPool().query('SELECT id FROM application_items WHERE application_id=$1', [slipIssueDraft.id]);
+    const rejectedDraft = await createIndividualDraft(candidate('SheetsRejected', roundId), ownerId);
+    await getPool().query("UPDATE applications SET status='rejected',submitted_at=now() WHERE id=$1", [rejectedDraft.id]);
+    const rejectedItem = await getPool().query('SELECT id FROM application_items WHERE application_id=$1', [rejectedDraft.id]);
 
     const keys = ['GOOGLE_INTEGRATION_CLIENT_ID', 'GOOGLE_INTEGRATION_CLIENT_SECRET', 'GOOGLE_INTEGRATION_REDIRECT_URI', 'GOOGLE_INTEGRATION_ENCRYPTION_KEY'];
     const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
@@ -322,9 +354,10 @@ if (!testUrl) {
         rows.push(...JSON.parse(options.body).values);
         return Response.json({ updates: { updatedRange: `'${isMock ? 'BBB - Mock' : `BBB - Heat ${year}`}'!A${rows.length + 1}:${isMock ? 'H' : 'AK'}${rows.length + 1}` } });
       }
-      if (pathname.includes('/values/') && method === 'PUT' && pathname.includes('!A2:')) {
+      if (pathname.includes('/values/') && method === 'PUT' && /!A\d+:/.test(pathname)) {
         if (sheetsUnavailable) return new Response(null, { status: 503 });
-        sheetRows[0] = JSON.parse(options.body).values[0];
+        const rowNumber = Number(pathname.match(/!A(\d+):/)?.[1]);
+        sheetRows[rowNumber - 2] = JSON.parse(options.body).values[0];
         return Response.json({ updatedRows: 1 });
       }
       throw new Error(`Unexpected mock Sheets request: ${method} ${pathname}`);
@@ -344,6 +377,8 @@ if (!testUrl) {
       const mapping = await getPool().query('SELECT spreadsheet_row FROM google_workspace_sheet_rows WHERE application_item_id=$1', [item.rows[0].id]);
       assert.equal(mapping.rows[0].spreadsheet_row, 2);
       assert.equal(requests.filter(({ pathname }) => pathname.endsWith(':append')).length, 1);
+      const pendingSync = await syncGoogleWorkspaceSheetItem(pendingItem.rows[0].id);
+      assert.equal(pendingSync.skipped, true, 'the regular application sheet sync stays limited to approved applications');
       await getPool().query("UPDATE applicants SET school_name='Outage Test School' WHERE id=(SELECT applicant_id FROM applications WHERE id=$1)", [draft.id]);
       sheetsUnavailable = true;
       await assert.rejects(syncGoogleWorkspaceSheetItem(item.rows[0].id), (error) => error.statusCode === 502);
@@ -360,17 +395,30 @@ if (!testUrl) {
       assert.equal(outside.selected, 0);
       assert.equal(mockRows.length, 0);
       const firstMock = await addFilteredApplicationsToMockSheet(selection);
-      assert.equal(firstMock.inserted, 1);
-      assert.equal(mockRows[0][6], 'รอส่ง');
-      assert.equal(mockRows[0][7], item.rows[0].id);
-      mockRows[0][6] = 'ส่งแล้ว';
+      assert.equal(firstMock.selected, 3);
+      assert.equal(firstMock.inserted, 3);
+      assert.equal(mockRows.length, 3);
+      assert.deepEqual(new Set(mockRows.map((row) => row[7])), new Set([item.rows[0].id, pendingItem.rows[0].id, slipIssueItem.rows[0].id]));
+      assert.ok(!mockRows.some((row) => row[7] === rejectedItem.rows[0].id), 'rejected applications must stay out of the Mock sheet');
+      assert.ok(mockRows.every((row) => row[6] === 'รอส่ง' && row[8] === ''), 'new Mock rows start waiting and include a blank note cell');
+      const mockHeaderRequest = requests.find(({ pathname, method }) => method === 'PUT' && pathname.includes('/mock-delivery-') && pathname.includes('!A1:'));
+      assert.ok(mockHeaderRequest, 'Mock tab headers are written');
+      assert.equal(JSON.parse(mockHeaderRequest.body).values[0][8], 'โน้ต');
+      const mockValidationRequest = requests.find(({ pathname, method, body }) => method === 'POST' && pathname.endsWith(`mock-delivery-${runId}:batchUpdate`) && body?.includes('setDataValidation'));
+      assert.ok(mockValidationRequest, 'Mock status dropdown is configured');
+      const mockStatusOptions = JSON.parse(mockValidationRequest.body).requests.find((request) => request.setDataValidation)?.setDataValidation.rule.condition.values.map((value) => value.userEnteredValue);
+      assert.deepEqual(mockStatusOptions, ['รอส่ง', 'ส่งแล้ว', 'อีเมลมีปัญ']);
+      const approvedMockRow = mockRows.find((row) => row[7] === item.rows[0].id);
+      approvedMockRow[6] = 'ส่งแล้ว';
+      approvedMockRow[8] = 'ติดตามอีเมล';
       await getPool().query("UPDATE applicants SET contact_phone='0899999999' WHERE id=(SELECT applicant_id FROM applications WHERE id=$1)", [draft.id]);
       const secondMock = await addFilteredApplicationsToMockSheet(selection);
       assert.equal(secondMock.inserted, 0);
-      assert.equal(secondMock.updated, 1);
-      assert.equal(mockRows.length, 1);
-      assert.equal(mockRows[0][3], '0899999999');
-      assert.equal(mockRows[0][6], 'ส่งแล้ว', 'a later sync must preserve the administrator-selected Mock status');
+      assert.equal(secondMock.updated, 3);
+      assert.equal(mockRows.length, 3);
+      assert.equal(approvedMockRow[3], '0899999999');
+      assert.equal(approvedMockRow[6], 'ส่งแล้ว', 'a later sync must preserve the administrator-selected Mock status');
+      assert.equal(approvedMockRow[8], 'ติดตามอีเมล', 'a later sync must preserve the administrator note');
     } finally {
       globalThis.fetch = originalFetch;
       await getPool().query('DELETE FROM google_workspace_connection WHERE account_email=$1', [testEmail]);

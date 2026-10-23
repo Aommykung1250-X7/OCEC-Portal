@@ -1,0 +1,35 @@
+/* Migrate feature styles incrementally without resetting legacy element styles. */
+@import url("https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700;800&display=swap");
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "./styles.css" layer(components);
+@import "./design-refresh.css" layer(components);
+@import "./rainbow-theme.css" layer(components);
+@import "./admin-dashboard-v14.css" layer(components);
+@import "./public-blue-theme.css" layer(components);
+@import "./public-refero-theme.css" layer(components);
+@import "./brand-theme.css" layer(components);
+@import "tailwindcss/utilities.css" layer(utilities) source(none);
+@source "./components/ui";
+@source "./components/public";
+@source "./features/home";
+@source "./features/applications";
+@source "./features/results";
+@source "./features/admin";
+
+@theme {
+  --color-ocec-brand: #3A0F34;
+  --color-ocec-brand-dark: #2B0926;
+  --color-ocec-brand-soft: #F3EAF1;
+  --color-ocec-accent: #FF2D95;
+  --color-ocec-accent-soft: #FFE3F0;
+  --color-ocec-accent-hover: #FFF0F7;
+  --color-ocec-ink: #1F2937;
+  --color-ocec-muted: #53616F;
+  --color-ocec-muted-strong: #374151;
+  --color-ocec-border: #D9DEE5;
+  --color-ocec-surface: #FFFFFF;
+  --color-ocec-background: #F7F8FA;
+  --font-portal: "Kanit", sans-serif;
+  --shadow-portal-card: 0 12px 32px rgba(58, 15, 52, .07);
+}

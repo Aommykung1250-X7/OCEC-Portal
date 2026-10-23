@@ -11,6 +11,113 @@ async function adminPage(page, id) {
   await expect(page.locator('.review-detail')).toBeVisible();
 }
 
+test('admin review dialogs fit a small viewport and close from their buttons and Escape', async ({ page }) => {
+  const fixture = await createReviewFixture();
+  await adminPage(page, fixture.id);
+  await page.setViewportSize({ width: 320, height: 800 });
+
+  const openReject = page.getByRole('button', { name: 'ไม่อนุมัติใบสมัคร' });
+  await openReject.click();
+  const rejectDialog = page.getByRole('dialog', { name: 'ไม่อนุมัติใบสมัคร?' });
+  await expect(rejectDialog).toBeVisible();
+  const rejectClose = rejectDialog.getByRole('button', { name: 'ปิดหน้าต่าง' });
+  await expect(rejectClose).toBeFocused();
+  const rejectDialogBox = await rejectDialog.boundingBox();
+  expect(rejectDialogBox).not.toBeNull();
+  if (!rejectDialogBox) throw new Error('Reject dialog has no visible bounds');
+  expect(rejectDialogBox.x).toBeGreaterThanOrEqual(0);
+  expect(rejectDialogBox.y).toBeGreaterThanOrEqual(0);
+  expect(rejectDialogBox.x + rejectDialogBox.width).toBeLessThanOrEqual(320);
+  expect(rejectDialogBox.y + rejectDialogBox.height).toBeLessThanOrEqual(800);
+  await page.keyboard.press('Escape');
+  await expect(rejectDialog).not.toBeVisible();
+  await expect(openReject).toBeFocused();
+
+  await openReject.click();
+  const rejectCloseBox = await rejectClose.boundingBox();
+  expect(rejectCloseBox?.width).toBeGreaterThanOrEqual(44);
+  expect(rejectCloseBox?.height).toBeGreaterThanOrEqual(44);
+  await rejectClose.click();
+  await expect(rejectDialog).not.toBeVisible();
+
+  await openReject.click();
+  await rejectDialog.getByLabel('เหตุผลที่ไม่อนุมัติ').fill('ข้อมูลไม่ครบ '.repeat(25).slice(0, 240));
+  const longRejectDialogBox = await rejectDialog.boundingBox();
+  expect(longRejectDialogBox).not.toBeNull();
+  if (!longRejectDialogBox) throw new Error('Long reject dialog has no visible bounds');
+  expect(longRejectDialogBox.x + longRejectDialogBox.width).toBeLessThanOrEqual(320);
+  expect(longRejectDialogBox.y + longRejectDialogBox.height).toBeLessThanOrEqual(800);
+  await page.mouse.click(1, 1);
+  await expect(rejectDialog).not.toBeVisible();
+
+  await page.getByRole('button', { name: `ขยายดูสลิปของ ${fixture.name}` }).click();
+  const slipDialog = page.getByRole('dialog', { name: `สลิปโอนเงินของ ${fixture.name}` });
+  await expect(slipDialog).toBeVisible();
+  const slipBox = await slipDialog.boundingBox();
+  expect(slipBox).not.toBeNull();
+  if (!slipBox) throw new Error('Slip dialog has no visible bounds');
+  expect(slipBox.x).toBeGreaterThanOrEqual(0);
+  expect(slipBox.y).toBeGreaterThanOrEqual(0);
+  expect(slipBox.x + slipBox.width).toBeLessThanOrEqual(320);
+  expect(slipBox.y + slipBox.height).toBeLessThanOrEqual(800);
+  await slipDialog.getByRole('button', { name: 'ปิดภาพสลิป' }).click();
+  await expect(slipDialog).not.toBeVisible();
+
+  await page.getByRole('button', { name: `ขยายดูสลิปของ ${fixture.name}` }).click();
+  await expect(slipDialog).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(slipDialog).not.toBeVisible();
+
+  for (const width of [320, 390, 1280]) {
+    await page.setViewportSize({ width, height: 800 });
+    await expect(page.locator('.review-detail')).toBeVisible();
+    const pageWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+    expect(pageWidth).toBeLessThanOrEqual(width);
+    await openReject.click();
+    const responsiveDialogBox = await rejectDialog.boundingBox();
+    expect(responsiveDialogBox).not.toBeNull();
+    if (!responsiveDialogBox) throw new Error(`Reject dialog has no visible bounds at ${width}px`);
+    expect(responsiveDialogBox.x).toBeGreaterThanOrEqual(0);
+    expect(responsiveDialogBox.x + responsiveDialogBox.width).toBeLessThanOrEqual(width);
+    expect(responsiveDialogBox.y).toBeGreaterThanOrEqual(0);
+    expect(responsiveDialogBox.y + responsiveDialogBox.height).toBeLessThanOrEqual(800);
+    await page.keyboard.press('Escape');
+    await expect(rejectDialog).not.toBeVisible();
+  }
+});
+
+test('review queue keeps a long list of pending and approved applications inside a 320px viewport', async ({ page }) => {
+  const fixtures = await Promise.all(Array.from({ length: 14 }, () => createReviewFixture()));
+  await adminPage(page, fixtures[0].id);
+
+  for (const fixture of fixtures.slice(0, 2)) {
+    const response = await page.request.patch(`/api/admin/applications/${fixture.id}/review`, { data: { decision: 'approve' } });
+    expect(response.ok()).toBeTruthy();
+  }
+
+  await page.reload();
+  const fixtureRows = fixtures.map((fixture) => page.locator('.review-list-item').filter({ hasText: fixture.firstName }));
+  for (const [index, row] of fixtureRows.entries()) {
+    await expect(row).toHaveCount(1);
+    await expect(row.locator('.review-status-avatar')).toHaveAttribute(
+      'aria-label',
+      index < 2 ? 'ยืนยันใบสมัคร' : 'มียอดชำระรอตรวจสอบ',
+    );
+  }
+  await page.setViewportSize({ width: 320, height: 800 });
+  const list = page.locator('.review-list');
+  expect(await list.evaluate((element) => element.scrollHeight > element.clientHeight)).toBeTruthy();
+  const pageWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+  expect(pageWidth).toBeLessThanOrEqual(320);
+  for (const row of fixtureRows) {
+    const box = await row.boundingBox();
+    expect(box).not.toBeNull();
+    if (!box) throw new Error('Review row has no visible bounds');
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(320);
+  }
+});
+
 test('admin can reject with reason and applicant receives same reason by email', async ({ page }) => {
   const fixture = await createReviewFixture();
   await adminPage(page, fixture.id);
@@ -90,11 +197,18 @@ test('replacement link uploads once and rejects replay', async ({ page }) => {
   expect(invalid.status()).toBe(410);
 });
 
-test('admin selects an approved Mock batch before adding it to the yearly Google Sheet', async ({ page }) => {
+test('admin selects a submitted non-rejected Mock batch before adding it to the yearly Google Sheet', async ({ page }) => {
   const fixture = await createSchoolFinalFixture();
+  const pending = await createReviewFixture();
+  const rejected = await createReviewFixture();
   await page.goto(`/api/auth/google/start?returnTo=${encodeURIComponent('/portal-admin/mock-papers')}&testPersona=admin`);
   await expect(page).toHaveURL(/\/portal-admin\/mock-papers/);
+  const rejectResponse = await page.request.patch(`/api/admin/applications/${rejected.id}/review`, { data: { decision: 'reject', reason: 'Test rejection' } });
+  expect(rejectResponse.ok()).toBeTruthy();
+  await page.reload();
   await expect(page.locator('.admin-mock-table-wrap')).toContainText(fixture.name);
+  await expect(page.locator('.admin-mock-table-wrap')).toContainText(pending.name);
+  await expect(page.locator('.admin-mock-table-wrap')).not.toContainText(rejected.name);
   const filters = page.locator('.admin-mock-filters');
   await expect(filters.getByText('โรงเรียน')).toHaveCount(0);
   await filters.locator('select').nth(0).selectOption('BBB');

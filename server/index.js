@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import { createHash } from 'node:crypto';
 import fastifyStatic from '@fastify/static';
 import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { getPool, transaction } from './db.js';
@@ -13,6 +14,7 @@ import { enqueueIntegrationJob, integrationQueueStatus, retryIntegrationJob } fr
 import { applyFinalIds, generateExamNumbers, getFinalIdImport, importFinalIds, importResultRows, listAdminResultWorkflows, listPublishedResults, publishResultBatch, resolveFinalIdImportRow, resolveResultImportRow } from './results.js';
 import { createFinalVerificationGrant, finalGrantCookie, finalGrantTokenFromRequest, listFinalEligibilityForUser, searchSchoolFinalEligibility } from './finalEligibility.js';
 import { isKnownSpaLocation } from '../src/routes.js';
+import { getCenterPosterOverride, resetCenterPoster, saveCenterPoster } from './centerPoster.js';
 
 export const app = Fastify({ logger: true, bodyLimit: 16 * 1024 * 1024, trustProxy: true });
 
@@ -73,6 +75,27 @@ app.get('/api/ready', async (request, reply) => {
 registerAuthRoutes(app);
 
 const noStore = async (_request, reply) => { reply.header('Cache-Control', 'no-store'); };
+const centerPosterDefaultPath = join(dirname(fileURLToPath(import.meta.url)), '../public/paper-based-centers-poster.png');
+app.get('/api/center-poster', async (request, reply) => {
+  const override = await getCenterPosterOverride();
+  const content = override?.content || await readFile(centerPosterDefaultPath);
+  const mimeType = override?.mimeType || 'image/png';
+  const etag = `"${createHash('sha256').update(content).digest('hex')}"`;
+  const requestedEtags = String(request.headers['if-none-match'] || '').split(',').map((value) => value.trim());
+  reply.header('ETag', etag).header('Cache-Control', 'public, max-age=0, must-revalidate')
+    .header('X-Content-Type-Options', 'nosniff').type(mimeType);
+  if (requestedEtags.includes('*') || requestedEtags.includes(etag)) return reply.code(304).send();
+  return reply.send(content);
+});
+const centerPosterUploadSchema = { type: 'object', additionalProperties: false, required: ['mimeType', 'dataBase64'], properties: {
+  mimeType: { type: 'string', enum: ['image/png', 'image/jpeg', 'image/webp'] },
+  dataBase64: { type: 'string', minLength: 1, maxLength: 6_990_508 },
+} };
+app.put('/api/admin/center-poster', { preHandler: requireAdmin, schema: { body: centerPosterUploadSchema } }, async (request) => saveCenterPoster(request.body, request.user.id));
+app.delete('/api/admin/center-poster', { preHandler: requireAdmin }, async (request) => {
+  await resetCenterPoster(request.user.id);
+  return { version: null };
+});
 app.post('/api/public/final-eligibility/search', { onRequest: noStore, preHandler: publicLookupRateLimit('final-search', 60, 15), schema: { body: {
   type: 'object', additionalProperties: false, required: ['candidateName'], properties: { candidateName: { type: 'string', minLength: 3, maxLength: 255 } },
 } } }, async (request) => ({ choices: await searchSchoolFinalEligibility(request.body.candidateName) }));

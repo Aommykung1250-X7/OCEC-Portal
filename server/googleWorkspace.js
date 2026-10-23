@@ -443,14 +443,16 @@ async function applicationRowsForSheets(applicationItemId = null, filters = {}) 
       SELECT ps.drive_file_id FROM payment_slips ps WHERE ps.payment_id=pay.id ORDER BY ps.uploaded_at DESC LIMIT 1
     ) slip ON true
     LEFT JOIN certificate_photos cp ON cp.application_item_id=ai.id
-    WHERE a.status = 'approved' AND ($1::uuid IS NULL OR ai.id=$1)
+    WHERE (($7::boolean AND a.status IN ('pending','approved','slip_issue')) OR (NOT $7::boolean AND a.status='approved'))
+      AND ($1::uuid IS NULL OR ai.id=$1)
       AND ($2::text IS NULL OR r.year=$2)
       AND ($3::text IS NULL OR c.short_name=$3)
       AND ($4::text IS NULL OR g.label=$4)
       AND ($5::date IS NULL OR (a.submitted_at AT TIME ZONE 'Asia/Bangkok')::date >= $5::date)
       AND ($6::date IS NULL OR (a.submitted_at AT TIME ZONE 'Asia/Bangkok')::date <= $6::date)
     ORDER BY r.year DESC, c.short_name, r.round_type, ap.last_name_en, ap.first_name_en`,
-  [applicationItemId, filters.year || null, filters.competition || null, filters.grade || null, filters.startDate || null, filters.endDate || null]);
+  [applicationItemId, filters.year || null, filters.competition || null, filters.grade || null, filters.startDate || null, filters.endDate || null,
+    filters.includeSubmittedNonRejected === true]);
   return result.rows;
 }
 
@@ -567,7 +569,7 @@ export async function syncGoogleWorkspaceSheets() {
   return { ...counters, processed: rows.length };
 }
 
-const MOCK_HEADERS = ['วันที่ส่งใบสมัคร', 'ชื่อ', 'อีเมล', 'เบอร์โทร', 'รายการสอบ', 'ระดับชั้น', 'สถานะ', 'Application Item ID'];
+const MOCK_HEADERS = ['วันที่ส่งใบสมัคร', 'ชื่อ', 'อีเมล', 'เบอร์โทร', 'รายการสอบ', 'ระดับชั้น', 'สถานะ', 'Application Item ID', 'โน้ต'];
 
 function bangkokDate(value) {
   const date = new Date(value);
@@ -576,20 +578,20 @@ function bangkokDate(value) {
 }
 
 async function configureMockTab(spreadsheetId, sheetId, title) {
-  const range = sheetRange(title, 'A1:H1');
+  const range = sheetRange(title, 'A1:I1');
   await googleRequest(`${SHEETS_API}/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${range}?valueInputOption=RAW`, {
     method: 'PUT', body: JSON.stringify({ values: [MOCK_HEADERS] }),
   });
   await googleRequest(`${SHEETS_API}/spreadsheets/${encodeURIComponent(spreadsheetId)}:batchUpdate`, {
     method: 'POST', body: JSON.stringify({ requests: [
       { updateSheetProperties: { properties: { sheetId, gridProperties: { frozenRowCount: 1 } }, fields: 'gridProperties.frozenRowCount' } },
-      { repeatCell: { range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 7 }, cell: {
+      { repeatCell: { range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 9 }, cell: {
         userEnteredFormat: { backgroundColor: { red: 0.13, green: 0.25, blue: 0.42 }, textFormat: { foregroundColor: { red: 1, green: 1, blue: 1 }, bold: true } },
       }, fields: 'userEnteredFormat' } },
       { updateDimensionProperties: { range: { sheetId, dimension: 'COLUMNS', startIndex: 7, endIndex: 8 }, properties: { hiddenByUser: true }, fields: 'hiddenByUser' } },
-      { setBasicFilter: { filter: { range: { sheetId, startRowIndex: 0, startColumnIndex: 0, endColumnIndex: 8 } } } },
+      { setBasicFilter: { filter: { range: { sheetId, startRowIndex: 0, startColumnIndex: 0, endColumnIndex: 9 } } } },
       { setDataValidation: { range: { sheetId, startRowIndex: 1, startColumnIndex: 6, endColumnIndex: 7 }, rule: {
-        condition: { type: 'ONE_OF_LIST', values: ['รอส่ง', 'ส่งแล้ว', 'อีเมลมีปัญหา'].map((userEnteredValue) => ({ userEnteredValue })) },
+        condition: { type: 'ONE_OF_LIST', values: ['รอส่ง', 'ส่งแล้ว', 'อีเมลมีปัญ'].map((userEnteredValue) => ({ userEnteredValue })) },
         strict: true, showCustomUi: true,
       } } },
     ] }),
@@ -600,7 +602,11 @@ async function ensureMockSpreadsheetAndTab(year, competition) {
   const tabResult = await getPool().query(`SELECT t.sheet_id,t.title,s.drive_file_id,s.spreadsheet_url
     FROM google_workspace_mock_sheet_tabs t JOIN google_workspace_mock_spreadsheets s USING(academic_year)
     WHERE t.academic_year=$1 AND t.competition=$2`, [year, competition]);
-  if (tabResult.rowCount) return { ...tabResult.rows[0], spreadsheetId: tabResult.rows[0].drive_file_id };
+  if (tabResult.rowCount) {
+    const existing = { ...tabResult.rows[0], spreadsheetId: tabResult.rows[0].drive_file_id };
+    await configureMockTab(existing.spreadsheetId, existing.sheet_id, existing.title);
+    return existing;
+  }
 
   const title = `${competition} - Mock`.replace(/[\\/?*\[\]:]/g, '-').slice(0, 95);
   const initialized = await initializeGoogleDriveFolders();
@@ -656,7 +662,7 @@ async function sourceSheetRowsForMock(rows) {
 
 export async function addFilteredApplicationsToMockSheet({ year, competition, grade, startDate, endDate }) {
   if (!(await getConnection())) throw Object.assign(new Error('Connect Google Workspace before adding Mock applicants'), { statusCode: 400 });
-  const selected = await applicationRowsForSheets(null, { year, competition, grade, startDate, endDate });
+  const selected = await applicationRowsForSheets(null, { year, competition, grade, startDate, endDate, includeSubmittedNonRejected: true });
   if (!selected.length) return { selected: 0, inserted: 0, updated: 0, spreadsheetUrl: null };
   const sourceRows = await sourceSheetRowsForMock(selected);
   return withSheetYearLock(`mock-${year}`, async () => {
@@ -670,7 +676,7 @@ export async function addFilteredApplicationsToMockSheet({ year, competition, gr
       const source = sourceRows.get(row.application_item_id);
       if (!source) throw new Error(`Application item ${row.application_item_id} is missing from its source sheet`);
       const values = [bangkokDate(source[3]), [source[14], source[15], source[16]].filter(Boolean).join(' '), source[21] || '',
-        source[22] || '', `${row.short_name} ${row.round_type}`, source[10] || '', 'รอส่ง', row.application_item_id];
+        source[22] || '', `${row.short_name} ${row.round_type}`, source[10] || '', 'รอส่ง', row.application_item_id, ''];
       const existingRow = existingRows.get(row.application_item_id);
       if (existingRow) {
         updates.push({ range: decodeURIComponent(sheetRange(tab.title, `A${existingRow}:F${existingRow}`)), values: [values.slice(0, 6)] });
@@ -681,7 +687,7 @@ export async function addFilteredApplicationsToMockSheet({ year, competition, gr
     if (updates.length) await googleRequest(`${SHEETS_API}/spreadsheets/${encodeURIComponent(tab.spreadsheetId)}/values:batchUpdate`, {
       method: 'POST', body: JSON.stringify({ valueInputOption: 'RAW', data: updates }),
     });
-    if (additions.length) await googleRequest(`${SHEETS_API}/spreadsheets/${encodeURIComponent(tab.spreadsheetId)}/values/${sheetRange(tab.title, 'A:H')}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
+    if (additions.length) await googleRequest(`${SHEETS_API}/spreadsheets/${encodeURIComponent(tab.spreadsheetId)}/values/${sheetRange(tab.title, 'A:I')}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
       method: 'POST', body: JSON.stringify({ values: additions }),
     });
     await getPool().query('UPDATE google_workspace_mock_spreadsheets SET updated_at=now() WHERE academic_year=$1', [year]);

@@ -325,7 +325,7 @@ async function resolveDraft(client, candidate, ownerId, finalGrantToken = null) 
   }
   const paperIds = candidate.pastPaperIds || [];
   if (new Set(paperIds).size !== paperIds.length) throw invalid('Past paper selected twice');
-  const papers = paperIds.length ? await client.query('SELECT * FROM past_papers WHERE id=ANY($1::text[]) AND active=true', [paperIds]) : { rows: [] };
+  const papers = paperIds.length ? await client.query('SELECT * FROM past_papers WHERE id=ANY($1::text[]) AND active=true AND archived=false', [paperIds]) : { rows: [] };
   if (papers.rows.length !== paperIds.length) throw invalid('Past paper unavailable');
   const competitionIds = new Set(resolved.map(({ round }) => round.competition_id));
   if (papers.rows.some((paper) => paper.competition_id && !competitionIds.has(paper.competition_id))) throw invalid('Past paper does not match a selected competition');

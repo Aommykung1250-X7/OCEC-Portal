@@ -1,4 +1,5 @@
 import { getPool, transaction } from './db.js';
+import { DEFAULT_CENTER_CATALOG, isOnlineCenter, ONLINE_CENTER_CODE, ONLINE_CENTER_ID } from '../src/centers.js';
 
 const date = (value) => value ? (typeof value === 'string' ? value.slice(0, 10) : value.toISOString().slice(0, 10)) : '';
 const time = (value) => value ? String(value).slice(0, 5) : '';
@@ -11,7 +12,7 @@ const bangkokToday = () => {
 };
 
 export async function loadCatalog() {
-  const [rounds, grades, centers, links, pastPapers, accounts, competitions] = await Promise.all([
+  const [rounds, grades, centers, links, pastPapers, accounts, competitions, centerPoster] = await Promise.all([
     getPool().query('SELECT * FROM exam_rounds WHERE active=true ORDER BY year DESC, title'),
     getPool().query('SELECT * FROM grade_catalog WHERE active=true ORDER BY sort_order, label'),
     getPool().query('SELECT * FROM exam_centers ORDER BY code'),
@@ -19,13 +20,20 @@ export async function loadCatalog() {
       UNION ALL
       SELECT rc.exam_round_id, NULL::text, rc.center_id FROM exam_round_centers rc
       JOIN exam_centers ec ON ec.id=rc.center_id WHERE ec.code <> '500'`),
-    getPool().query('SELECT * FROM past_papers ORDER BY group_name, id'),
+    getPool().query('SELECT * FROM past_papers WHERE archived=false ORDER BY group_name, id'),
     getPool().query('SELECT * FROM payment_accounts WHERE active=true ORDER BY id'),
     getPool().query('SELECT * FROM competitions ORDER BY id'),
+    getPool().query("SELECT to_char(updated_at AT TIME ZONE 'UTC', 'YYYYMMDDHH24MISSUS') AS version FROM application_center_poster WHERE id=1"),
   ]);
   const gradeById = new Map(grades.rows.map((grade) => [grade.id, grade.label]));
+  const gradeOrder = new Map(grades.rows.map((grade, index) => [grade.label, index]));
   const today = bangkokToday();
   const competitionOrder = ['hkimo', 'hkiso', 'hkico', 'timo', 'bbb'];
+  const onlineCenter = centers.rows.find((center) => center.code === ONLINE_CENTER_CODE || center.id === ONLINE_CENTER_ID);
+  const catalogCenters = centers.rows
+    .filter((center) => !isOnlineCenter(center))
+    .map((row) => ({ id: row.id, code: row.code, name: row.name, active: row.active }));
+  catalogCenters.unshift({ ...DEFAULT_CENTER_CATALOG[0], id: onlineCenter?.id || DEFAULT_CENTER_CATALOG[0].id });
   return {
     competitions: competitions.rows.map((row) => ({ id: row.id, short: row.short_name, name: row.name, subject: row.subject, active: row.active }))
       .sort((left, right) => {
@@ -37,12 +45,13 @@ export async function loadCatalog() {
       const openDate = date(row.open_date);
       const closeDate = date(row.close_date);
       const manuallyClosed = Boolean(row.final_manually_closed);
-      return { id: row.id, competitionId: row.competition_id, title: row.title, year: row.year, roundType: row.round_type, round: row.round_type === 'HEAT' ? 'HEAT ROUND' : row.round_type === 'FINAL' ? 'FINAL ROUND' : 'FINAL X', openDate, closeDate, editCloseDate: date(row.edit_close_date), examDate: date(row.exam_date), examStartTime: time(row.exam_start_time), examEndTime: time(row.exam_end_time), finalConfirmCloseDate: row.round_type === 'FINAL' ? closeDate : date(row.final_confirm_close_date), finalManuallyClosed: manuallyClosed, isOpen: Boolean(openDate && closeDate && openDate <= today && today <= closeDate && !manuallyClosed), accent: row.accent, logoDataUrl: row.logo_data_url || '', prices: { paperBased: row.paper_price_satang / 100, onlineExam: row.online_price_satang / 100 }, description: row.description, gradeOptions: links.rows.filter((item) => item.exam_round_id === row.id && item.grade_id).map((item) => gradeById.get(item.grade_id)).filter(Boolean), centerIds: links.rows.filter((item) => item.exam_round_id === row.id && item.center_id).map((item) => item.center_id) };
+      return { id: row.id, competitionId: row.competition_id, title: row.title, year: row.year, roundType: row.round_type, round: row.round_type === 'HEAT' ? 'HEAT ROUND' : row.round_type === 'FINAL' ? 'FINAL ROUND' : 'FINAL X', openDate, closeDate, editCloseDate: date(row.edit_close_date), examDate: date(row.exam_date), examStartTime: time(row.exam_start_time), examEndTime: time(row.exam_end_time), finalConfirmCloseDate: row.round_type === 'FINAL' ? closeDate : date(row.final_confirm_close_date), finalManuallyClosed: manuallyClosed, isOpen: Boolean(openDate && closeDate && openDate <= today && today <= closeDate && !manuallyClosed), accent: row.accent, logoDataUrl: row.logo_data_url || '', prices: { paperBased: row.paper_price_satang / 100, onlineExam: row.online_price_satang / 100 }, description: row.description, gradeOptions: links.rows.filter((item) => item.exam_round_id === row.id && item.grade_id).map((item) => gradeById.get(item.grade_id)).filter(Boolean).sort((left, right) => gradeOrder.get(left) - gradeOrder.get(right)), centerIds: links.rows.filter((item) => item.exam_round_id === row.id && item.center_id).map((item) => item.center_id) };
     }),
     grades: grades.rows.map((row) => ({ id: row.id, label: row.label, sortOrder: row.sort_order, active: row.active })),
-    centers: centers.rows.map((row) => ({ id: row.id, code: row.code, name: row.name, active: row.active })),
+    centers: catalogCenters,
     pastPapers: pastPapers.rows.map((row) => ({ id: row.id, competitionId: row.competition_id, group: row.group_name, title: row.title, detail: row.detail, name: `${row.title} — ${row.detail}`, price: row.price_satang / 100, active: row.active })),
     paymentAccounts: accounts.rows.map((row) => ({ id: row.id, bankName: row.bank_name, accountName: row.account_name, accountNumber: row.account_number, category: row.category, showInForm: row.show_in_form, active: row.active })),
+    centerPosterVersion: centerPoster.rows[0]?.version || null,
   };
 }
 
@@ -117,7 +126,7 @@ async function catalogAuditSnapshot(client) {
     'rounds',(SELECT coalesce(jsonb_agg(jsonb_build_object('id',id,'competitionId',competition_id,'title',title,'year',year,'roundType',round_type,'openDate',open_date,'closeDate',close_date,'editCloseDate',edit_close_date,'examDate',exam_date,'isOpen',is_open,'active',active,'paperPriceSatang',paper_price_satang,'onlinePriceSatang',online_price_satang) ORDER BY id),'[]'::jsonb) FROM exam_rounds),
     'grades',(SELECT coalesce(jsonb_agg(jsonb_build_object('id',id,'label',label,'sortOrder',sort_order,'active',active) ORDER BY sort_order,id),'[]'::jsonb) FROM grade_catalog),
     'centers',(SELECT coalesce(jsonb_agg(jsonb_build_object('id',id,'code',code,'name',name,'active',active) ORDER BY code),'[]'::jsonb) FROM exam_centers),
-    'pastPapers',(SELECT coalesce(jsonb_agg(jsonb_build_object('id',id,'competitionId',competition_id,'group',group_name,'title',title,'detail',detail,'priceSatang',price_satang,'active',active) ORDER BY id),'[]'::jsonb) FROM past_papers),
+    'pastPapers',(SELECT coalesce(jsonb_agg(jsonb_build_object('id',id,'competitionId',competition_id,'group',group_name,'title',title,'detail',detail,'priceSatang',price_satang,'active',active,'archived',archived) ORDER BY id),'[]'::jsonb) FROM past_papers),
     'paymentAccounts',(SELECT coalesce(jsonb_agg(jsonb_build_object('id',id,'bankName',bank_name,'accountName',account_name,'accountLast4',right(regexp_replace(account_number,'[^0-9]','','g'),4),'category',category,'showInForm',show_in_form,'active',active) ORDER BY id),'[]'::jsonb) FROM payment_accounts),
     'competitions',(SELECT coalesce(jsonb_agg(jsonb_build_object('id',id,'short',short_name,'name',name,'subject',subject,'active',active) ORDER BY id),'[]'::jsonb) FROM competitions)
   ) AS snapshot`);
@@ -144,14 +153,19 @@ export async function saveCatalogSnapshot(snapshot, actorId) {
   });
   const centerIds = new Set();
   const centerCodes = new Set();
-  const centers = snapshot.centers.map((center) => {
+  const onlineCenter = snapshot.centers.find((center) => center.code === ONLINE_CENTER_CODE || center.id === ONLINE_CENTER_ID);
+  const submittedCenters = [
+    ...snapshot.centers.filter((center) => !isOnlineCenter(center)),
+    { ...DEFAULT_CENTER_CATALOG[0], id: onlineCenter?.id || DEFAULT_CENTER_CATALOG[0].id },
+  ];
+  const centers = submittedCenters.map((center) => {
     const id = safeId(center.id, 'Exam center ID');
-    const code = cleanText(center.code, 'Exam center code', 3);
-    const name = cleanText(center.name, 'Exam center name', 255);
+    const code = center.id === ONLINE_CENTER_ID ? ONLINE_CENTER_CODE : cleanText(center.code, 'Exam center code', 3);
+    const name = center.id === ONLINE_CENTER_ID ? DEFAULT_CENTER_CATALOG[0].name : cleanText(center.name, 'Exam center name', 255);
     if (!/^\d{3}$/.test(code)) throw fail('Exam center codes must contain exactly three digits');
     if (centerIds.has(id) || centerCodes.has(code)) throw fail('Exam center IDs and codes must be unique');
     centerIds.add(id); centerCodes.add(code);
-    return { id, code, name, active: center.active !== false };
+    return { id, code, name, active: center.id === ONLINE_CENTER_ID || center.active !== false };
   });
   const competitionIds = new Set();
   const competitionShorts = new Set();
@@ -283,12 +297,12 @@ export async function saveCatalogSnapshot(snapshot, actorId) {
       }
     }
     await client.query('UPDATE exam_rounds SET active=false,is_open=false,updated_at=now() WHERE active');
-    await client.query('UPDATE past_papers SET active=false');
+    await client.query('UPDATE past_papers SET active=false, archived=true WHERE archived=false');
     for (const paper of papers) {
       if (paper.competitionId && !compById.has(paper.competitionId) && !exams.some((exam) => exam.competitionId === paper.competitionId)) throw fail(`Unknown competition for past paper ${paper.title}`);
-      await client.query(`INSERT INTO past_papers(id,competition_id,group_name,title,detail,price_satang,active)
-        VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(id) DO UPDATE SET competition_id=excluded.competition_id,
-        group_name=excluded.group_name,title=excluded.title,detail=excluded.detail,price_satang=excluded.price_satang,active=excluded.active`,
+      await client.query(`INSERT INTO past_papers(id,competition_id,group_name,title,detail,price_satang,active,archived)
+        VALUES($1,$2,$3,$4,$5,$6,$7,false) ON CONFLICT(id) DO UPDATE SET competition_id=excluded.competition_id,
+        group_name=excluded.group_name,title=excluded.title,detail=excluded.detail,price_satang=excluded.price_satang,active=excluded.active,archived=false`,
       [paper.id, paper.competitionId, paper.group, paper.title, paper.detail, paper.priceSatang, paper.active]);
     }
     for (const exam of exams) {

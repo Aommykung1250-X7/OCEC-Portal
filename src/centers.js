@@ -96,12 +96,9 @@ export function parseCenterRows(rows, existingCenters = []) {
     }
     seenCodes.add(code);
     const existing = existingByCode.get(code);
-    centers.push({
-      id: existing?.id || `center-${code}`,
-      code,
-      name,
-      active: true,
-    });
+    centers.push(code === ONLINE_CENTER_CODE
+      ? { ...DEFAULT_CENTER_CATALOG[0], id: existing?.id || DEFAULT_CENTER_CATALOG[0].id }
+      : { id: existing?.id || `center-${code}`, code, name, active: true });
   });
 
   if (!centers.some((center) => center.code === ONLINE_CENTER_CODE)) {
@@ -117,7 +114,8 @@ export function getCommonCenters(competitionIds, examCatalog, centerCatalog, opt
   const selectedCards = selectedIds.map((competitionId) => (examCatalog || []).find((exam) =>
     (exam.competitionId || exam.id) === competitionId
     && (!options.year || exam.year === options.year)
-    && (!options.roundType || (exam.roundType || exam.round) === options.roundType)));
+    && (!options.roundType || (exam.roundType || exam.round) === options.roundType)
+    && (!options.roundId || exam.id === options.roundId)));
   if (selectedCards.some((card) => !card)) return [];
 
   let allowedIds = null;
