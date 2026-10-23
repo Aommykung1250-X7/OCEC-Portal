@@ -18,12 +18,15 @@ export function CenterPosterPreview({ version, backendEnabled = false }) {
           <p className="m-0 text-xs leading-relaxed text-ocec-muted">ดูตำแหน่งศูนย์สอบทั่วประเทศก่อนเลือกศูนย์สอบในรายการของคุณ</p>
         </div>
       </div>
-      <Button variant="outline" icon="image" className="w-full sm:w-auto" onClick={() => dialogRef.current?.showModal()}>
+      <Button variant="outline" icon="image" className="w-full sm:w-auto" onClick={(event) => {
+        event.currentTarget.focus({ preventScroll: true });
+        dialogRef.current?.showModal();
+      }}>
         ดูโปสเตอร์ขนาดใหญ่
       </Button>
       <dialog
         ref={dialogRef}
-        className="fixed inset-0 m-auto h-fit max-h-[92dvh] w-[calc(100vw-24px)] max-w-[900px] overflow-auto rounded-2xl border border-ocec-border bg-white p-3 shadow-2xl backdrop:bg-slate-950/70 sm:p-5"
+        className="fixed inset-0 m-auto h-fit max-h-[92dvh] w-fit max-w-[calc(100vw-24px)] overflow-auto rounded-2xl border border-ocec-border bg-white p-3 shadow-2xl backdrop:bg-slate-950/70 sm:p-5"
         aria-labelledby="center-poster-dialog-title"
         onClick={(event) => { if (event.target === dialogRef.current) dialogRef.current.close(); }}
       >
