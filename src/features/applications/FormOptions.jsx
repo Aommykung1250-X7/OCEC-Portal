@@ -26,6 +26,23 @@ export function CompetitionFormatPicker({ competitionId, format, paperPrice, onl
   </div></fieldset>;
 }
 
+export function CompetitionPriceSummary({ selected, format, paperPrice, onlinePrice }) {
+  const isOnline = format === "Online" || format === "Online Exam";
+  const onsiteAmount = Number(paperPrice || 0).toLocaleString();
+  const onlineAmount = Number(onlinePrice || 0).toLocaleString();
+  if (selected) {
+    const selectedMode = isOnline ? "Online" : "Onsite";
+    const selectedAmount = isOnline ? onlineAmount : onsiteAmount;
+    return <span className="competition-fee competition-fee-selected" aria-label={`ค่าสมัคร ${selectedMode} ฿${selectedAmount}`}>
+      <small>{selectedMode}</small><strong>฿{selectedAmount}</strong>
+    </span>;
+  }
+  return <span className="competition-fee competition-fee-options" aria-label={`Onsite ฿${onsiteAmount}, Online ฿${onlineAmount}`}>
+    <span><small>Onsite</small><strong>฿{onsiteAmount}</strong></span>
+    <span><small>Online</small><strong>฿{onlineAmount}</strong></span>
+  </span>;
+}
+
 export function PaymentAccountCards({ accounts }) {
   const visibleAccounts = (accounts || []).filter((account) => account.active !== false && account.showInForm !== false);
   return visibleAccounts.length ? <div className="payment-account-list mt-3 grid gap-2.5">{visibleAccounts.map((account) => (
