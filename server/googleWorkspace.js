@@ -1,5 +1,6 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 import { getPool } from './db.js';
+import { paymentSlipDisplayName, paymentSlipFileName, paymentSlipFileNameBase, paymentSlipFolderName, paymentSlipYear } from './paymentSlipFiles.js';
 
 const DRIVE_API = 'https://www.googleapis.com/drive/v3';
 const DRIVE_UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3';
@@ -80,8 +81,9 @@ function decryptToken(value) {
   return Buffer.concat([decipher.update(Buffer.from(dataPart, 'base64url')), decipher.final()]).toString('utf8');
 }
 
-async function getConnection() {
-  const result = await getPool().query('SELECT * FROM google_workspace_connection WHERE singleton=true');
+async function getConnection(client = null) {
+  const query = client ? client.query.bind(client) : getPool().query.bind(getPool());
+  const result = await query('SELECT * FROM google_workspace_connection WHERE singleton=true');
   return result.rows[0] || null;
 }
 
@@ -199,7 +201,7 @@ function driveQueryString(value) {
 async function getDriveFile(fileId) {
   if (!fileId) return null;
   try {
-    const file = await googleRequest(`${DRIVE_API}/files/${encodeURIComponent(fileId)}?fields=id,name,mimeType,parents,trashed,webViewLink`);
+    const file = await googleRequest(`${DRIVE_API}/files/${encodeURIComponent(fileId)}?fields=id,name,mimeType,parents,trashed,appProperties,webViewLink`);
     return file?.trashed ? null : file;
   } catch (error) {
     if (error.statusCode === 404 || String(error.message).includes('(404)')) return null;
@@ -227,8 +229,31 @@ async function ensureDriveFolder(parentId, name, preferredId = '') {
   return await findDriveFolder(parentId, name) || await createDriveFolder(parentId, name);
 }
 
-export async function initializeGoogleDriveFolders() {
-  const connection = await getConnection();
+export async function ensureGoogleDriveSlipYearFolder(uploadedAt, { lockClient = null, transactionLock = false, connection: suppliedConnection = null } = {}) {
+  const year = paymentSlipYear(uploadedAt);
+  const connection = suppliedConnection || await getConnection(lockClient);
+  if (!connection) throw new Error('Connect a Google account before initializing Drive folders');
+  let parentId = connection.slip_root_folder_id;
+  if (!parentId) {
+    const initialized = await initializeGoogleDriveFolders({ lockClient, transactionLock });
+    parentId = initialized.slips.id;
+  }
+  if (!parentId) throw new Error('Google Drive payment slip folder is not initialized');
+  const ownClient = !lockClient;
+  const client = lockClient || await getPool().connect();
+  const lockName = `payment-slip-folder:${year}`;
+  let locked = false;
+  try {
+    await client.query('SELECT pg_advisory_lock(hashtextextended($1,0))', [lockName]);
+    locked = true;
+    return await ensureDriveFolder(parentId, paymentSlipFolderName(uploadedAt));
+  } finally {
+    if (locked) await client.query('SELECT pg_advisory_unlock(hashtextextended($1,0))', [lockName]).catch(() => {});
+    if (ownClient) client.release();
+  }
+}
+
+async function initializeGoogleDriveFoldersUnlocked(connection, client) {
   if (!connection) throw new Error('Connect a Google account before initializing Drive folders');
   const root = await ensureDriveFolder('', ROOT_FOLDER_NAME, connection.drive_root_folder_id);
   const [slips, photos, sheets] = await Promise.all([
@@ -236,9 +261,25 @@ export async function initializeGoogleDriveFolders() {
     ensureDriveFolder(root.id, FOLDER_NAMES.photos, connection.certificate_photo_root_folder_id),
     ensureDriveFolder(root.id, FOLDER_NAMES.sheets, connection.spreadsheet_root_folder_id),
   ]);
-  await getPool().query(`UPDATE google_workspace_connection SET drive_root_folder_id=$1, slip_root_folder_id=$2,
+  await client.query(`UPDATE google_workspace_connection SET drive_root_folder_id=$1, slip_root_folder_id=$2,
     certificate_photo_root_folder_id=$3, spreadsheet_root_folder_id=$4, updated_at=now() WHERE singleton=true`, [root.id, slips.id, photos.id, sheets.id]);
   return { root, slips, photos, sheets };
+}
+
+export async function initializeGoogleDriveFolders({ lockClient = null, transactionLock = false } = {}) {
+  const ownClient = !lockClient;
+  const client = lockClient || await getPool().connect();
+  const lockName = 'google-drive-root-folders-initialization';
+  let locked = false;
+  try {
+    await client.query(`SELECT pg_advisory_${transactionLock ? 'xact_lock' : 'lock'}(hashtextextended($1,0))`, [lockName]);
+    locked = true;
+    const connection = await getConnection(client);
+    return await initializeGoogleDriveFoldersUnlocked(connection, client);
+  } finally {
+    if (locked && !transactionLock) await client.query('SELECT pg_advisory_unlock(hashtextextended($1,0))', [lockName]).catch(() => {});
+    if (ownClient) client.release();
+  }
 }
 
 function safeFolderName(value) {
@@ -247,26 +288,33 @@ function safeFolderName(value) {
   return name;
 }
 
-export async function uploadGoogleDriveFile({ category, folders = [], name, mimeType, buffer, existingFileId = '' }) {
+export async function uploadGoogleDriveFile({ category, folders = [], name, mimeType, buffer, existingFileId = '', uploadedAt, appProperties = null, folderLockClient = null, folderLockTransactional = false }) {
   if (!['slips', 'photos'].includes(category)) throw new Error('Drive upload category must be slips or photos');
+  if (category === 'slips' && !uploadedAt) throw new Error('Payment slip upload time is required');
   if (!Buffer.isBuffer(buffer) || buffer.length === 0) throw new Error('A non-empty file is required');
   if (buffer.length > 12 * 1024 * 1024) throw new Error('File exceeds the 12 MB upload limit');
   const fileName = String(name || '').normalize('NFKC').trim();
   if (!fileName || fileName.length > 180 || /[\\/\x00-\x1f]/.test(fileName) || !/\.[A-Za-z0-9]{1,8}$/.test(fileName)) throw new Error('File name contains unsupported characters');
   if (!/^(image\/(jpeg|png|webp)|application\/pdf)$/.test(String(mimeType || ''))) throw new Error('Unsupported file type');
-  const connection = await getConnection();
+  const connection = await getConnection(folderLockClient);
   if (!connection) throw new Error('Connect a Google account before uploading files');
-  let parentId = category === 'slips' ? connection.slip_root_folder_id : connection.certificate_photo_root_folder_id;
-  if (!parentId) {
-    const initialized = await initializeGoogleDriveFolders();
-    parentId = category === 'slips' ? initialized.slips.id : initialized.photos.id;
+  let parentId;
+  if (category === 'slips') {
+    parentId = (await ensureGoogleDriveSlipYearFolder(uploadedAt, { lockClient: folderLockClient,
+      transactionLock: folderLockTransactional, connection })).id;
+  } else {
+    parentId = connection.certificate_photo_root_folder_id;
+    if (!parentId) parentId = (await initializeGoogleDriveFolders()).photos.id;
+    for (const part of folders.map(safeFolderName)) parentId = (await (async () => {
+      const folder = await findDriveFolder(parentId, part);
+      return folder || createDriveFolder(parentId, part);
+    })()).id;
   }
-  for (const part of folders.map(safeFolderName)) parentId = (await (async () => {
-    const folder = await findDriveFolder(parentId, part);
-    return folder || createDriveFolder(parentId, part);
-  })()).id;
 
-  const metadata = { name: fileName, mimeType, ...(parentId && !existingFileId ? { parents: [parentId] } : {}) };
+  const metadata = {
+    name: fileName, mimeType, ...(parentId && !existingFileId ? { parents: [parentId] } : {}),
+    ...(appProperties && Object.keys(appProperties).length ? { appProperties } : {}),
+  };
   const boundary = `ocec_${randomBytes(18).toString('hex')}`;
   const body = Buffer.concat([
     Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n`),
@@ -280,6 +328,138 @@ export async function uploadGoogleDriveFile({ category, folders = [], name, mime
     body,
     headers: { 'content-type': `multipart/related; boundary=${boundary}` },
   });
+}
+
+export async function findGoogleDriveSlipByRowId(slipRowId, parentId = '') {
+  const query = [`appProperties has { key='ocecPaymentSlipId' and value='${driveQueryString(slipRowId)}' }`, 'trashed=false'];
+  if (parentId) query.push(`'${driveQueryString(parentId)}' in parents`);
+  const params = new URLSearchParams({ q: query.join(' and '), pageSize: '100', fields: 'files(id,name,mimeType,parents,appProperties,webViewLink)' });
+  const result = await googleRequest(`${DRIVE_API}/files?${params}`);
+  return result?.files?.[0] || null;
+}
+
+export async function moveAndRenameGoogleDriveFile(fileId, { name, parentId, slipRowId } = {}) {
+  if (!fileId || !parentId) throw new Error('A Drive file and destination folder are required');
+  const fileName = String(name || '').normalize('NFKC').trim();
+  if (!fileName || fileName.length > 180 || /[\\/\x00-\x1f]/.test(fileName) || !/\.[A-Za-z0-9]{1,8}$/.test(fileName)) throw new Error('File name contains unsupported characters');
+  const file = await getDriveFile(fileId);
+  if (!file) throw Object.assign(new Error('Payment slip is no longer available in Drive'), { statusCode: 404 });
+  const params = new URLSearchParams({ fields: 'id,name,mimeType,parents,appProperties,webViewLink' });
+  if (!file.parents?.includes(parentId)) params.set('addParents', parentId);
+  const parentsToRemove = (file.parents || []).filter((id) => id !== parentId);
+  if (parentsToRemove.length) params.set('removeParents', parentsToRemove.join(','));
+  return googleRequest(`${DRIVE_API}/files/${encodeURIComponent(fileId)}?${params}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ name: fileName, ...(slipRowId ? { appProperties: { ...(file.appProperties || {}), ocecPaymentSlipId: slipRowId } } : {}) }),
+  });
+}
+
+async function listPaymentSlipRows() {
+  const query = `SELECT ps.id,ps.payment_id,ps.drive_file_id,ps.file_name,ps.mime_type,ps.uploaded_at,
+      p.school_batch_id IS NOT NULL AS "isSchoolBatch",sb.school_name AS "schoolName",
+      ap.first_name_en AS "firstNameEn",ap.middle_name_en AS "middleNameEn",ap.last_name_en AS "lastNameEn",
+      ap.first_name_th AS "firstNameTh",ap.last_name_th AS "lastNameTh"
+    FROM payment_slips ps JOIN payments p ON p.id=ps.payment_id
+    LEFT JOIN applications a ON a.id=p.application_id LEFT JOIN applicants ap ON ap.id=a.applicant_id
+    LEFT JOIN school_batches sb ON sb.id=p.school_batch_id
+    ORDER BY ps.uploaded_at,ps.id`;
+  return getPool().query(query);
+}
+
+function paymentSlipLockKey(year, fileNameBase) {
+  return `payment-slip:${year}:${fileNameBase}`;
+}
+
+export async function organizeExistingGoogleDrivePaymentSlips() {
+  const initial = await listPaymentSlipRows();
+  const groups = new Map();
+  const failures = [];
+  for (const row of initial.rows) {
+    try {
+      const year = Number(paymentSlipYear(row.uploaded_at));
+      const displayName = paymentSlipDisplayName(row);
+      const base = paymentSlipFileNameBase(displayName, row.mime_type);
+      const key = `${year}:${base}`;
+      if (!groups.has(key)) groups.set(key, { year, base, rows: [] });
+      groups.get(key).rows.push(row);
+    } catch (error) {
+      failures.push({ slipId: row.id, message: error.message });
+    }
+  }
+
+  const folderByYear = new Map();
+  let moved = 0;
+  let uploaded = 0;
+  let skipped = 0;
+  let failed = failures.length;
+  const failureDetails = failures.slice(0, 50);
+  for (const [key, { year, base, rows }] of [...groups].sort(([a], [b]) => a.localeCompare(b))) {
+    const lockName = paymentSlipLockKey(year, base);
+    const client = await getPool().connect();
+    let locked = false;
+    try {
+      await client.query('SELECT pg_advisory_lock(hashtextextended($1,0))', [lockName]);
+      locked = true;
+      let sequence = 0;
+      for (const row of rows) {
+        try {
+          const displayName = paymentSlipDisplayName(row);
+          const fileName = paymentSlipFileName(displayName, row.mime_type, sequence);
+          let driveFileId = row.drive_file_id;
+          let action = 'moved';
+          if (driveFileId) {
+            if (!(await getDriveFile(driveFileId))) driveFileId = '';
+          }
+          if (!driveFileId) {
+            const priorUpload = await findGoogleDriveSlipByRowId(row.id);
+            if (priorUpload) {
+              driveFileId = priorUpload.id;
+            }
+          }
+          let contentBytes = null;
+          if (!driveFileId) {
+            const content = await getPool().query('SELECT content_bytes FROM payment_slips WHERE id=$1', [row.id]);
+            contentBytes = content.rows[0]?.content_bytes || null;
+            if (!contentBytes) {
+              skipped += 1;
+              continue;
+            }
+          }
+          let folder = folderByYear.get(year);
+          if (!folder) {
+            folder = await ensureGoogleDriveSlipYearFolder(row.uploaded_at, { lockClient: client });
+            folderByYear.set(year, folder);
+          }
+          if (driveFileId) {
+            await moveAndRenameGoogleDriveFile(driveFileId, { name: fileName, parentId: folder.id, slipRowId: row.id });
+          } else {
+            const created = await uploadGoogleDriveFile({ category: 'slips', uploadedAt: row.uploaded_at,
+              name: fileName, mimeType: row.mime_type, buffer: contentBytes,
+              appProperties: { ocecPaymentSlipId: row.id }, folderLockClient: client });
+            driveFileId = created.id;
+            action = 'uploaded';
+          }
+          await getPool().query('UPDATE payment_slips SET drive_file_id=$1,file_name=$2 WHERE id=$3', [driveFileId, fileName, row.id]);
+          if (action === 'uploaded') uploaded += 1;
+          else moved += 1;
+          sequence += 1;
+        } catch (error) {
+          failed += 1;
+          sequence += 1;
+          if (failureDetails.length < 50) failureDetails.push({ slipId: row.id, message: error.message });
+        }
+      }
+    } catch (error) {
+      failed += rows.length;
+      for (const { id: slipId } of rows.slice(0, Math.max(0, 50 - failureDetails.length))) {
+        failureDetails.push({ slipId, message: error.message });
+      }
+    } finally {
+      if (locked) await client.query('SELECT pg_advisory_unlock(hashtextextended($1,0))', [lockName]).catch(() => {});
+      client.release();
+    }
+  }
+  return { total: initial.rowCount, moved, uploaded, skipped, failed, failures: failureDetails };
 }
 
 export async function downloadGoogleDriveFile(fileId) {

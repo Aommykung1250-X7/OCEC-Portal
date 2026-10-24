@@ -3,6 +3,7 @@ import { getPool, transaction } from './db.js';
 import { finalGrantHash } from './finalEligibility.js';
 import { deleteGoogleDriveFile, downloadGoogleDriveFile, uploadGoogleDriveFile } from './googleWorkspace.js';
 import { encryptQueuedEmailText, enqueueIntegrationJob } from './integrationQueue.js';
+import { paymentSlipDisplayName, paymentSlipFileName, paymentSlipFileNameBase, paymentSlipYear } from './paymentSlipFiles.js';
 
 const normalize = (value) => String(value || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase();
 const duplicateKey = (applicant, roundId) => createHash('sha256').update([
@@ -359,11 +360,9 @@ async function insertDraft(client, candidate, ownerId, source, batchId = null, s
     await client.query('INSERT INTO application_past_papers(application_id,past_paper_id,price_satang,snapshot) VALUES($1,$2,$3,$4)', [application.rows[0].id, paper.id, paper.price_satang, { title: paper.title, detail: paper.detail, price: money(paper.price_satang) }]);
   }
   await client.query('INSERT INTO audit_logs(actor_user_id,entity_type,entity_id,action,after_data) VALUES($1,$2,$3,$4,$5)', [ownerId, 'application', application.rows[0].id, status === 'draft' ? 'create_draft' : 'submit', { source, registration: money(registration), papers: money(paperTotal), status }]);
-  const driveFolders = [...new Set(items.map(({ round }) => `${round.short_name} - ${round.round_type === 'HEAT' ? 'HEAT ROUND' : round.round_type === 'FINAL' ? 'FINAL ROUND' : 'FINAL X'} ${round.year}`))];
   return {
     id: application.rows[0].id,
     total: money(registration + paperTotal),
-    driveFolders,
     emailSummary: {
       id: application.rows[0].id,
       applicant: {
@@ -428,17 +427,63 @@ function parsePaymentSlip(slip) {
   return { buffer, fileName, mimeType, sha256: createHash('sha256').update(buffer).digest('hex') };
 }
 
-async function createPaymentWithSlip(client, { applicationId = null, batchId = null, expectedSatang, slip, ownerId }) {
-  const folderLabel = [...new Set(slip.roundFolders || [])].sort().join(' + ').slice(0, 100) || 'Unassigned Exam Round';
-  const driveFile = await uploadGoogleDriveFile({ category: 'slips', folders: [folderLabel], name: slip.fileName, mimeType: slip.mimeType, buffer: slip.buffer });
+async function createPaymentWithSlip(client, { applicationId = null, batchId = null, expectedSatang, slip, ownerId, owner }) {
+  const payment = await client.query(`INSERT INTO payments(application_id,school_batch_id,expected_satang,status)
+    VALUES($1,$2,$3,'pending') RETURNING id`, [applicationId, batchId, expectedSatang]);
+  const slipRecord = await createAndUploadPaymentSlip(client, {
+    paymentId: payment.rows[0].id,
+    slip,
+    owner,
+    uploadedBy: ownerId,
+  });
+  return { paymentId: payment.rows[0].id, driveFileId: slipRecord.driveFileId };
+}
+
+async function nextPaymentSlipFileName(client, displayName, mimeType) {
+  const baseName = paymentSlipFileNameBase(displayName, mimeType);
+  let year = Number(paymentSlipYear(new Date()));
+  while (true) {
+    await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`payment-slip:${year}:${baseName}`]);
+    const timestampResult = await client.query('SELECT clock_timestamp() AS "uploadedAt"');
+    const uploadedAt = timestampResult.rows[0].uploadedAt;
+    const lockedYear = Number(paymentSlipYear(uploadedAt));
+    if (lockedYear !== year) {
+      year = lockedYear;
+      continue;
+    }
+    const existing = await client.query(`SELECT ps.mime_type,p.school_batch_id IS NOT NULL AS "isSchoolBatch",sb.school_name AS "schoolName",
+        ap.first_name_en AS "firstNameEn",ap.middle_name_en AS "middleNameEn",ap.last_name_en AS "lastNameEn",
+        ap.first_name_th AS "firstNameTh",ap.last_name_th AS "lastNameTh"
+      FROM payment_slips ps JOIN payments p ON p.id=ps.payment_id
+      LEFT JOIN applications a ON a.id=p.application_id LEFT JOIN applicants ap ON ap.id=a.applicant_id
+      LEFT JOIN school_batches sb ON sb.id=p.school_batch_id
+      WHERE extract(year FROM ps.uploaded_at AT TIME ZONE 'Asia/Bangkok')=$1::integer`, [year]);
+    const sequence = existing.rows.reduce((count, row) => {
+      try {
+        return count + (paymentSlipFileNameBase(paymentSlipDisplayName(row), row.mime_type) === baseName ? 1 : 0);
+      } catch {
+        return count;
+      }
+    }, 0);
+    return { fileName: paymentSlipFileName(displayName, mimeType, sequence), uploadedAt };
+  }
+}
+
+async function createAndUploadPaymentSlip(client, { paymentId, slip, owner, uploadedBy = null, version = 1 }) {
+  const displayName = paymentSlipDisplayName(owner);
+  const { fileName, uploadedAt } = await nextPaymentSlipFileName(client, displayName, slip.mimeType);
+  const slipRecord = await client.query(`INSERT INTO payment_slips(payment_id,file_name,mime_type,sha256,version,uploaded_by,uploaded_at)
+    VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id`, [paymentId, fileName, slip.mimeType, slip.sha256, version, uploadedBy, uploadedAt]);
+  let driveFileId = '';
   try {
-    const payment = await client.query(`INSERT INTO payments(application_id,school_batch_id,expected_satang,status)
-      VALUES($1,$2,$3,'pending') RETURNING id`, [applicationId, batchId, expectedSatang]);
-    await client.query(`INSERT INTO payment_slips(payment_id,drive_file_id,file_name,mime_type,sha256,uploaded_by)
-      VALUES($1,$2,$3,$4,$5,$6)`, [payment.rows[0].id, driveFile.id, slip.fileName, slip.mimeType, slip.sha256, ownerId]);
-    return { paymentId: payment.rows[0].id, driveFileId: driveFile.id };
+    const driveFile = await uploadGoogleDriveFile({ category: 'slips', uploadedAt, name: fileName,
+      mimeType: slip.mimeType, buffer: slip.buffer, appProperties: { ocecPaymentSlipId: slipRecord.rows[0].id },
+      folderLockClient: client, folderLockTransactional: true });
+    driveFileId = driveFile.id;
+    await client.query('UPDATE payment_slips SET drive_file_id=$1 WHERE id=$2', [driveFile.id, slipRecord.rows[0].id]);
+    return { ...slipRecord.rows[0], driveFileId, fileName, uploadedAt };
   } catch (error) {
-    await deleteGoogleDriveFile(driveFile.id).catch(() => {});
+    if (driveFileId) await deleteGoogleDriveFile(driveFileId).catch(() => {});
     throw error;
   }
 }
@@ -451,7 +496,7 @@ export async function submitIndividualApplication(candidate, ownerId, finalGrant
       const source = candidate.source === 'final' ? 'final' : candidate.source === 'guest' ? 'guest' : 'self';
       const application = await insertDraft(client, candidate, ownerId, source, null, 'pending', finalGrantToken);
       const totalSatang = Math.round(application.total * 100);
-      const payment = await createPaymentWithSlip(client, { applicationId: application.id, expectedSatang: totalSatang, slip: { ...slip, roundFolders: application.driveFolders }, ownerId });
+      const payment = await createPaymentWithSlip(client, { applicationId: application.id, expectedSatang: totalSatang, slip, ownerId, owner: candidate.applicant });
       uploadedFileId = payment.driveFileId;
       const email = registrationEmail(application.emailSummary);
       await queueEmail(client, {
@@ -476,13 +521,11 @@ export async function submitSchoolBatch(batch, ownerId, coordinatorEmail) {
         VALUES($1,$2,$3,$4,0,'pending') RETURNING id`, [ownerId, coordinatorEmail, batch.schoolName.trim(), batch.source]);
       const applicationIds = [];
       let totalSatang = 0;
-      const roundFolders = new Set();
       for (const candidate of batch.applicants) {
         if (normalize(candidate.applicant.schoolName) !== normalize(batch.schoolName)) throw invalid('School name must be the same for all applicants in a batch');
         const application = await insertDraft(client, candidate, ownerId, 'school', schoolBatch.rows[0].id, 'pending');
         applicationIds.push(application.id);
         totalSatang += Math.round(application.total * 100);
-        for (const folder of application.driveFolders) roundFolders.add(folder);
         const email = registrationEmail(application.emailSummary, { schoolBatchName: batch.schoolName.trim() });
         await queueEmail(client, {
           to: candidate.applicant.contactEmail,
@@ -491,7 +534,8 @@ export async function submitSchoolBatch(batch, ownerId, coordinatorEmail) {
         }, `application-submitted:${application.id}`, { sensitive: true });
       }
       await client.query('UPDATE school_batches SET total_satang=$1 WHERE id=$2', [totalSatang, schoolBatch.rows[0].id]);
-      const payment = await createPaymentWithSlip(client, { batchId: schoolBatch.rows[0].id, expectedSatang: totalSatang, slip: { ...slip, roundFolders: [...roundFolders] }, ownerId });
+      const payment = await createPaymentWithSlip(client, { batchId: schoolBatch.rows[0].id, expectedSatang: totalSatang, slip, ownerId,
+        owner: { isSchoolBatch: true, schoolName: batch.schoolName } });
       uploadedFileId = payment.driveFileId;
       await client.query('INSERT INTO audit_logs(actor_user_id,entity_type,entity_id,action,after_data) VALUES($1,$2,$3,$4,$5)', [ownerId, 'school_batch', schoolBatch.rows[0].id, 'submit', { applicationIds, total: money(totalSatang), paymentId: payment.paymentId }]);
       return { id: schoolBatch.rows[0].id, applicationIds, paymentId: payment.paymentId, total: money(totalSatang) };
@@ -1002,9 +1046,11 @@ export async function updateAdminApplication(applicationId, input, adminUserId) 
         await client.query(`UPDATE school_batches SET total_satang=(SELECT coalesce(sum(total_satang),0) FROM applications WHERE school_batch_id=$1) WHERE id=$1`, [application.school_batch_id]);
       }
       if (additionalDue > 0) {
-        const roundFolders = [...new Set(prepared.map((item) => `${item.round.short_name} - ${item.round.round_type === 'HEAT' ? 'HEAT ROUND' : item.round.round_type === 'FINAL' ? 'FINAL ROUND' : 'FINAL X'} ${item.round.year}`))];
         const payment = await createPaymentWithSlip(client, { applicationId: application.school_batch_id ? null : applicationId,
-          batchId: application.school_batch_id || null, expectedSatang: additionalDue, slip: { ...paymentSlip, roundFolders }, ownerId: adminUserId });
+          batchId: application.school_batch_id || null, expectedSatang: additionalDue, slip: paymentSlip, ownerId: adminUserId,
+          owner: application.school_batch_id ? { isSchoolBatch: true, schoolName: application.batch_school_name || nextProfile.school } : {
+            firstNameEn: nextProfile.firstName, middleNameEn: nextProfile.middleName, lastNameEn: nextProfile.lastName,
+          } });
         uploadedDriveFileId = payment.driveFileId;
       }
 
@@ -1574,23 +1620,24 @@ export async function replacePaymentSlip(token, slipInput) {
       const paymentResult = await client.query('SELECT * FROM payments WHERE id=$1 FOR UPDATE', [link.payment_id]);
       if (!paymentResult.rowCount) throw invalid('Payment record not found', 404);
       const payment = paymentResult.rows[0];
-      const applicationResult = await client.query(`SELECT a.id,a.status,a.applicant_id,ap.contact_email,sb.coordinator_email,sb.school_name
+      const applicationResult = await client.query(`SELECT a.id,a.status,a.applicant_id,ap.contact_email,
+          ap.first_name_en,ap.middle_name_en,ap.last_name_en,ap.first_name_th,ap.last_name_th,
+          sb.coordinator_email,sb.school_name
         FROM applications a JOIN applicants ap ON ap.id=a.applicant_id
         LEFT JOIN school_batches sb ON sb.id=a.school_batch_id
         WHERE (a.id=$1 OR ($2::uuid IS NOT NULL AND a.school_batch_id=$2)) AND a.status='slip_issue'
         FOR UPDATE OF a`, [payment.application_id, payment.school_batch_id]);
       if (!applicationResult.rowCount) throw invalid('No application is waiting for a replacement slip', 409);
-      const itemRounds = await client.query(`SELECT DISTINCT c.short_name,r.round_type,r.year
-        FROM applications a JOIN application_items ai ON ai.application_id=a.id
-        JOIN exam_rounds r ON r.id=ai.exam_round_id JOIN competitions c ON c.id=r.competition_id
-        WHERE a.id=$1 OR ($2::uuid IS NOT NULL AND a.school_batch_id=$2)`, [payment.application_id, payment.school_batch_id]);
-      const folders = [...new Set(itemRounds.rows.map((round) => `${round.short_name} - ${round.round_type === 'HEAT' ? 'HEAT ROUND' : round.round_type === 'FINAL' ? 'FINAL ROUND' : 'FINAL X'} ${round.year}`))];
-      const folderLabel = folders.sort().join(' + ').slice(0, 100) || 'Unassigned Exam Round';
-      const driveFile = await uploadGoogleDriveFile({ category: 'slips', folders: [folderLabel], name: slip.fileName, mimeType: slip.mimeType, buffer: slip.buffer });
-      uploadedFileId = driveFile.id;
       const version = await client.query('SELECT coalesce(max(version),0)+1 AS next_version FROM payment_slips WHERE payment_id=$1', [payment.id]);
-      await client.query(`INSERT INTO payment_slips(payment_id,drive_file_id,file_name,mime_type,sha256,version,uploaded_by)
-        VALUES($1,$2,$3,$4,$5,$6,NULL)`, [payment.id, driveFile.id, slip.fileName, slip.mimeType, slip.sha256, version.rows[0].next_version]);
+      const slipOwner = payment.school_batch_id
+        ? { isSchoolBatch: true, schoolName: applicationResult.rows[0].school_name }
+        : {
+          firstNameEn: applicationResult.rows[0].first_name_en,
+          middleNameEn: applicationResult.rows[0].middle_name_en,
+          lastNameEn: applicationResult.rows[0].last_name_en,
+        };
+      const uploadedSlip = await createAndUploadPaymentSlip(client, { paymentId: payment.id, slip, owner: slipOwner, version: version.rows[0].next_version });
+      uploadedFileId = uploadedSlip.driveFileId;
       const affectedIds = applicationResult.rows.map((application) => application.id);
       await client.query(`UPDATE applications SET status='pending',review_note=NULL,version=version+1
         WHERE id=ANY($1::uuid[]) AND status='slip_issue'`, [affectedIds]);

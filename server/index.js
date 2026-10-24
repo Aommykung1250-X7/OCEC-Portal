@@ -9,7 +9,7 @@ import { getPool, transaction } from './db.js';
 import { archiveExamRound, loadCatalog, saveCatalogSnapshot, savePaymentAccountsSnapshot, updateExamRound } from './catalog.js';
 import { registerAuthRoutes, requireAdmin, requireUser } from './auth.js';
 import { createApplicationAdminNote, createIndividualDraft, createSchoolDraft, deleteApplicationAdminNote, downloadCertificatePhoto, getPublicApplicationForEdit, getSlipReplacementStatus, listAllApplications, listApplicationAdminNotes, listMyApplications, removeCertificatePhoto, replacePaymentSlip, reviewApplication, searchPublicApplicationStatuses, submitIndividualApplication, submitSchoolBatch, updateAdminApplication, updateApplicationAdminNote, updateOwnedApplicationProfile, updatePublicApplicationProfile, uploadCertificatePhoto } from './applications.js';
-import { addFilteredApplicationsToMockSheet, completeGoogleWorkspaceAuthorization, createGoogleWorkspaceAuthorizationUrl, downloadGoogleDriveFile, googleWorkspaceStatus, initializeGoogleDriveFolders } from './googleWorkspace.js';
+import { addFilteredApplicationsToMockSheet, completeGoogleWorkspaceAuthorization, createGoogleWorkspaceAuthorizationUrl, downloadGoogleDriveFile, googleWorkspaceStatus, initializeGoogleDriveFolders, organizeExistingGoogleDrivePaymentSlips } from './googleWorkspace.js';
 import { enqueueIntegrationJob, integrationQueueStatus, retryIntegrationJob } from './integrationQueue.js';
 import { applyFinalIds, generateExamNumbers, getFinalIdImport, importFinalIds, importResultRows, listAdminResultWorkflows, listPublishedResults, publishResultBatch, resolveFinalIdImportRow, resolveResultImportRow } from './results.js';
 import { createFinalVerificationGrant, finalGrantCookie, finalGrantTokenFromRequest, listFinalEligibilityForUser, searchSchoolFinalEligibility } from './finalEligibility.js';
@@ -185,6 +185,7 @@ app.get('/api/admin/google-workspace/callback', { preHandler: requireAdmin }, as
   return reply.redirect('/portal-admin/integrations/sheets');
 });
 app.post('/api/admin/google-workspace/initialize-drive', { preHandler: requireAdmin }, async () => initializeGoogleDriveFolders());
+app.post('/api/admin/google-workspace/organize-payment-slips', { preHandler: requireAdmin }, async () => organizeExistingGoogleDrivePaymentSlips());
 app.get('/api/admin/integrations/status', { preHandler: requireAdmin }, async () => ({ workspace: await googleWorkspaceStatus(), queue: await integrationQueueStatus() }));
 app.post('/api/admin/integrations/sheets/sync', { preHandler: requireAdmin }, async (request) => {
   const result = await getPool().query(`SELECT ai.id AS application_item_id,a.version FROM application_items ai

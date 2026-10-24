@@ -8,7 +8,7 @@ import { loadCatalog, saveCatalogSnapshot } from '../server/catalog.js';
 import { app } from '../server/index.js';
 import { decryptQueuedEmailText, enqueueIntegrationJob, retryIntegrationJob } from '../server/integrationQueue.js';
 import { processIntegrationJob } from '../server/integrationWorker.js';
-import { addFilteredApplicationsToMockSheet, completeGoogleWorkspaceAuthorization, createGoogleWorkspaceAuthorizationUrl, deleteGoogleDriveFile, downloadGoogleDriveFile, googleWorkspaceStatus, initializeGoogleDriveFolders, sendGoogleWorkspaceEmail, syncGoogleWorkspaceSheetItem, uploadGoogleDriveFile, GOOGLE_WORKSPACE_REQUIRED_SCOPES } from '../server/googleWorkspace.js';
+import { addFilteredApplicationsToMockSheet, completeGoogleWorkspaceAuthorization, createGoogleWorkspaceAuthorizationUrl, deleteGoogleDriveFile, downloadGoogleDriveFile, googleWorkspaceStatus, initializeGoogleDriveFolders, moveAndRenameGoogleDriveFile, sendGoogleWorkspaceEmail, syncGoogleWorkspaceSheetItem, uploadGoogleDriveFile, GOOGLE_WORKSPACE_REQUIRED_SCOPES } from '../server/googleWorkspace.js';
 import pg from 'pg';
 import { applyFinalIds, generateExamNumbers, importFinalIds, importResultRows, listPublishedResults, publishResultBatch, resolveResultImportRow } from '../server/results.js';
 
@@ -165,7 +165,12 @@ if (!testUrl) {
     const originalFetch = globalThis.fetch;
     const testEmail = `workspace-${runId}@example.test`;
     const requests = [];
+    const driveFolders = new Map();
+    const driveFolderRecords = new Map();
+    const driveFiles = new Map();
     let nextFolder = 1;
+    let nextSlipFile = 1;
+    let failNextSlipUpload = false;
     Object.assign(process.env, {
       GOOGLE_INTEGRATION_CLIENT_ID: 'mock-workspace-client',
       GOOGLE_INTEGRATION_CLIENT_SECRET: 'mock-workspace-secret',
@@ -180,11 +185,63 @@ if (!testUrl) {
         scope: GOOGLE_WORKSPACE_REQUIRED_SCOPES.join(' '),
       });
       if (target.hostname === 'openidconnect.googleapis.com') return Response.json({ email: testEmail, email_verified: true });
-      if (target.pathname === '/drive/v3/files' && options.method === 'POST') return Response.json({ id: `mock-folder-${nextFolder++}`, ...JSON.parse(options.body) });
-      if (target.pathname === '/drive/v3/files') return Response.json({ files: [] });
-      if (target.pathname === '/upload/drive/v3/files' && options.method === 'POST') return Response.json({ id: 'mock-slip-file', name: 'slip.png', mimeType: 'image/png' });
-      if (target.pathname === '/drive/v3/files/mock-slip-file' && target.searchParams.get('alt') === 'media') return new Response(Buffer.from('mock slip bytes'));
-      if (target.pathname === '/drive/v3/files/mock-slip-file' && options.method === 'DELETE') return new Response(null, { status: 204 });
+      if (target.pathname === '/drive/v3/files' && options.method === 'POST') {
+        const metadata = JSON.parse(options.body);
+        const id = `mock-folder-${nextFolder++}`;
+        driveFolders.set(metadata.name, id);
+        driveFolderRecords.set(id, { id, ...metadata });
+        return Response.json({ id, ...metadata });
+      }
+      if (target.pathname === '/drive/v3/files') {
+        const query = target.searchParams.get('q') || '';
+        if (query.includes('appProperties has')) {
+          const rowId = query.match(/value='([^']+)'/)?.[1];
+          return Response.json({ files: [...driveFiles.values()].filter((file) => file.appProperties?.ocecPaymentSlipId === rowId) });
+        }
+        const name = query.match(/name='([^']+)'/)?.[1];
+        const parent = query.match(/'([^']+)' in parents/)?.[1];
+        const files = [...driveFolderRecords.values()].filter((folder) => folder.name === name
+          && (parent === 'root' ? !folder.parents?.length : !parent || folder.parents?.includes(parent)));
+        return Response.json({ files });
+      }
+      if (target.pathname === '/upload/drive/v3/files' && options.method === 'POST') {
+        if (failNextSlipUpload) {
+          failNextSlipUpload = false;
+          return Response.json({ error: 'temporary mock upload failure' }, { status: 500 });
+        }
+        const multipart = Buffer.from(options.body).toString('utf8');
+        const metadataStart = multipart.indexOf('\r\n\r\n') + 4;
+        const metadataEnd = multipart.indexOf('\r\n--', metadataStart);
+        const metadata = JSON.parse(multipart.slice(metadataStart, metadataEnd));
+        const id = `mock-slip-file-${nextSlipFile++}`;
+        const payloadStart = multipart.indexOf('\r\n\r\n', metadataEnd) + 4;
+        const payloadEnd = multipart.lastIndexOf('\r\n--');
+        const file = { id, ...metadata, parents: metadata.parents || [], content: Buffer.from(multipart.slice(payloadStart, payloadEnd), 'binary') };
+        driveFiles.set(id, file);
+        return Response.json({ id, name: file.name, mimeType: file.mimeType, parents: file.parents });
+      }
+      const fileId = target.pathname.match(/^\/drive\/v3\/files\/([^/]+)$/)?.[1];
+      if (fileId && target.searchParams.get('alt') === 'media') {
+        const file = driveFiles.get(fileId);
+        return file ? new Response(file.content || Buffer.from('mock slip bytes')) : new Response(null, { status: 404 });
+      }
+      if (fileId && options.method === 'GET') {
+        const file = driveFiles.get(fileId) || driveFolderRecords.get(fileId);
+        return file ? Response.json(file) : new Response(null, { status: 404 });
+      }
+      if (fileId && options.method === 'PATCH') {
+        const file = driveFiles.get(fileId);
+        if (!file) return new Response(null, { status: 404 });
+        Object.assign(file, JSON.parse(options.body));
+        const addParent = target.searchParams.get('addParents');
+        const removeParents = (target.searchParams.get('removeParents') || '').split(',').filter(Boolean);
+        file.parents = [...new Set([...(file.parents || []).filter((parentId) => !removeParents.includes(parentId)), ...(addParent ? [addParent] : [])])];
+        return Response.json(file);
+      }
+      if (fileId && options.method === 'DELETE') {
+        driveFiles.delete(fileId);
+        return new Response(null, { status: 204 });
+      }
       if (target.pathname === '/gmail/v1/users/me/messages/send') return Response.json({ id: 'mock-message' });
       throw new Error(`Unexpected mock Google request: ${options.method || 'GET'} ${target.pathname}`);
     };
@@ -202,15 +259,73 @@ if (!testUrl) {
       assert.ok(!stored.rows[0].encrypted_refresh_token.includes('mock-refresh-token'));
       assert.deepEqual(stored.rows[0].granted_scopes, GOOGLE_WORKSPACE_REQUIRED_SCOPES);
       assert.equal((await googleWorkspaceStatus()).missingScopes.length, 0);
-      const folders = await initializeGoogleDriveFolders();
+      const [folders, concurrentFolders] = await Promise.all([initializeGoogleDriveFolders(), initializeGoogleDriveFolders()]);
       assert.equal(folders.root.name, 'OCEC Portal');
       assert.equal(folders.slips.name, 'Payment Slips');
-      const uploaded = await uploadGoogleDriveFile({ category: 'slips', folders: ['BBB - HEAT ROUND 2569'],
+      assert.equal(concurrentFolders.root.id, folders.root.id);
+      assert.equal(driveFolderRecords.size, 4, 'concurrent first-time setup should create one root and three child folders');
+      const uploaded = await uploadGoogleDriveFile({ category: 'slips', uploadedAt: '2026-01-02T10:00:00.000Z',
         name: 'slip.png', mimeType: 'image/png', buffer: Buffer.from('mock slip bytes') });
-      assert.equal(uploaded.id, 'mock-slip-file');
+      assert.equal(uploaded.id, 'mock-slip-file-1');
+      assert.ok(requests.some(({ url, method, body }) => url.includes('/drive/v3/files') && method === 'POST'
+        && JSON.parse(body).name === 'OCEC Slip 2026'));
+      const moved = await moveAndRenameGoogleDriveFile(uploaded.id, { name: 'First Candidate_1.png', parentId: driveFolders.get('OCEC Slip 2026'), slipRowId: 'mock-slip-row' });
+      assert.equal(moved.name, 'First Candidate_1.png');
+      assert.deepEqual(moved.parents, [driveFolders.get('OCEC Slip 2026')]);
+      await assert.rejects(uploadGoogleDriveFile({ category: 'slips', name: 'slip.png', mimeType: 'image/png', buffer: Buffer.from('x') }), /upload time is required/);
       assert.deepEqual(await downloadGoogleDriveFile(uploaded.id), Buffer.from('mock slip bytes'));
+
+      const draft = await createIndividualDraft(candidate('DriveMigration'), ownerId);
+      const payment = await getPool().query(`INSERT INTO payments(application_id,expected_satang,status)
+        VALUES($1,10000,'pending') RETURNING id`, [draft.id]);
+      const legacyDriveFileId = 'mock-legacy-slip';
+      driveFiles.set(legacyDriveFileId, { id: legacyDriveFileId, name: 'old-name.png', mimeType: 'image/png',
+        parents: ['mock-exam-folder'], appProperties: {}, content: Buffer.from('legacy Drive slip') });
+      await getPool().query(`INSERT INTO payment_slips(payment_id,drive_file_id,file_name,mime_type,uploaded_at)
+        VALUES($1,$2,'old-name.png','image/png','2026-04-01T00:00:00Z')`, [payment.rows[0].id, legacyDriveFileId]);
+      await getPool().query(`INSERT INTO payment_slips(payment_id,file_name,mime_type,content_bytes,uploaded_at,version)
+        VALUES($1,'old-name.pdf','application/pdf',$2,'2026-04-02T00:00:00Z',2)`, [payment.rows[0].id, Buffer.from('legacy slip bytes')]);
+      await getPool().query(`INSERT INTO payment_slips(payment_id,file_name,mime_type,uploaded_at,version)
+        VALUES($1,'missing.png','image/png','2026-04-03T00:00:00Z',3)`, [payment.rows[0].id]);
+      const unauthorizedMigration = await app.inject({ method: 'POST', url: '/api/admin/google-workspace/organize-payment-slips' });
+      assert.ok([401, 403].includes(unauthorizedMigration.statusCode));
+      const migrationCookie = await sessionFor(adminId);
+      failNextSlipUpload = true;
+      const migrationResponse = await app.inject({ method: 'POST', url: '/api/admin/google-workspace/organize-payment-slips', headers: { cookie: migrationCookie } });
+      assert.equal(migrationResponse.statusCode, 200);
+      assert.deepEqual({ total: migrationResponse.json().total, moved: migrationResponse.json().moved,
+        uploaded: migrationResponse.json().uploaded, skipped: migrationResponse.json().skipped, failed: migrationResponse.json().failed },
+      { total: 3, moved: 1, uploaded: 0, skipped: 1, failed: 1 });
+      const retryResponse = await app.inject({ method: 'POST', url: '/api/admin/google-workspace/organize-payment-slips', headers: { cookie: migrationCookie } });
+      assert.equal(retryResponse.statusCode, 200);
+      assert.deepEqual({ moved: retryResponse.json().moved, uploaded: retryResponse.json().uploaded,
+        skipped: retryResponse.json().skipped, failed: retryResponse.json().failed },
+      { moved: 1, uploaded: 1, skipped: 1, failed: 0 });
+      const migratedRows = await getPool().query('SELECT drive_file_id,file_name FROM payment_slips WHERE payment_id=$1 ORDER BY uploaded_at', [payment.rows[0].id]);
+      assert.equal(migratedRows.rows[0].file_name, `Test${runId}DriveMigration Candidate.png`);
+      assert.equal(migratedRows.rows[1].file_name, `Test${runId}DriveMigration Candidate_1.pdf`);
+      assert.ok(migratedRows.rows.slice(0, 2).every((row) => row.drive_file_id));
+      assert.equal(migratedRows.rows[2].drive_file_id, null);
+      assert.notEqual(migratedRows.rows[0].drive_file_id, migratedRows.rows[1].drive_file_id);
+      assert.deepEqual(driveFiles.get(legacyDriveFileId).parents, [driveFolders.get('OCEC Slip 2026')]);
+      assert.equal([...driveFolderRecords.values()].filter((folder) => folder.name === 'OCEC Slip 2026').length, 1);
+      const stableFileIds = migratedRows.rows.map((row) => row.drive_file_id);
+      const repeatResponse = await app.inject({ method: 'POST', url: '/api/admin/google-workspace/organize-payment-slips', headers: { cookie: migrationCookie } });
+      assert.deepEqual({ moved: repeatResponse.json().moved, uploaded: repeatResponse.json().uploaded,
+        skipped: repeatResponse.json().skipped, failed: repeatResponse.json().failed },
+      { moved: 2, uploaded: 0, skipped: 1, failed: 0 });
+      const repeatedRows = await getPool().query('SELECT drive_file_id FROM payment_slips WHERE payment_id=$1 ORDER BY uploaded_at', [payment.rows[0].id]);
+      assert.deepEqual(repeatedRows.rows.slice(0, 2).map((row) => row.drive_file_id), stableFileIds);
+      await getPool().query('UPDATE payment_slips SET drive_file_id=NULL WHERE payment_id=$1 AND version=2', [payment.rows[0].id]);
+      const markerRecovery = await app.inject({ method: 'POST', url: '/api/admin/google-workspace/organize-payment-slips', headers: { cookie: migrationCookie } });
+      assert.deepEqual({ moved: markerRecovery.json().moved, uploaded: markerRecovery.json().uploaded,
+        skipped: markerRecovery.json().skipped, failed: markerRecovery.json().failed },
+      { moved: 2, uploaded: 0, skipped: 1, failed: 0 });
+      const recovered = await getPool().query('SELECT drive_file_id FROM payment_slips WHERE payment_id=$1 AND version=2', [payment.rows[0].id]);
+      assert.equal(recovered.rows[0].drive_file_id, stableFileIds[1]);
+
       await deleteGoogleDriveFile(uploaded.id);
-      await assert.rejects(uploadGoogleDriveFile({ category: 'slips', name: '../escape.png', mimeType: 'image/png', buffer: Buffer.from('x') }), /unsupported characters/);
+      await assert.rejects(uploadGoogleDriveFile({ category: 'slips', uploadedAt: new Date(), name: '../escape.png', mimeType: 'image/png', buffer: Buffer.from('x') }), /unsupported characters/);
       await assert.rejects(sendGoogleWorkspaceEmail({ to: 'bad\r\nBcc: outside@example.test', subject: 'Test', text: 'Hello' }), /valid recipient/);
       const sent = await sendGoogleWorkspaceEmail({ to: testEmail, subject: 'ทดสอบ OCEC', text: 'ข้อความทดสอบ', messageId: `test-${runId}@portal` });
       assert.equal(sent.id, 'mock-message');

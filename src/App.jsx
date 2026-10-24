@@ -758,12 +758,25 @@ function GoogleDriveConnectionCard() {
     } catch (error) { setMessage(error.message || "เตรียมโฟลเดอร์ Google Drive ไม่สำเร็จ"); }
     finally { setBusy(false); }
   }
+  async function organizePaymentSlips() {
+    setBusy(true); setMessage("");
+    try {
+      const response = await fetch('/api/admin/google-workspace/organize-payment-slips', { method: 'POST', credentials: 'same-origin' });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "จัดระเบียบสลิปใน Google Drive ไม่สำเร็จ");
+      const firstFailure = result.failures?.[0];
+      const failureNote = firstFailure ? ` · ตัวอย่างข้อผิดพลาด${firstFailure.slipId ? ` (${firstFailure.slipId})` : ""}: ${firstFailure.message}` : "";
+      setMessage(`ตรวจ ${result.total} ไฟล์ · จัดเข้าปีแล้ว ${result.moved} · อัปโหลดจากข้อมูลเดิม ${result.uploaded} · ข้าม ${result.skipped} · ผิดพลาด ${result.failed}${failureNote}`);
+    } catch (error) { setMessage(error.message || "จัดระเบียบสลิปใน Google Drive ไม่สำเร็จ"); }
+    finally { setBusy(false); }
+  }
   const missingWorkspaceScopes = (status?.missingScopes || []).filter((scope) => scope.includes("gmail.send") || scope.includes("spreadsheets"));
   const scopeLabels = missingWorkspaceScopes.map((scope) => scope.includes("gmail.send") ? "Gmail API" : "Google Sheets API").filter((label, index, labels) => labels.indexOf(label) === index);
   return <section className="surface sync-demo-control google-drive-connection">
     <div><span className="sync-demo-icon"><Icon name="upload" /></span><div><strong>บัญชี Google สำหรับ Drive, Gmail และ Sheets</strong><p>{status?.connected ? `เชื่อมต่อแล้ว · ${status.accountEmail}` : status?.configured ? "โปรดเชื่อมต่อบัญชี Google ที่ใช้จัดเก็บไฟล์และส่งอีเมล" : "โปรดตั้งค่า OAuth และ encryption key ใน environment ก่อนเชื่อมต่อบัญชี"}</p>{status?.connected ? <small>{status.foldersInitialized ? "โฟลเดอร์ Drive พร้อมใช้งานใช้งาน" : "ระบบจะสร้างโฟลเดอร์ใน Drive เมื่อมีการอัปโหลดไฟล์"}{scopeLabels.length ? ` · โปรดเพิ่มสิทธิ์ ${scopeLabels.join(" และ ")} ใน Google Auth Platform แล้วเชื่อมต่อบัญชีอีกครั้ง` : " · สิทธิ์ Gmail และ Sheets พร้อมใช้งาน"}</small> : null}{message ? <small role="status">{message}</small> : null}</div></div>
     {status?.connected ? <div className="final-id-row-actions">
       {!status.foldersInitialized ? <Button variant="outline" disabled={busy} onClick={prepareFolders}>{busy ? "กำลังเตรียม…" : "เตรียมโฟลเดอร์ Drive"}</Button> : <span className="schedule-open">Drive พร้อมใช้งาน</span>}
+      <Button variant="outline" disabled={busy} onClick={organizePaymentSlips}>{busy ? "กำลังจัดระเบียบสลิป…" : "รวมสลิปเดิมตามปี"}</Button>
       {scopeLabels.length ? <Button variant="outline" disabled={busy} onClick={connectGoogle}>{busy ? "กำลังเชื่อม…" : "เชื่อมต่ออีกครั้งเพื่อเพิ่มสิทธิ์"}</Button> : null}
     </div> : <Button variant="outline" disabled={busy || !status?.configured} onClick={connectGoogle}>{busy ? "กำลังเชื่อม…" : "เชื่อมบัญชี Google"}</Button>}
   </section>;
