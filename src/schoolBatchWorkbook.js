@@ -119,7 +119,7 @@ function sheetXml(definition) {
   const dimensionEnd = `${columnName(lastColumn)}${Math.max(lastInputRow, lastLookupRow)}`;
   const worksheetRows = [];
   worksheetRows.push(`<row r="1" ht="32" customHeight="1">${cellXml("A1", "OCEC · แบบฟอร์มสมัครสอบสำหรับโรงเรียน", 1)}</row>`);
-  worksheetRows.push(`<row r="2" ht="38" customHeight="1">${cellXml("A2", "1 แถวต่อผู้เข้าสอบ · เลือกรายการ ระดับชั้น รูปแบบสอบ และศูนย์สอบแยกตามวิชา · EXAM EMAIL ใช้ร่วมกันได้ หรือกรอกอีเมลเข้าสอบในคอลัมน์ของรายการเพื่อระบุแยก · เว้นข้อสอบเก่าหากไม่ซื้อ", 2)}</row>`);
+  worksheetRows.push(`<row r="2" ht="38" customHeight="1">${cellXml("A2", "หนึ่งแถวต่อผู้เข้าสอบ · โปรดเลือกรายการสอบ ระดับชั้น รูปแบบสอบ และศูนย์สอบแยกตามวิชา · สามารถใช้อีเมลเข้าสอบร่วมกันได้ หรือระบุอีเมลแยกในคอลัมน์ของแต่ละรายการ · เว้นช่องข้อสอบเก่าหากไม่ประสงค์ซื้อ", 2)}</row>`);
   worksheetRows.push(`<row r="3">${columns.map((column, index) => cellXml(`${columnName(index)}3`, `${column.header}${column.required ? " *" : ""}`, 3)).join("")}</row>`);
   for (let row = FIRST_DATA_ROW; row < FIRST_DATA_ROW + TEMPLATE_DATA_ROWS; row += 1) worksheetRows.push(`<row r="${row}"/>`);
 
@@ -158,7 +158,7 @@ function sheetXml(definition) {
       const sourceColumn = columnName(source.index);
       const start = LOOKUP_DATA_START_ROW + 1;
       const end = LOOKUP_DATA_START_ROW + source.values.length;
-      return `<dataValidation type="list" allowBlank="1" showInputMessage="1" showErrorMessage="1" errorStyle="stop" promptTitle="เลือกจากรายการ" prompt="คลิกลูกศรเพื่อเลือกค่า" errorTitle="เลือกค่าในรายการ" error="กรุณาเลือกค่าจากตัวเลือกที่กำหนด" sqref="${columnName(columnIndex)}${FIRST_DATA_ROW}:${columnName(columnIndex)}${FIRST_DATA_ROW + TEMPLATE_DATA_ROWS - 1}"><formula1>$${sourceColumn}$${start}:$${sourceColumn}$${end}</formula1></dataValidation>`;
+      return `<dataValidation type="list" allowBlank="1" showInputMessage="1" showErrorMessage="1" errorStyle="stop" promptTitle="เลือกจากรายการ" prompt="โปรดเลือกรายการจากตัวเลือก" errorTitle="เลือกค่าในรายการ" error="โปรดเลือกค่าจากตัวเลือกที่กำหนด" sqref="${columnName(columnIndex)}${FIRST_DATA_ROW}:${columnName(columnIndex)}${FIRST_DATA_ROW + TEMPLATE_DATA_ROWS - 1}"><formula1>$${sourceColumn}$${start}:$${sourceColumn}$${end}</formula1></dataValidation>`;
     }).join("")}</dataValidations>`
     : "";
   const merges = `<mergeCells count="2"><mergeCell ref="A1:${visibleEnd}1"/><mergeCell ref="A2:${visibleEnd}2"/></mergeCells>`;
@@ -344,7 +344,7 @@ function parseSingleSheetWorkbook(rows, catalogs) {
       if (!get(key)) issues.push({ sheet: "Registration", row: rowNumber, field: fields[key], message: "จำเป็นต้องกรอกข้อมูล" });
     });
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(get("email"))) issues.push({ sheet: "Registration", row: rowNumber, field: fields.email, message: "รูปแบบอีเมลไม่ถูกต้อง" });
-    if (get("phone").replace(/\D/g, "").length < 7) issues.push({ sheet: "Registration", row: rowNumber, field: fields.phone, message: "เบอร์โทรศัพท์ไม่ถูกต้อง" });
+    if (get("phone").replace(/\D/g, "").length < 7) issues.push({ sheet: "Registration", row: rowNumber, field: fields.phone, message: "หมายเลขโทรศัพท์ไม่ถูกต้อง" });
     if (get("dateOfBirth") && !/^\d{4}-\d{2}-\d{2}$/.test(get("dateOfBirth"))) issues.push({ sheet: "Registration", row: rowNumber, field: fields.dateOfBirth, message: "ใช้รูปแบบ YYYY-MM-DD" });
     if (!selected.length) issues.push({ sheet: "Registration", row: rowNumber, field: "รายการสอบ", message: "เลือกรายการสอบอย่างน้อย 1 รายการ" });
 

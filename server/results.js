@@ -76,7 +76,7 @@ export async function listAdminResultWorkflows() {
 }
 
 export async function importResultRows(examRoundId, fileName, inputRows, adminId) {
-  if (!Array.isArray(inputRows) || !inputRows.length || inputRows.length > 20000) throw fail('ผลสอบต้องมี 1 ถึง 20,000 แถว');
+  if (!Array.isArray(inputRows) || !inputRows.length || inputRows.length > 20000) throw fail('จำนวนแถวผลสอบต้องอยู่ระหว่าง 1 ถึง 20,000 แถว');
   const rows = inputRows.map((row) => ({
     candidateNo: clean(row.candidateNo ?? row.examNumber, 80),
     grade: clean(row.grade, 120),
@@ -84,12 +84,12 @@ export async function importResultRows(examRoundId, fileName, inputRows, adminId
     candidate: clean(row.candidateName ?? row.candidate, 255),
     award: clean(row.award, 80),
   }));
-  if (rows.some((row) => !row.candidateNo || !row.grade || !row.school || !row.candidate || !row.award)) throw fail('ทุกแถวต้องมี CANDIDATE NO, GRADE, SCHOOL NAME, CANDIDATE NAME และ AWARD');
+  if (rows.some((row) => !row.candidateNo || !row.grade || !row.school || !row.candidate || !row.award)) throw fail('ทุกแถวต้องมีข้อมูล CANDIDATE NO, GRADE, SCHOOL NAME, CANDIDATE NAME และ AWARD');
   return transaction(async (client) => {
     const round = await client.query(`SELECT id,competition_id,round_type FROM exam_rounds WHERE id=$1 AND active=true FOR UPDATE`, [examRoundId]);
     if (!round.rowCount) throw fail('ไม่พบรายการสอบรอบนี้', 404);
     const existingPublished = await client.query("SELECT 1 FROM result_import_batches WHERE exam_round_id=$1 AND status='published' LIMIT 1", [examRoundId]);
-    if (existingPublished.rowCount) throw fail('รอบสอบนี้ประกาศผลแล้วและล็อกข้อมูล', 409);
+    if (existingPublished.rowCount) throw fail('รอบสอบนี้ประกาศผลแล้วและปิดการแก้ไขข้อมูล', 409);
     await client.query("DELETE FROM result_import_batches WHERE exam_round_id=$1 AND status='draft'", [examRoundId]);
     const batch = await client.query(`INSERT INTO result_import_batches(exam_round_id,file_name,imported_by)
       VALUES($1,$2,$3) RETURNING id`, [examRoundId, clean(fileName, 255) || 'results.xlsx', adminId]);
@@ -134,15 +134,15 @@ export async function resolveResultImportRow(rowId, action, applicationItemId, a
       JOIN exam_rounds r ON r.id=b.exam_round_id WHERE ir.id=$1 FOR UPDATE OF ir,b`, [rowId]);
     if (!found.rowCount) throw fail('ไม่พบแถวผลสอบ', 404);
     const row = found.rows[0];
-    if (row.batch_status !== 'draft') throw fail('ประกาศผลแล้ว ไม่สามารถแก้ไขได้', 409);
+    if (row.batch_status !== 'draft') throw fail('ประกาศผลแล้ว จึงไม่สามารถแก้ไขข้อมูลได้', 409);
     let itemId = row.application_item_id;
     if (action === 'manual_match') {
       const item = await client.query(`SELECT ai.id,ai.exam_round_id FROM application_items ai JOIN applications a ON a.id=ai.application_id
         WHERE ai.id=$1 AND ai.exam_round_id=$2 AND a.status<>'draft'`, [applicationItemId, row.exam_round_id]);
       if (!item.rowCount) throw fail('ใบสมัครที่เลือกไม่อยู่ในรอบสอบนี้');
       itemId = item.rows[0].id;
-    } else if (action !== 'confirm' && action !== 'use_application') throw fail('คำสั่งแก้รายการไม่ถูกต้อง');
-    if (!itemId) throw fail('เลือกใบสมัครที่จะจับคู่ก่อน');
+    } else if (action !== 'confirm' && action !== 'use_application') throw fail('คำสั่งแก้ไขรายการไม่ถูกต้อง');
+    if (!itemId) throw fail('โปรดเลือกใบสมัครที่ต้องการจับคู่ก่อน');
     const linked = await client.query(`SELECT ai.id,ai.grade_id,g.label AS grade,ap.school_name,
         concat_ws(' ',ap.first_name_en,nullif(ap.middle_name_en,''),ap.last_name_en) AS candidate_name
       FROM application_items ai JOIN applications a ON a.id=ai.application_id JOIN applicants ap ON ap.id=a.applicant_id
@@ -176,7 +176,7 @@ export async function publishResultBatch(examRoundId, adminId) {
     const unresolved = rows.rows.filter((row) => row.match_status !== 'matched' || !row.application_item_id);
     if (!rows.rowCount || unresolved.length) throw fail(`แก้รายการจับคู่ไม่สำเร็จให้ครบก่อนประกาศ (${unresolved.length} รายการ)`, 409);
     const itemIds = rows.rows.map((row) => row.application_item_id);
-    if (new Set(itemIds).size !== itemIds.length) throw fail('มีใบสมัครซ้ำในผลสอบ กรุณาแก้ก่อนประกาศ', 409);
+    if (new Set(itemIds).size !== itemIds.length) throw fail('พบใบสมัครซ้ำในผลสอบ โปรดแก้ไขก่อนประกาศผล', 409);
     const eligibleRows = [];
     for (const row of rows.rows) {
       const eligible = isFinalEligible(row.award, batch.competition_id);
@@ -237,7 +237,7 @@ export async function generateExamNumbers(examRoundId, adminId) {
     const closeDate = exam.close_date ? String(exam.close_date).slice(0, 10) : '';
     const withinScheduledWindow = Boolean(openDate && closeDate && openDate <= today && today <= closeDate);
     const registrationEnded = Boolean(exam.final_manually_closed || (closeDate && today > closeDate) || (withinScheduledWindow && !exam.is_open));
-    if (!registrationEnded) throw fail('ปิดรับสมัครรายการสอบนี้ก่อนสร้างเลขประจำตัวสอบ', 409);
+    if (!registrationEnded) throw fail('โปรดปิดรับสมัครรายการสอบนี้ก่อนสร้างเลขประจำตัวสอบ', 409);
     const items = await client.query(`SELECT ai.id,ai.exam_number,ec.code,g.sort_order,ap.last_name_en,ap.first_name_en,ap.middle_name_en,
         ai.created_at
       FROM application_items ai JOIN applications a ON a.id=ai.application_id JOIN applicants ap ON ap.id=a.applicant_id
@@ -290,14 +290,14 @@ async function latestFinalBatch(roundId, batchId = null, client = getPool()) {
 export async function getFinalIdImport(roundId) { return latestFinalBatch(roundId); }
 
 export async function importFinalIds(examRoundId, fileName, inputRows, adminId) {
-  if (!Array.isArray(inputRows) || !inputRows.length || inputRows.length > 20000) throw fail('เลข Final ต้องมี 1 ถึง 20,000 แถว');
+  if (!Array.isArray(inputRows) || !inputRows.length || inputRows.length > 20000) throw fail('จำนวนแถวเลขประจำตัวสอบ Final ต้องอยู่ระหว่าง 1 ถึง 20,000 แถว');
   const rows = inputRows.map((row) => ({ candidateNo: clean(row.candidateNo ?? row.examNumber, 80), grade: clean(row.grade, 120), school: clean(row.schoolName ?? row.school, 255), candidate: clean(row.candidateName ?? row.candidate, 255) }));
   if (rows.some((row) => !row.candidateNo || !row.school || !row.candidate)) throw fail('ทุกแถวต้องมี CANDIDATE NO, SCHOOL NAME และ CANDIDATE NAME');
   return transaction(async (client) => {
     const round = await client.query("SELECT id FROM exam_rounds WHERE id=$1 AND active=true AND round_type='FINAL' FOR UPDATE", [examRoundId]);
     if (!round.rowCount) throw fail('เลือกได้เฉพาะรายการสอบรอบ FINAL', 404);
     const used = await client.query(`SELECT 1 FROM final_id_import_batches WHERE exam_round_id=$1 AND status='applied'`, [examRoundId]);
-    if (used.rowCount) throw fail('นำเข้าเลข Final ของรอบนี้และบันทึกแล้ว', 409);
+    if (used.rowCount) throw fail('นำเข้าและบันทึกเลขประจำตัวสอบ Final ของรอบนี้แล้ว', 409);
     await client.query("DELETE FROM final_id_import_batches WHERE exam_round_id=$1 AND status='draft'", [examRoundId]);
     const batch = await client.query(`INSERT INTO final_id_import_batches(exam_round_id,file_name,imported_by) VALUES($1,$2,$3) RETURNING id`, [examRoundId,clean(fileName,255) || 'final-ids.xlsx',adminId]);
     const duplicateIds = new Set(rows.filter((row,index) => rows.findIndex((other) => other.candidateNo === row.candidateNo) !== index).map((row) => row.candidateNo));
@@ -335,7 +335,7 @@ export async function resolveFinalIdImportRow(rowId, action, applicationItemId, 
       FROM final_id_import_rows ir JOIN final_id_import_batches b ON b.id=ir.batch_id WHERE ir.id=$1 FOR UPDATE OF ir,b`, [rowId]);
     if (!found.rowCount) throw fail('ไม่พบแถวเลข Final',404);
     const row = found.rows[0];
-    if (row.batch_status !== 'draft') throw fail('รายการนี้บันทึกแล้ว แก้ไขไม่ได้',409);
+    if (row.batch_status !== 'draft') throw fail('บันทึกรายการนี้แล้ว จึงไม่สามารถแก้ไขได้',409);
     let itemId = row.application_item_id;
     if (action === 'manual_match') {
       const target = await client.query(`SELECT ai.id FROM application_items ai JOIN applications a ON a.id=ai.application_id
@@ -345,8 +345,8 @@ export async function resolveFinalIdImportRow(rowId, action, applicationItemId, 
           WHERE fi.final_exam_round_id=fr.id AND fi.claimed_application_id=a.id AND heat_item.grade_id=ai.grade_id)`, [applicationItemId,row.exam_round_id]);
       if (!target.rowCount) throw fail('ใบสมัครที่เลือกไม่อยู่ในรอบนี้');
       itemId = target.rows[0].id;
-    } else if (action !== 'confirm' && action !== 'use_application') throw fail('คำสั่งแก้รายการไม่ถูกต้อง');
-    if (!itemId) throw fail('เลือกใบสมัครที่จะจับคู่ก่อน');
+    } else if (action !== 'confirm' && action !== 'use_application') throw fail('คำสั่งแก้ไขรายการไม่ถูกต้อง');
+    if (!itemId) throw fail('โปรดเลือกใบสมัครที่ต้องการจับคู่ก่อน');
     const linked = await client.query(`SELECT g.label AS grade,ap.school_name,concat_ws(' ',ap.first_name_en,nullif(ap.middle_name_en,''),ap.last_name_en) AS candidate_name
       FROM application_items ai JOIN applications a ON a.id=ai.application_id JOIN applicants ap ON ap.id=a.applicant_id JOIN grade_catalog g ON g.id=ai.grade_id WHERE ai.id=$1`, [itemId]);
     if (action === 'use_application') await client.query(`UPDATE final_id_import_rows SET application_item_id=$1,grade=$2,school_name=$3,candidate_name=$4,match_status='matched',match_note=NULL WHERE id=$5`, [itemId,linked.rows[0].grade,linked.rows[0].school_name,linked.rows[0].candidate_name,rowId]);
@@ -360,10 +360,10 @@ export async function applyFinalIds(examRoundId, adminId) {
   return transaction(async (client) => {
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`final-ids:${examRoundId}`]);
     const batch = await client.query(`SELECT * FROM final_id_import_batches WHERE exam_round_id=$1 AND status='draft' ORDER BY created_at DESC LIMIT 1 FOR UPDATE`, [examRoundId]);
-    if (!batch.rowCount) throw fail('ยังไม่มีเลข Final ฉบับร่าง',409);
+    if (!batch.rowCount) throw fail('ยังไม่มีฉบับร่างเลขประจำตัวสอบ Final',409);
     const rows = await client.query('SELECT * FROM final_id_import_rows WHERE batch_id=$1 ORDER BY row_number FOR UPDATE', [batch.rows[0].id]);
-    if (!rows.rowCount || rows.rows.some((row) => row.match_status !== 'matched' || !row.application_item_id)) throw fail('แก้รายการที่จับคู่ไม่สำเร็จให้ครบก่อนบันทึก',409);
-    if (new Set(rows.rows.map((row) => row.application_item_id)).size !== rows.rowCount || new Set(rows.rows.map((row) => row.candidate_no)).size !== rows.rowCount) throw fail('มีเลขหรือใบสมัครซ้ำในไฟล์',409);
+    if (!rows.rowCount || rows.rows.some((row) => row.match_status !== 'matched' || !row.application_item_id)) throw fail('โปรดแก้ไขรายการจับคู่ให้ครบก่อนบันทึก',409);
+    if (new Set(rows.rows.map((row) => row.application_item_id)).size !== rows.rowCount || new Set(rows.rows.map((row) => row.candidate_no)).size !== rows.rowCount) throw fail('พบเลขประจำตัวสอบหรือใบสมัครซ้ำในไฟล์',409);
     for (const row of rows.rows) {
       const updated = await client.query(`UPDATE application_items ai SET exam_number=$1 FROM applications a,exam_rounds fr
         WHERE ai.id=$2 AND ai.exam_round_id=$3 AND a.id=ai.application_id AND fr.id=ai.exam_round_id
@@ -371,7 +371,7 @@ export async function applyFinalIds(examRoundId, adminId) {
             JOIN results heat_result ON heat_result.application_item_id=heat_item.id AND heat_result.eligible_for_final=true
             WHERE fi.final_exam_round_id=fr.id AND fi.claimed_application_id=a.id AND heat_item.grade_id=ai.grade_id)
         RETURNING ai.id`, [row.candidate_no,row.application_item_id,examRoundId]);
-      if (!updated.rowCount) throw fail('ไม่สามารถบันทึกเลข Final ให้ใบสมัครที่เลือกได้');
+      if (!updated.rowCount) throw fail('ไม่สามารถบันทึกเลขประจำตัวสอบ Final ให้ใบสมัครที่เลือกได้');
     }
     await client.query("UPDATE final_id_import_batches SET status='applied',applied_by=$1,applied_at=now() WHERE id=$2", [adminId,batch.rows[0].id]);
     await client.query(`INSERT INTO audit_logs(actor_user_id,entity_type,entity_id,action,after_data) VALUES($1,'exam_round',$2,'import_final_ids',$3)`, [adminId,examRoundId,{ batchId:batch.rows[0].id,rows:rows.rowCount }]);

@@ -63,7 +63,7 @@ export function StatusBadge({ status }) {
   return (
     <span className={`status-badge inline-flex min-h-6 items-center gap-1.5 rounded-full px-2 text-xs font-[650] whitespace-nowrap ${toneClasses}`}>
       <span className="status-dot size-1.5 rounded-full bg-current" aria-hidden="true" />
-      {rejected ? "ไม่อนุมัติ" : pending ? "รออนุมัติ/ตรวจสอบสลิป" : "ยืนยันใบสมัคร"}
+      {rejected ? "ไม่อนุมัติ" : pending ? "อยู่ระหว่างตรวจสอบ" : "ยืนยันใบสมัคร"}
     </span>
   );
 }

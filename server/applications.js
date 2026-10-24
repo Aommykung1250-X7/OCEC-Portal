@@ -616,13 +616,13 @@ export async function reviewApplication(applicationId, review, adminUserId) {
     const slipResult = await client.query('SELECT 1 FROM payment_slips WHERE payment_id=$1 LIMIT 1', [payment.id]);
     if (!slipResult.rowCount) throw invalid('Payment slip not found', 409);
     if (prior.status === 'approved') {
-      if (payment.status !== 'pending') throw invalid('ยอดชำระนี้ไม่ได้รอตรวจสอบ', 409);
+      if (payment.status !== 'pending') throw invalid('ไม่พบรายการชำระเงินที่อยู่ระหว่างตรวจสอบ', 409);
       await client.query("UPDATE payments SET payment_account_id=NULL,confirmed_satang=NULL,confirmed_transfer_at=NULL,confirmed_account_number=NULL,confirmed_by=$1,confirmed_at=now(),status='confirmed' WHERE id=$2", [adminUserId,payment.id]);
       await client.query(`INSERT INTO audit_logs(actor_user_id,entity_type,entity_id,action,before_data,after_data)
         VALUES($1,'payment',$2,'confirm_additional_payment',$3,$4)`, [adminUserId,payment.id,{ status: payment.status, expectedSatang: payment.expected_satang },{ status: 'confirmed', applicationId }]);
       return { id: applicationId, status: 'approved', paymentId: payment.id, paymentOnly: true };
     }
-    if (payment.status === 'slip_issue') throw invalid('กรุณารอสลิปใหม่ก่อนอนุมัติใบสมัคร', 409);
+    if (payment.status === 'slip_issue') throw invalid('โปรดรอหลักฐานการชำระเงินฉบับใหม่ก่อนอนุมัติใบสมัคร', 409);
     if (payment.status !== 'confirmed') {
       await client.query("UPDATE payments SET payment_account_id=NULL,confirmed_satang=NULL,confirmed_transfer_at=NULL,confirmed_account_number=NULL,confirmed_by=$1,confirmed_at=now(),status='confirmed' WHERE id=$2", [adminUserId, payment.id]);
     }
@@ -750,15 +750,15 @@ export async function updateAdminApplication(applicationId, input, adminUserId) 
         phone: String(profileInput.contactPhone ?? application.contact_phone).trim(),
         address: adminAddress(profileInput.address ?? application.address ?? {}),
       };
-      if (!nextProfile.firstName || !nextProfile.lastName || !nextProfile.school || !nextProfile.email || !nextProfile.phone) throw invalid('ชื่อ นามสกุล โรงเรียน อีเมล และเบอร์โทรศัพท์จำเป็นต้องกรอก');
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nextProfile.email)) throw invalid('อีเมลติดต่อไม่ถูกต้อง');
-      if (nextProfile.phone.replace(/\D/g, '').length < 4) throw invalid('เบอร์โทรศัพท์ต้องมีตัวเลขอย่างน้อย 4 หลัก');
+      if (!nextProfile.firstName || !nextProfile.lastName || !nextProfile.school || !nextProfile.email || !nextProfile.phone) throw invalid('โปรดกรอกชื่อ นามสกุล โรงเรียน อีเมล และหมายเลขโทรศัพท์');
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nextProfile.email)) throw invalid('รูปแบบอีเมลติดต่อไม่ถูกต้อง');
+      if (nextProfile.phone.replace(/\D/g, '').length < 4) throw invalid('หมายเลขโทรศัพท์ต้องมีตัวเลขอย่างน้อย 4 หลัก');
 
-      if (!Array.isArray(input.items) || input.items.length < 1 || input.items.length > 30) throw invalid('ต้องมีรายการสอบอย่างน้อย 1 รายการ');
+      if (!Array.isArray(input.items) || input.items.length < 1 || input.items.length > 30) throw invalid('โปรดระบุรายการสอบอย่างน้อย 1 รายการ');
       const itemIds = input.items.map((item) => item.applicationItemId).filter(Boolean);
       const roundIds = input.items.map((item) => item.roundId);
-      if (new Set(itemIds).size !== itemIds.length || new Set(roundIds).size !== roundIds.length) throw invalid('รายการสอบซ้ำกัน');
-      if (itemIds.some((id) => !currentById.has(id))) throw invalid('พบรายการสอบที่ไม่ได้อยู่ในใบสมัครนี้', 403);
+      if (new Set(itemIds).size !== itemIds.length || new Set(roundIds).size !== roundIds.length) throw invalid('พบรายการสอบซ้ำกันในใบสมัคร');
+      if (itemIds.some((id) => !currentById.has(id))) throw invalid('พบรายการสอบที่ไม่อยู่ในใบสมัครนี้', 403);
 
       const prepared = [];
       for (const itemInput of input.items) {
@@ -773,24 +773,24 @@ export async function updateAdminApplication(applicationId, input, adminUserId) 
           WHERE r.id=$1`, [itemInput.roundId,itemInput.gradeId,itemInput.centerId]);
         if (!roundResult.rowCount) throw invalid(`ไม่พบรอบสอบ ระดับชั้น หรือศูนย์สอบของ ${itemInput.roundId}`);
         const round = roundResult.rows[0];
-        if (round.round_type !== primaryRoundType || round.year !== primaryYear) throw invalid('ใบสมัครหนึ่งใบต้องอยู่ในปีการศึกษาและรอบสอบเดิม');
+        if (round.round_type !== primaryRoundType || round.year !== primaryYear) throw invalid('รายการสอบในใบสมัครต้องอยู่ในปีการศึกษาและรอบสอบเดียวกัน');
         const retained = Boolean(prior && prior.exam_round_id === round.id);
         if (!retained && !round.active) throw invalid(`รอบสอบ ${round.title} ไม่เปิดให้เพิ่มในใบสมัคร`);
         const registrationOpen = Boolean(round.open_date && round.close_date && !round.final_manually_closed
           && dateOnly(round.open_date) <= today && today <= dateOnly(round.close_date));
         if (!retained && !registrationOpen) throw invalid(`รอบสอบ ${round.title} ปิดรับสมัครแล้ว จึงเพิ่มในใบสมัครไม่ได้`, 409);
-        if (!retained && (!round.selected_grade_active || !round.selected_center_active)) throw invalid('ระดับชั้นหรือศูนย์สอบนี้ถูกปิดใช้งาน');
+        if (!retained && (!round.selected_grade_active || !round.selected_center_active)) throw invalid('ระดับชั้นหรือศูนย์สอบที่เลือกไม่ได้เปิดใช้งาน');
         const todayDate = round.exam_date ? dateOnly(round.exam_date) : '';
         const isPastSelectionLock = Boolean(todayDate && today >= todayDate);
         const isPastFormatLock = Boolean(todayDate && today > todayDate);
         if (!round.grade_available && !(retained && prior.grade_id === itemInput.gradeId)) throw invalid(`ระดับชั้นไม่เปิดใน ${round.title}`);
         const format = itemInput.format;
-        if (!['paper','online'].includes(format)) throw invalid('รูปแบบสอบไม่ถูกต้อง');
+        if (!['paper','online'].includes(format)) throw invalid('รูปแบบการสอบไม่ถูกต้อง');
         if (format === 'online') {
-          if (round.selected_center_code !== '500') throw invalid('Online Exam ต้องใช้ศูนย์สอบ Online : Home Base');
+          if (round.selected_center_code !== '500') throw invalid('การสอบรูปแบบ Online Exam ต้องเลือกศูนย์สอบ Online : Home Base');
           if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(itemInput.examEmail || '').trim())) throw invalid(`กรอกอีเมลเข้าสอบให้ถูกต้องสำหรับ ${round.short_name}`);
         } else {
-          if (round.selected_center_code === '500') throw invalid('Paper-Based ต้องเลือกศูนย์สอบ onsite');
+          if (round.selected_center_code === '500') throw invalid('การสอบรูปแบบ Paper-Based ต้องเลือกศูนย์สอบที่กำหนด');
           const sameCenter = retained && prior.center_id === itemInput.centerId;
           if (!round.center_available && !sameCenter) throw invalid(`ศูนย์สอบนี้ไม่เปิดใน ${round.title}`);
         }
@@ -806,7 +806,7 @@ export async function updateAdminApplication(applicationId, input, adminUserId) 
 
         let finalInvitationId = null;
         if (round.round_type === 'FINAL') {
-          if (!application.source_heat_application_id) throw invalid('ไม่พบใบสมัคร HEAT ที่ใช้ยืนยันสิทธิ์ FINAL', 403);
+          if (!application.source_heat_application_id) throw invalid('ไม่พบใบสมัครรอบ HEAT ที่ใช้ยืนยันสิทธิ์สมัครรอบ FINAL', 403);
           const invitation = await client.query(`SELECT fi.id FROM final_invitations fi
             JOIN application_items heat_item ON heat_item.id=fi.heat_application_item_id
             JOIN applications heat_application ON heat_application.id=heat_item.application_id
@@ -851,7 +851,7 @@ export async function updateAdminApplication(applicationId, input, adminUserId) 
       const editedItemIds = prepared.filter((item) => item.retained && (item.gradeChanged || item.formatChanged || item.centerChanged || item.emailChanged || item.feeSatang !== Number(item.prior.fee_satang))).map((item) => item.prior.id);
       const protectedItemIds = [...new Set([...removedItems.map((item) => item.id), ...editedItemIds])];
       const results = protectedItemIds.length ? await client.query('SELECT application_item_id FROM results WHERE application_item_id=ANY($1::uuid[]) LIMIT 1', [protectedItemIds]) : { rowCount: 0 };
-      if (results.rowCount) throw invalid('รายการสอบที่มีผลสอบแล้วไม่สามารถเปลี่ยนแปลงได้', 409);
+      if (results.rowCount) throw invalid('ไม่สามารถเปลี่ยนแปลงรายการสอบที่ประกาศผลแล้วได้', 409);
 
       const affectedApplications = application.school_batch_id
         ? await client.query(`SELECT a.id AS application_id,a.applicant_id,ap.first_name_en,ap.middle_name_en,ap.last_name_en,ap.date_of_birth,ap.school_name
@@ -873,10 +873,10 @@ export async function updateAdminApplication(applicationId, input, adminUserId) 
         predictedKeys.push(...roundsForSibling.map((roundId) => ({ applicationId: sibling.application_id, key: duplicateKey(identity, roundId) })));
       }
       const keys = predictedKeys.map((entry) => entry.key);
-      if (new Set(keys).size !== keys.length) throw invalid('ข้อมูลนี้จะทำให้เกิดใบสมัครซ้ำกัน', 409);
+      if (new Set(keys).size !== keys.length) throw invalid('ข้อมูลนี้ทำให้เกิดใบสมัครซ้ำกัน', 409);
       const duplicateConflict = await client.query(`SELECT application_id FROM application_items
         WHERE duplicate_key=ANY($1::text[]) AND NOT (application_id=ANY($2::uuid[])) LIMIT 1`, [keys, affectedIds]);
-      if (duplicateConflict.rowCount) throw invalid('ข้อมูลนี้จะทำให้เกิดใบสมัครซ้ำกับใบสมัครอื่น', 409);
+      if (duplicateConflict.rowCount) throw invalid('ข้อมูลนี้ซ้ำกับใบสมัครอื่น', 409);
 
       const canceledNumbers = [];
       const deletedPhotoDriveIds = [];
@@ -971,7 +971,7 @@ export async function updateAdminApplication(applicationId, input, adminUserId) 
       for (const item of prepared.filter((entry) => entry.round.round_type === 'FINAL' && entry.finalInvitationId && (!entry.retained || entry.gradeChanged))) {
         if (item.retained && item.gradeChanged) await client.query('UPDATE final_invitations SET claimed_application_id=NULL WHERE claimed_application_id=$1 AND final_exam_round_id=$2', [applicationId,item.round.id]);
         const claimed = await client.query('UPDATE final_invitations SET claimed_application_id=$1 WHERE id=$2 AND claimed_application_id IS NULL', [applicationId,item.finalInvitationId]);
-        if (!claimed.rowCount) throw invalid('สิทธิ์สมัคร FINAL ถูกใช้ไปแล้ว กรุณาลองอีกครั้ง', 409);
+        if (!claimed.rowCount) throw invalid('สิทธิ์สมัครรอบ FINAL ถูกใช้ไปแล้ว โปรดตรวจสอบข้อมูลแล้วดำเนินการอีกครั้ง', 409);
       }
       for (const removed of removedItems) itemChanges.push({ label: `${removed.short_name} · ลบรายการสอบ`, oldValue: `${removed.grade_label} · ${removed.format === 'online' ? 'Online Exam' : 'Paper-Based'} · ${removed.center_name} · ${money(removed.fee_satang)} บาท${removed.exam_number ? ` · เลข ${removed.exam_number}` : ''}`, newValue: 'ยกเลิก' });
 
@@ -986,7 +986,7 @@ export async function updateAdminApplication(applicationId, input, adminUserId) 
       const nextAdjustment = Number(application.non_refundable_adjustment_satang || 0) + adjustmentIncrease;
       const nextTotalSatang = registrationSatang + Number(application.paper_total_satang || 0) + nextAdjustment;
       const additionalDue = Math.max(0, nextTotalSatang - Number(application.total_satang || 0));
-      if (additionalDue > 0 && !paymentSlip) throw invalid(`ต้องแนบสลิปยอดชำระเพิ่ม ${money(additionalDue).toLocaleString('th-TH')} บาทก่อนบันทึก`);
+      if (additionalDue > 0 && !paymentSlip) throw invalid(`โปรดแนบหลักฐานการชำระเงินส่วนที่เพิ่มจำนวน ${money(additionalDue).toLocaleString('th-TH')} บาทก่อนบันทึก`);
       if (profileChanges.length || itemChanges.length || nextAdjustment !== Number(application.non_refundable_adjustment_satang || 0)) {
         const changeList = [...profileChanges.map(([label, oldValue, newValue]) => ({ label, oldValue: oldValue || '', newValue: newValue || '' })), ...itemChanges];
         if (nextAdjustment !== Number(application.non_refundable_adjustment_satang || 0)) changeList.push({ label: 'ส่วนต่างที่ไม่คืน/ไม่นำไปหัก', oldValue: money(application.non_refundable_adjustment_satang || 0), newValue: money(nextAdjustment) });
@@ -1041,7 +1041,7 @@ async function updateApplicationProfile(applicationId, input, { ownerId = null, 
       const storedName = normalize([target.first_name_en, target.middle_name_en, target.last_name_en].filter(Boolean).join(' '));
       const storedLastFour = String(target.contact_phone || '').replace(/\D/g, '').slice(-4);
       if (normalize(publicIdentity.candidateName) !== storedName || String(publicIdentity.phoneLast4 || '') !== storedLastFour) {
-        throw invalid('ไม่พบข้อมูลที่ตรงกัน กรุณาตรวจชื่อภาษาอังกฤษและเลข 4 ตัวท้ายอีกครั้ง', 403);
+        throw invalid('ไม่พบข้อมูลที่ตรงกัน โปรดตรวจสอบชื่อภาษาอังกฤษและหมายเลขโทรศัพท์ 4 หลักท้าย', 403);
       }
     }
     if (!ownerId && !publicIdentity) throw invalid('You do not have permission to edit this application', 403);
@@ -1059,7 +1059,7 @@ async function updateApplicationProfile(applicationId, input, { ownerId = null, 
       address: Object.fromEntries(Object.entries(input.address || {}).map(([key, value]) => [key, String(value || '').trim()]).filter(([, value]) => value)),
     };
     if (!next.firstName || !next.lastName || !next.schoolName || !next.contactEmail || !next.contactPhone) throw invalid('First name, last name, school, contact email, and phone are required');
-    if (next.contactPhone.replace(/\D/g, '').length < 4) throw invalid('เบอร์โทรศัพท์ต้องมีตัวเลขอย่างน้อย 4 หลัก');
+    if (next.contactPhone.replace(/\D/g, '').length < 4) throw invalid('หมายเลขโทรศัพท์ต้องมีตัวเลขอย่างน้อย 4 หลัก');
     const schoolChanged = String(target.school_name || '').trim() !== next.schoolName;
     const updateWholeSchoolBatch = Boolean(target.school_batch_id && schoolChanged && ownerId);
     if (updateWholeSchoolBatch) await client.query('SELECT id FROM school_batches WHERE id=$1 FOR UPDATE', [target.school_batch_id]);
@@ -1136,17 +1136,17 @@ export async function updatePublicApplicationProfile(applicationId, input, ident
 }
 
 function parseCertificatePhoto(photo) {
-  if (!photo || typeof photo.dataBase64 !== 'string') throw invalid('เลือกไฟล์รูปก่อนอัปโหลด');
+  if (!photo || typeof photo.dataBase64 !== 'string') throw invalid('โปรดเลือกไฟล์ภาพก่อนอัปโหลด');
   const mimeType = String(photo.mimeType || '').toLowerCase();
-  if (!['image/jpeg', 'image/png', 'image/webp'].includes(mimeType)) throw invalid('รูปเกียรติบัตรรองรับ JPG, PNG หรือ WebP เท่านั้น');
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(mimeType)) throw invalid('ไฟล์ภาพเกียรติบัตรต้องเป็น JPG, PNG หรือ WebP');
   const encoded = photo.dataBase64.replace(/^data:[^,]+,/, '');
-  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(encoded) || encoded.length % 4 !== 0) throw invalid('ข้อมูลรูปภาพไม่ถูกต้อง');
+  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(encoded) || encoded.length % 4 !== 0) throw invalid('ข้อมูลไฟล์ภาพไม่ถูกต้อง');
   const buffer = Buffer.from(encoded, 'base64');
   if (!buffer.length || buffer.length > 10 * 1024 * 1024) throw invalid('รูปภาพต้องมีขนาดไม่เกิน 10 MB');
   const valid = mimeType === 'image/jpeg' ? buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff
     : mimeType === 'image/png' ? buffer.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10]))
       : buffer.subarray(0, 4).toString('ascii') === 'RIFF' && buffer.subarray(8, 12).toString('ascii') === 'WEBP';
-  if (!valid) throw invalid('ชนิดไฟล์ไม่ตรงกับเนื้อหารูปภาพ');
+  if (!valid) throw invalid('ชนิดไฟล์ไม่ตรงกับข้อมูลภาพ');
   const extension = mimeType === 'image/jpeg' ? 'jpg' : mimeType === 'image/png' ? 'png' : 'webp';
   const baseName = String(photo.fileName || 'certificate-photo').replace(/^.*[\\/]/, '').replace(/\.[^.]+$/, '').normalize('NFKC').replace(/[^\p{L}\p{N}_-]+/gu, '_').replace(/^_+|_+$/g, '').slice(0, 120) || 'certificate-photo';
   return { buffer, mimeType, extension, fileName: `${baseName}.${extension}`, sha256: createHash('sha256').update(buffer).digest('hex') };
@@ -1158,16 +1158,16 @@ async function getPhotoUploadContext(applicationId, userId, userEmail, isAdmin) 
   if (!result.rowCount) throw invalid('ไม่พบใบสมัคร',404);
   const application = result.rows[0];
   const isApplicant = Boolean(userEmail) && application.contact_email.toLowerCase() === String(userEmail).toLowerCase();
-  if (!isAdmin && application.owner_user_id !== userId && !isApplicant) throw invalid('ไม่มีสิทธิ์จัดการรูปของใบสมัครนี้',403);
-  if (application.status !== 'approved') throw invalid('อัปโหลดรูปได้หลังแอดมินอนุมัติใบสมัครแล้วเท่านั้น',409);
+  if (!isAdmin && application.owner_user_id !== userId && !isApplicant) throw invalid('ไม่มีสิทธิ์จัดการภาพของใบสมัครนี้',403);
+  if (application.status !== 'approved') throw invalid('สามารถอัปโหลดภาพได้หลังผู้ดูแลระบบอนุมัติใบสมัครแล้วเท่านั้น',409);
   const deadline = await getPool().query(`SELECT bool_and(r.edit_close_date IS NOT NULL AND (now() AT TIME ZONE 'Asia/Bangkok')::date<=r.edit_close_date) AS editable
     FROM application_items ai JOIN exam_rounds r ON r.id=ai.exam_round_id WHERE ai.application_id=$1`, [applicationId]);
-  if (!deadline.rows[0]?.editable) throw invalid('ปิดช่วงอัปโหลดรูปแล้ว หรือยังไม่ได้กำหนดวันปิดแก้ไข',409);
+  if (!deadline.rows[0]?.editable) throw invalid('หมดช่วงเวลาอัปโหลดภาพ หรือยังไม่ได้กำหนดวันปิดแก้ไข',409);
   const items = await getPool().query(`SELECT ai.id AS application_item_id,ai.exam_number,r.id AS round_id,r.year,r.round_type,
       c.short_name,c.name AS competition_name
     FROM application_items ai JOIN exam_rounds r ON r.id=ai.exam_round_id JOIN competitions c ON c.id=r.competition_id
     WHERE ai.application_id=$1 ORDER BY ai.id`, [applicationId]);
-  if (!items.rowCount || items.rows.some((item) => !item.exam_number)) throw invalid('รอสร้างเลขประจำตัวสอบก่อนอัปโหลดรูปเกียรติบัตร',409);
+  if (!items.rowCount || items.rows.some((item) => !item.exam_number)) throw invalid('โปรดสร้างเลขประจำตัวสอบก่อนอัปโหลดภาพเกียรติบัตร',409);
   return { application, items: items.rows };
 }
 
@@ -1191,9 +1191,9 @@ export async function uploadCertificatePhoto(applicationId, photoInput, userId, 
         FROM applications a JOIN applicants ap ON ap.id=a.applicant_id WHERE a.id=$1 FOR UPDATE OF a`, [applicationId]);
       const stillEditable = await client.query(`SELECT bool_and(r.edit_close_date IS NOT NULL AND (now() AT TIME ZONE 'Asia/Bangkok')::date<=r.edit_close_date) AS editable
         FROM application_items ai JOIN exam_rounds r ON r.id=ai.exam_round_id WHERE ai.application_id=$1`, [applicationId]);
-      if (!checked.rowCount || checked.rows[0].status !== 'approved' || !stillEditable.rows[0]?.editable) throw invalid('ใบสมัครไม่อยู่ในช่วงอนุญาตให้อัปโหลดรูปแล้ว',409);
+      if (!checked.rowCount || checked.rows[0].status !== 'approved' || !stillEditable.rows[0]?.editable) throw invalid('ใบสมัครอยู่นอกช่วงเวลาที่อนุญาตให้อัปโหลดภาพ',409);
       const applicantEmailMatches = Boolean(userEmail) && checked.rows[0]?.contact_email.toLowerCase() === String(userEmail).toLowerCase();
-      if (!isAdmin && checked.rows[0].owner_user_id !== userId && !applicantEmailMatches) throw invalid('ไม่มีสิทธิ์จัดการรูปของใบสมัครนี้',403);
+      if (!isAdmin && checked.rows[0].owner_user_id !== userId && !applicantEmailMatches) throw invalid('ไม่มีสิทธิ์จัดการภาพของใบสมัครนี้',403);
       const prior = await client.query('SELECT application_item_id,drive_file_id FROM certificate_photos WHERE application_item_id=ANY($1::uuid[]) FOR UPDATE', [items.map((item) => item.application_item_id)]);
       for (const upload of uploads) await client.query(`INSERT INTO certificate_photos(application_item_id,drive_file_id,file_name,uploaded_by,mime_type,sha256,file_size,uploaded_at,updated_at)
         VALUES($1,$2,$3,$4,$5,$6,$7,now(),now()) ON CONFLICT(application_item_id) DO UPDATE SET
@@ -1231,7 +1231,7 @@ export async function downloadCertificatePhoto(applicationItemId, userId, userEm
     JOIN applications a ON a.id=ai.application_id JOIN applicants ap ON ap.id=a.applicant_id WHERE ai.id=$1`, [applicationItemId]);
   if (!result.rowCount) throw invalid('ไม่พบรูปสำหรับเกียรติบัตร',404);
   const isApplicant = Boolean(userEmail) && result.rows[0].contact_email.toLowerCase() === String(userEmail).toLowerCase();
-  if (!isAdmin && result.rows[0].owner_user_id !== userId && !isApplicant) throw invalid('ไม่มีสิทธิ์ดูรูปนี้',403);
+  if (!isAdmin && result.rows[0].owner_user_id !== userId && !isApplicant) throw invalid('ไม่มีสิทธิ์ดูภาพนี้',403);
   const content = await downloadGoogleDriveFile(result.rows[0].drive_file_id);
   return { content, fileName: result.rows[0].file_name, mimeType: result.rows[0].mime_type };
 }
@@ -1395,8 +1395,8 @@ function mapAdminApplicationNote(row) {
 
 function validatedAdminNoteBody(body) {
   const value = String(body || '').trim();
-  if (!value) throw invalid('บันทึกข้อความก่อนบันทึก');
-  if (value.length > 4000) throw invalid('บันทึกได้ไม่เกิน 4,000 ตัวอักษร');
+  if (!value) throw invalid('โปรดระบุข้อความก่อนบันทึก');
+  if (value.length > 4000) throw invalid('ข้อความต้องมีความยาวไม่เกิน 4,000 ตัวอักษร');
   return value;
 }
 
@@ -1468,7 +1468,7 @@ const publicApplicationStatus = (status) => status === 'approved' ? 'confirmed' 
 
 export async function searchPublicApplicationStatuses(name) {
   const normalizedName = normalize(name);
-  if (normalizedName.length < 3) throw invalid('กรอกชื่อภาษาอังกฤษอย่างน้อย 3 ตัวอักษร');
+  if (normalizedName.length < 3) throw invalid('โปรดระบุชื่อภาษาอังกฤษอย่างน้อย 3 ตัวอักษร');
   const escapedName = normalizedName.replace(/[!%_]/g, '!$&');
   const result = await getPool().query(`SELECT a.status AS application_status,a.review_note,a.submitted_at,
       concat_ws(' ',ap.first_name_en,NULLIF(ap.middle_name_en,''),ap.last_name_en) AS candidate,
@@ -1536,7 +1536,7 @@ function publicEditApplication(application) {
 export async function getPublicApplicationForEdit(candidateName, phoneLast4, applicationId = null) {
   const normalizedName = normalize(candidateName);
   const normalizedLastFour = String(phoneLast4 || '');
-  if (normalizedName.length < 3 || !/^\d{4}$/.test(normalizedLastFour)) throw invalid('ไม่พบข้อมูลที่ตรงกัน กรุณาตรวจชื่อภาษาอังกฤษและเลข 4 ตัวท้ายอีกครั้ง', 403);
+  if (normalizedName.length < 3 || !/^\d{4}$/.test(normalizedLastFour)) throw invalid('ไม่พบข้อมูลที่ตรงกัน โปรดตรวจสอบชื่อภาษาอังกฤษและหมายเลขโทรศัพท์ 4 หลักท้าย', 403);
   const matched = await getPool().query(`SELECT a.id
     FROM applications a JOIN applicants ap ON ap.id=a.applicant_id
     WHERE a.status <> 'draft'
@@ -1544,7 +1544,7 @@ export async function getPublicApplicationForEdit(candidateName, phoneLast4, app
       AND lower(regexp_replace(trim(concat_ws(' ',ap.first_name_en,NULLIF(ap.middle_name_en,''),ap.last_name_en)),'[[:space:]]+',' ','g'))=$1
       AND right(regexp_replace(ap.contact_phone,'[^0-9]','','g'),4)=$2
     ORDER BY a.submitted_at DESC LIMIT 1`, [normalizedName, normalizedLastFour, applicationId]);
-  if (!matched.rowCount) throw invalid('ไม่พบข้อมูลที่ตรงกัน กรุณาตรวจชื่อภาษาอังกฤษและเลข 4 ตัวท้ายอีกครั้ง', 403);
+  if (!matched.rowCount) throw invalid('ไม่พบข้อมูลที่ตรงกัน โปรดตรวจสอบชื่อภาษาอังกฤษและหมายเลขโทรศัพท์ 4 หลักท้าย', 403);
   const applications = await queryApplications({ applicationId: matched.rows[0].id });
   if (!applications[0]) throw invalid('ไม่พบใบสมัคร', 404);
   return publicEditApplication(applications[0]);

@@ -130,7 +130,7 @@ export function PublicPortalHeader({ page, navigate, setPersona, authProfile, on
         </a>
         <nav className="landing-nav flex flex-1 items-center justify-center gap-[clamp(16px,2.6vw,35px)] max-[700px]:col-span-full max-[700px]:row-start-2 max-[700px]:w-full max-[700px]:justify-between max-[700px]:gap-1 max-[700px]:overflow-x-auto max-[700px]:border-t max-[700px]:border-ocec-border max-[700px]:pt-[5px] max-[700px]:[scrollbar-width:none] max-[390px]:gap-[10px]" aria-label="เมนูหน้าเว็บ">
           <a className={navItemClasses} href="#open-exams" aria-current={page === "home" ? "page" : undefined} onClick={(event) => { event.preventDefault(); goToLandingSection(page, navigate, "open-exams"); }}>รายการสอบ</a>
-          <button className={navItemClasses} type="button" aria-current={isStatusPage ? "page" : undefined} onClick={() => navigate("lookup-choice")}>ค้นหาสถานะ</button>
+          <button className={navItemClasses} type="button" aria-current={isStatusPage ? "page" : undefined} onClick={() => navigate("lookup-choice")}>ตรวจสอบสถานะใบสมัคร</button>
           <button className={navItemClasses} type="button" aria-current={page === "final-confirm" ? "page" : undefined} onClick={() => navigate("final-confirm")}>ยืนยันสิทธิ์</button>
           <button className={navItemClasses} type="button" aria-current={page === "results" ? "page" : undefined} onClick={() => navigate("results")}>ประกาศผล</button>
         </nav>

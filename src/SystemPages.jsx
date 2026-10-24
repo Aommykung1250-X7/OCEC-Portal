@@ -16,7 +16,7 @@ function SystemErrorPanel({
     <section className={`system-error-page${standalone ? " system-error-page-standalone" : ""}`} aria-labelledby="system-error-title">
       <div className="system-error-card" role={code === "404" ? "status" : "alert"}>
         {showBrand ? (
-          <a className="system-error-brand" href="/" aria-label="OCEC Portal — กลับหน้าหลัก">
+          <a className="system-error-brand" href="/" aria-label="OCEC Portal — กลับสู่หน้าหลัก">
             <span className="brand-logo-window"><img src="/ocec-logo.png" alt="" /></span>
             <span><strong>OCEC Portal</strong><small>ศูนย์ประสานงานการสอบ</small></span>
           </a>
@@ -49,7 +49,7 @@ export function NotFoundPage({ navigate }) {
       code="404"
       kicker="ไม่พบหน้าที่ต้องการ"
       title="หน้านี้อาจไม่มีอยู่แล้ว"
-      description="ลองตรวจสอบลิงก์อีกครั้ง หรือกลับไปเริ่มต้นจากหน้าหลักของ OCEC Portal"
+      description="โปรดตรวจสอบลิงก์อีกครั้ง หรือกลับสู่หน้าหลักของ OCEC Portal"
       primaryLabel="กลับหน้าหลัก"
       onPrimary={() => navigate("home")}
       secondaryLabel="ย้อนกลับ"
@@ -77,8 +77,8 @@ export class AppErrorBoundary extends Component {
         code="500"
         kicker="เกิดข้อผิดพลาด"
         title="ขออภัย ระบบแสดงหน้านี้ไม่ได้"
-        description="ลองโหลดหน้าอีกครั้ง หากยังพบปัญหา โปรดกลับไปเริ่มต้นใหม่จากหน้าหลัก"
-        primaryLabel="ลองโหลดอีกครั้ง"
+      description="โปรดลองโหลดหน้าอีกครั้ง หากยังพบปัญหา โปรดกลับสู่หน้าหลัก"
+      primaryLabel="โหลดหน้าอีกครั้ง"
         onPrimary={() => window.location.reload()}
         secondaryLabel="กลับหน้าหลัก"
         onSecondary={() => window.location.assign("/")}

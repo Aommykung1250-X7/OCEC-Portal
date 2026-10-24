@@ -43,9 +43,9 @@ export function Sidebar({ page, persona, applications = [], competitionCatalog =
     { id: "results", label: "ประกาศผล", icon: "grid" },
   ];
   const adminItems = [
-    { id: "admin-home", label: "ภาพรวมแอดมิน", icon: "grid" },
+    { id: "admin-home", label: "ภาพรวมผู้ดูแลระบบ", icon: "grid" },
     { id: "admin-review", label: "ตรวจใบสมัคร", icon: "file", count: String(pendingReviewCount) },
-    { id: "admin-form-options", label: "ข้อมูลตัวเลือกในฟอร์ม", icon: "settings" },
+    { id: "admin-form-options", label: "ข้อมูลตัวเลือกในแบบฟอร์ม", icon: "settings" },
     { id: "admin-results", label: "นำเข้าผลสอบ", icon: "award" },
     { id: "admin-final-ids", label: "เลขประจำตัว Final", icon: "users" },
     { id: "admin-mock-papers", label: "รายชื่อ Mock และข้อสอบเก่า", icon: "book" },
@@ -158,8 +158,8 @@ export function Sidebar({ page, persona, applications = [], competitionCatalog =
                   {renderItems(adminItems.slice(1, 2))}
                 </div>
               </section>
-              <section className={`min-w-0 ${sidebarExpanded ? "" : "min-[801px]:border-t min-[801px]:border-[#ecebee] min-[801px]:pt-2"}`} aria-label="เครื่องมือแอดมิน">
-                <p className={`m-0 mb-1 px-[14px] pt-1 text-[10px] font-semibold tracking-[.08em] text-[#928d98] ${sidebarExpanded ? "min-[801px]:block" : "min-[801px]:hidden"} max-[800px]:block`}>เครื่องมือแอดมิน</p>
+              <section className={`min-w-0 ${sidebarExpanded ? "" : "min-[801px]:border-t min-[801px]:border-[#ecebee] min-[801px]:pt-2"}`} aria-label="เครื่องมือผู้ดูแลระบบ">
+                <p className={`m-0 mb-1 px-[14px] pt-1 text-[10px] font-semibold tracking-[.08em] text-[#928d98] ${sidebarExpanded ? "min-[801px]:block" : "min-[801px]:hidden"} max-[800px]:block`}>เครื่องมือผู้ดูแลระบบ</p>
                 <div className="nav-list grid gap-[5px]">{renderItems(adminItems.slice(2))}</div>
               </section>
             </div>
@@ -168,7 +168,7 @@ export function Sidebar({ page, persona, applications = [], competitionCatalog =
         <div className={`sidebar-bottom ${isAdmin ? "mt-[18px] text-[#75747c]" : ""}`}>
           {persona !== "admin" ? <div className="help-card">
             <span className="help-icon"><Icon name="help" size={17} /></span>
-            <strong>ต้องการความช่วยเหลือ?</strong>
+            <strong>ต้องการความช่วยเหลือหรือไม่?</strong>
             <p>ดูคำแนะนำการสมัครและการใช้งาน</p>
             <a href="https://lin.ee/3hzFg1z" target="_blank" rel="noopener noreferrer">ศูนย์ช่วยเหลือ <Icon name="arrow" size={14} /></a>
           </div> : null}
@@ -227,7 +227,7 @@ export function Topbar({ title, persona, setPersona, menuOpen, setMenuOpen, navi
         {persona === "guest" ? (
           <Button variant="outline" icon="shield" onClick={() => { setPersona("candidate"); }}>เข้าสู่ระบบด้วย Google</Button>
         ) : (
-          <button className="profile-chip" onClick={() => navigate(persona === "admin" ? "admin-home" : "applications")} aria-label={persona === "admin" ? "เปิดภาพรวมแอดมิน" : "เปิดใบสมัครของฉัน"}>
+          <button className="profile-chip" onClick={() => navigate(persona === "admin" ? "admin-home" : "applications")} aria-label={persona === "admin" ? "เปิดภาพรวมผู้ดูแลระบบ" : "เปิดใบสมัครของฉัน"}>
             <span className="profile-avatar">{persona === "admin" ? "AD" : persona === "coordinator" ? "PK" : "NS"}</span>
             <span className="profile-name">{persona === "admin" ? "ผู้ดูแลระบบ" : persona === "coordinator" ? "Pimchanok K." : "Nicha S."}</span>
             <span className="profile-caret">⌄</span>
@@ -245,17 +245,17 @@ export function HomePage({ navigate, persona, applications }) {
     <div className="page-stack">
       <PageHeading
         eyebrow="ยินดีต้อนรับ"
-        title={persona === "admin" ? "ศูนย์จัดการการสอบ" : "สวัสดี, ยินดีต้อนรับกลับ"}
-        description={persona === "coordinator" ? "ติดตามใบสมัครของนักเรียนและจัดการทุกขั้นตอนได้ในที่เดียว" : "จัดการใบสมัครและติดตามข่าวสารการสอบของคุณได้ที่นี่"}
+        title={persona === "admin" ? "ศูนย์จัดการการสอบ" : "ยินดีต้อนรับ"}
+        description={persona === "coordinator" ? "ตรวจสอบใบสมัครของนักเรียนและดำเนินงานที่เกี่ยวข้องได้จากระบบเดียว" : "ตรวจสอบใบสมัครและติดตามประกาศการสอบผ่านระบบ OCEC"}
       />
       <section className="hero-panel">
         <div className="hero-copy">
-          <span className="hero-kicker"><span className="hero-kicker-dot" />เปิดรับสมัครรอบใหม่</span>
-          <h2>ทุกขั้นตอนการสอบ<br /><span>อยู่ที่นี่ในที่เดียว</span></h2>
-          <p>สมัครสอบ ติดตามสถานะ และรับข่าวสารจาก OCEC ได้อย่างสะดวกและปลอดภัย</p>
+          <span className="hero-kicker"><span className="hero-kicker-dot" />ระบบสมัครสอบ OCEC</span>
+          <h2>สมัครสอบและติดตามข้อมูล<br /><span>ผ่านระบบเดียว</span></h2>
+          <p>สมัครสอบ ตรวจสอบสถานะใบสมัคร และติดตามประกาศจาก OCEC ผ่านระบบออนไลน์</p>
           <div className="hero-actions">
-            <Button icon="arrow" onClick={() => navigate("apply-heat")}>เริ่มสมัครสอบ</Button>
-            <Button variant="light" icon="search" onClick={() => navigate("lookup-choice")}>ตรวจสอบสถานะ</Button>
+            <Button icon="arrow" onClick={() => navigate("apply-heat")}>เข้าสู่การสมัครสอบ</Button>
+            <Button variant="light" icon="search" onClick={() => navigate("lookup-choice")}>ตรวจสอบสถานะใบสมัคร</Button>
           </div>
         </div>
         <div className="hero-art" aria-hidden="true">
@@ -268,7 +268,7 @@ export function HomePage({ navigate, persona, applications }) {
             <div className="paper-check"><Icon name="check" size={16} /></div>
           </div>
           <div className="hero-float hero-float-top"><span className="float-check"><Icon name="check" size={15} /></span><span><strong>สมัครสำเร็จ</strong><small>ใบสมัครของคุณถูกบันทึกแล้ว</small></span></div>
-          <div className="hero-float hero-float-bottom"><span className="float-calendar"><Icon name="calendar" size={17} /></span><span><small>รอบสมัครปิด</small><strong>30 พฤศจิกายน 2569</strong></span></div>
+          <div className="hero-float hero-float-bottom"><span className="float-calendar"><Icon name="calendar" size={17} /></span><span><small>ปิดรับสมัคร</small><strong>30 พฤศจิกายน 2569</strong></span></div>
         </div>
       </section>
 
@@ -280,7 +280,7 @@ export function HomePage({ navigate, persona, applications }) {
         </div>
         <div className="summary-card">
           <span className="summary-icon summary-amber"><Icon name="clock" /></span>
-          <div><span>รอตรวจสอบ</span><strong>{activeCount.toString().padStart(2, "0")} <small>ใบ</small></strong></div>
+          <div><span>อยู่ระหว่างตรวจสอบ</span><strong>{activeCount.toString().padStart(2, "0")} <small>ใบ</small></strong></div>
           <span className="summary-trend trend-amber">ต้องติดตาม</span>
         </div>
         <div className="summary-card">
@@ -293,28 +293,28 @@ export function HomePage({ navigate, persona, applications }) {
       <div className="home-content-grid">
         <section className="surface quick-panel">
           <div className="section-heading">
-            <div><p className="eyebrow">เริ่มต้นใช้งาน</p><h2>คุณต้องการทำอะไร?</h2></div>
+          <div><p className="eyebrow">บริการสำหรับผู้สมัคร</p><h2>เลือกบริการที่ต้องการ</h2></div>
             <span className="section-index">01 / 04</span>
           </div>
           <div className="quick-action-grid">
             <button className="quick-action" onClick={() => navigate("apply-heat")}>
               <span className="quick-icon quick-blue"><Icon name="plus" /></span>
-              <span><strong>สมัครสอบ Heat</strong><small>เริ่มสมัครสอบรอบคัดเลือก</small></span>
+              <span><strong>สมัครสอบรอบ HEAT</strong><small>สมัครสอบในรอบคัดเลือก</small></span>
               <Icon name="chevron" className="quick-chevron" />
             </button>
             <button className="quick-action" onClick={() => navigate("applications")}>
               <span className="quick-icon quick-violet"><Icon name="file" /></span>
-              <span><strong>ใบสมัครของฉัน</strong><small>ดูหรือแก้ไขใบสมัคร</small></span>
+              <span><strong>ใบสมัครของฉัน</strong><small>ตรวจสอบหรือแก้ไขใบสมัคร</small></span>
               <Icon name="chevron" className="quick-chevron" />
             </button>
             <button className="quick-action" onClick={() => navigate("final-confirm")}>
               <span className="quick-icon quick-teal"><Icon name="award" /></span>
-              <span><strong>ยืนยันสิทธิ์ Final</strong><small>สำหรับผู้ผ่านรอบ Heat</small></span>
+              <span><strong>ยืนยันสิทธิ์ Final</strong><small>สำหรับผู้ผ่านการสอบรอบ HEAT</small></span>
               <Icon name="chevron" className="quick-chevron" />
             </button>
             <button className="quick-action" onClick={() => navigate("results")}>
               <span className="quick-icon quick-amber"><Icon name="grid" /></span>
-              <span><strong>ดูประกาศผลสอบ</strong><small>ค้นหาผลด้วยชื่อหรือเลขสอบ</small></span>
+              <span><strong>ตรวจสอบประกาศผลสอบ</strong><small>ค้นหาผลสอบด้วยชื่อหรือเลขประจำตัวสอบ</small></span>
               <Icon name="chevron" className="quick-chevron" />
             </button>
           </div>
@@ -324,13 +324,13 @@ export function HomePage({ navigate, persona, applications }) {
             <div><p className="eyebrow">กำหนดการ</p><h2>รอบสอบปัจจุบัน</h2></div>
             <span className="schedule-open">เปิดรับสมัคร</span>
           </div>
-          <div className="schedule-name"><span className="schedule-mark"><Icon name="award" size={19} /></span><div><strong>OCEC Heat 2569</strong><span>รอบคัดเลือก · ปีการศึกษา 2569</span></div></div>
+          <div className="schedule-name"><span className="schedule-mark"><Icon name="award" size={19} /></span><div><strong>OCEC HEAT 2569</strong><span>รอบคัดเลือก · ปีการศึกษา 2569</span></div></div>
           <div className="schedule-line">
             <div className="schedule-step"><span className="step-dot step-done"><Icon name="check" size={12} /></span><div><strong>เปิดรับสมัคร</strong><small>1 ตุลาคม 2569</small></div></div>
             <div className="schedule-step"><span className="step-dot step-current" /><div><strong>ปิดรับสมัคร</strong><small>30 พฤศจิกายน 2569</small></div></div>
-            <div className="schedule-step"><span className="step-dot" /><div><strong>ประกาศผล Heat</strong><small>15 ธันวาคม 2569</small></div></div>
+            <div className="schedule-step"><span className="step-dot" /><div><strong>ประกาศผลรอบ HEAT</strong><small>15 ธันวาคม 2569</small></div></div>
           </div>
-          <button className="schedule-link" onClick={() => navigate(persona === "admin" ? "admin-round" : "apply-heat")}>{persona === "admin" ? "ตั้งค่ารอบสอบ" : "ดูรายละเอียดและสมัคร"} <Icon name="arrow" size={15} /></button>
+          <button className="schedule-link" onClick={() => navigate(persona === "admin" ? "admin-round" : "apply-heat")}>{persona === "admin" ? "จัดการรอบสอบ" : "ตรวจสอบรายละเอียดและสมัครสอบ"} <Icon name="arrow" size={15} /></button>
         </aside>
       </div>
 
@@ -359,37 +359,37 @@ export function AdminLoginPage({ authProfile, authChecked, backendEnabled, onSig
   const isUnauthorized = authProfile && !authProfile.isAdmin;
   return (
     <main className="admin-login-page">
-      <a className="admin-login-brand" href="/" aria-label="กลับหน้า OCEC Portal">
+      <a className="admin-login-brand" href="/" aria-label="กลับสู่หน้า OCEC Portal">
         <BrandMark /><span><strong>OCEC Portal</strong><small>ระบบสมัครสอบ</small></span>
       </a>
       <section className="admin-login-card" aria-labelledby="admin-login-title">
         <span className="admin-login-mark"><Icon name="shield" size={24} /></span>
         <p className="admin-login-eyebrow">พื้นที่เจ้าหน้าที่</p>
-        <h1 id="admin-login-title">เข้าสู่ระบบแอดมิน</h1>
+        <h1 id="admin-login-title">เข้าสู่ระบบผู้ดูแลระบบ</h1>
         <p className="admin-login-description">ใช้บัญชี Google ที่ได้รับอนุญาตเพื่อจัดการรายการสอบและใบสมัคร</p>
         {!backendEnabled ? (
-          <div className="admin-login-message admin-login-message-error" role="alert">ระบบล็อกอินยังไม่เปิดใช้งาน · ตั้งค่า <code>VITE_BACKEND_ENABLED=true</code> แล้ว build เว็บใหม่</div>
+          <div className="admin-login-message admin-login-message-error" role="alert">ระบบเข้าสู่ระบบยังไม่เปิดใช้งาน · โปรดตั้งค่า <code>VITE_BACKEND_ENABLED=true</code> แล้วสร้างเว็บไซต์ใหม่</div>
         ) : !authChecked ? (
-          <div className="admin-login-message" role="status"><span className="admin-login-spinner" />กำลังตรวจสอบบัญชี…</div>
+          <div className="admin-login-message" role="status"><span className="admin-login-spinner" />กำลังตรวจสอบข้อมูลบัญชี…</div>
         ) : isUnauthorized ? (
           <>
             <div className="admin-login-message admin-login-message-error" role="alert">
-              บัญชี {authProfile.email} ไม่มีสิทธิ์เข้าหลังบ้าน กรุณาใช้อีเมลที่กำหนดใน <code>ADMIN_EMAILS</code>
+              บัญชี {authProfile.email} ไม่มีสิทธิ์เข้าถึงระบบผู้ดูแล โปรดเข้าสู่ระบบด้วยอีเมลที่กำหนดใน <code>ADMIN_EMAILS</code>
             </div>
             <button className="admin-login-button admin-login-secondary" type="button" onClick={onSignOut}>ออกจากระบบเพื่อเลือกบัญชีอื่น</button>
           </>
         ) : authProfile?.isAdmin ? (
-          <div className="admin-login-message" role="status">กำลังเปิดหน้าจัดการสำหรับ {authProfile.email}…</div>
+          <div className="admin-login-message" role="status">กำลังเปิดหน้าผู้ดูแลระบบสำหรับ {authProfile.email}…</div>
         ) : (
           <>
             <button className="admin-login-button" type="button" onClick={onSignIn}>
               <GoogleMark /><span>เข้าสู่ระบบด้วย Google</span><Icon name="arrow" size={17} />
             </button>
-            <p className="admin-login-hint">ตั้งอีเมลแอดมินใน <code>.env</code> ที่ <code>ADMIN_EMAILS</code> รองรับหลายอีเมลโดยคั่นด้วย comma</p>
+            <p className="admin-login-hint">กำหนดอีเมลผู้ดูแลระบบใน <code>.env</code> ที่ <code>ADMIN_EMAILS</code> สามารถระบุอีเมลได้หลายรายการ โดยคั่นแต่ละรายการด้วยเครื่องหมายจุลภาค</p>
           </>
         )}
       </section>
-      <a className="admin-login-back" href="/">กลับไปหน้าเว็บไซต์</a>
+      <a className="admin-login-back" href="/">กลับสู่หน้าเว็บไซต์</a>
     </main>
   );
 }
@@ -403,9 +403,9 @@ export function AdminShell({ page, title, persona, applications, competitionCata
       <main className={`main-column min-h-screen min-w-0 ${isAdmin ? "min-[801px]:ml-[82px] bg-[radial-gradient(circle_at_100%_150px,rgba(235,225,255,.36),transparent_30%),#f6f5f7]" : ""}`} id="main-content" tabIndex="-1">
         <Topbar backendEnabled={backendEnabled} title={title} persona={persona} setPersona={onSetPersona} menuOpen={menuOpen} setMenuOpen={setMenuOpen} navigate={navigate} authProfile={authProfile} onSignOut={onSignOut} activeYear={activeYear} />
         <div className={`content-wrap min-w-0 ${isAdmin ? "mx-auto w-full max-w-[1560px] px-[34px] pt-[30px] max-[1250px]:px-[25px] max-[800px]:px-5 max-[800px]:pt-[19px] max-[600px]:px-[13px] max-[600px]:pt-[13px]" : ""}`}>
-          {!backendEnabled ? <div className={`prototype-banner ${isAdmin ? "mb-[27px] min-h-[42px] rounded-xl border-[#e7e3f3] bg-[#f0effb] text-[#5d5a88]" : ""}`}><Icon name="info" size={15} /><span>โหมดตัวอย่างสำหรับพัฒนา UI · ข้อมูลไม่เชื่อมต่อฐานข้อมูลจริง</span><button onClick={(event) => event.currentTarget.parentElement.remove()} aria-label="ปิดข้อความ"><Icon name="close" size={14} /></button></div> : null}
+          {!backendEnabled ? <div className={`prototype-banner ${isAdmin ? "mb-[27px] min-h-[42px] rounded-xl border-[#e7e3f3] bg-[#f0effb] text-[#5d5a88]" : ""}`}><Icon name="info" size={15} /><span>โหมดตัวอย่าง · ข้อมูลไม่ได้เชื่อมต่อกับฐานข้อมูลจริง</span><button onClick={(event) => event.currentTarget.parentElement.remove()} aria-label="ปิดข้อความ"><Icon name="close" size={14} /></button></div> : null}
           {children}
-          <footer className={`page-footer ${isAdmin ? "text-[#79859b]" : ""}`}><span>© 2569 OCEC Portal</span><span>สำหรับการสอบถาม ติดต่อฝ่ายประสานงานโครงการ</span><a href="https://lin.ee/3hzFg1z" target="_blank" rel="noopener noreferrer">ศูนย์ช่วยเหลือ</a><a className="flaticon-attribution" href="https://www.flaticon.com/uicons" target="_blank" rel="noreferrer">UIcons by Flaticon</a></footer>
+          <footer className={`page-footer ${isAdmin ? "text-[#79859b]" : ""}`}><span>© 2569 OCEC Portal</span><span>หากมีข้อสงสัย โปรดติดต่อฝ่ายประสานงานโครงการ</span><a href="https://lin.ee/3hzFg1z" target="_blank" rel="noopener noreferrer">ศูนย์ช่วยเหลือ</a><a className="flaticon-attribution" href="https://www.flaticon.com/uicons" target="_blank" rel="noreferrer">UIcons by Flaticon</a></footer>
         </div>
       </main>
       {toast ? <div className="toast" role="status" aria-live="polite"><span><Icon name="check" size={16} /></span><p>{toast}</p><button aria-label="ปิดการแจ้งเตือน" onClick={() => setToast("")}><Icon name="close" size={16} /></button></div> : null}

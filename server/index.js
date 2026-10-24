@@ -33,13 +33,13 @@ function publicLookupRateLimit(scope, limit, perNameLimit = null) {
       return true;
     };
     if (!consume(`${scope}:${request.ip}`, limit)) {
-      return reply.header('Retry-After', '900').code(429).send({ error: 'ลองบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่' });
+      return reply.header('Retry-After', '900').code(429).send({ error: 'มีการดำเนินการบ่อยเกินไป โปรดรอสักครู่แล้วลองอีกครั้ง' });
     }
     const candidateName = request.body?.candidateName || request.body?.identity?.candidateName;
     if (perNameLimit && candidateName) {
       const nameHash = createHash('sha256').update(String(candidateName).normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase()).digest('hex');
       if (!consume(`${scope}:${request.ip}:${nameHash}`, perNameLimit)) {
-        return reply.header('Retry-After', '900').code(429).send({ error: 'ลองบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่' });
+        return reply.header('Retry-After', '900').code(429).send({ error: 'มีการดำเนินการบ่อยเกินไป โปรดรอสักครู่แล้วลองอีกครั้ง' });
       }
     }
     if (publicLookupAttempts.size > 5000) {
@@ -206,7 +206,7 @@ app.post('/api/admin/mock-sheets/add', { preHandler: requireAdmin, schema: { bod
     endDate: { type: 'string', format: 'date' },
   },
 } } }, async (request, reply) => {
-  if (request.body.startDate > request.body.endDate) return reply.code(400).send({ error: 'วันเริ่มต้นต้องไม่เกินวันสิ้นสุด' });
+  if (request.body.startDate > request.body.endDate) return reply.code(400).send({ error: 'วันที่เริ่มต้นต้องไม่อยู่หลังวันที่สิ้นสุด' });
   return addFilteredApplicationsToMockSheet(request.body);
 });
 app.post('/api/admin/integration-jobs/:id/retry', { preHandler: requireAdmin, schema: { params: { type: 'object', required: ['id'], properties: { id: { type: 'string', pattern: '^[1-9][0-9]*$' } } } } }, async (request, reply) => {

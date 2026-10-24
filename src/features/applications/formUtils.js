@@ -15,8 +15,8 @@ export function getSlipMimeType(file) {
 export function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => typeof reader.result === "string" && reader.result ? resolve(reader.result) : reject(new Error("อ่านไฟล์สลิปไม่สำเร็จ"));
-    reader.onerror = () => reject(new Error("อ่านไฟล์สลิปไม่สำเร็จ"));
+    reader.onload = () => typeof reader.result === "string" && reader.result ? resolve(reader.result) : reject(new Error("ไม่สามารถอ่านหลักฐานการชำระเงินได้"));
+    reader.onerror = () => reject(new Error("ไม่สามารถอ่านหลักฐานการชำระเงินได้"));
     reader.readAsDataURL(file);
   });
 }

@@ -58,7 +58,7 @@ export function GradeSelectionList({ grades, selectedGrades, onChange, label }) 
             <span className="overflow-hidden text-ellipsis whitespace-nowrap">{grade}</span>
           </label>
         ))}
-        {!grades?.length ? <span className="admin-center-selection-empty col-span-full text-xs text-[#8994a8]">ยังไม่มีระดับชั้น · เพิ่มรายการได้ในข้อมูลตัวเลือกในฟอร์ม</span> : null}
+        {!grades?.length ? <span className="admin-center-selection-empty col-span-full text-xs text-[#8994a8]">ยังไม่มีระดับชั้น · เพิ่มรายการได้ในข้อมูลตัวเลือกของแบบฟอร์ม</span> : null}
       </div>
       <small className="admin-center-online-hint text-[11px] leading-[1.4] text-[#8390a3]">เลือกเฉพาะระดับชั้นที่เปิดรับในรายการสอบนี้</small>
     </fieldset>
@@ -149,6 +149,6 @@ export function CenterCatalogContent({
       })}
     </div>
     <form className="admin-add-center mt-3 grid min-w-0 grid-cols-[minmax(0,1fr)] items-center gap-2 sm:grid-cols-[95px_minmax(0,1fr)_auto]" onSubmit={onAddCenter}><input className="min-h-11 w-full min-w-0 rounded-lg border border-[#dfe3ed] bg-white px-2.5 text-sm text-[#354361] outline-none focus:border-[#8d89d1] focus:ring-2 focus:ring-[#8d89d1]/15 sm:h-9 sm:min-h-0 sm:text-[11px]" aria-label="รหัสศูนย์สอบใหม่" placeholder="รหัสใหม่" value={newCenterCode} maxLength={3} inputMode="numeric" onChange={(event) => onNewCenterCodeChange(event.target.value)} /><input className="min-h-11 w-full min-w-0 rounded-lg border border-[#dfe3ed] bg-white px-2.5 text-sm text-[#354361] outline-none focus:border-[#8d89d1] focus:ring-2 focus:ring-[#8d89d1]/15 sm:h-9 sm:min-h-0 sm:text-[11px]" aria-label="ชื่อศูนย์สอบใหม่" placeholder="ชื่อศูนย์สอบใหม่" value={newCenterName} onChange={(event) => onNewCenterNameChange(event.target.value)} /><Button type="submit" variant="outline" className="min-h-11 whitespace-nowrap text-sm sm:min-h-9 sm:text-[11px]" disabled={!newCenterCode.trim() || !newCenterName.trim()}>เพิ่มศูนย์</Button></form>
-    <div className="admin-fee-foot mt-3.5 border-t border-[#edf0f5] pt-3"><span className="text-[10px] leading-normal text-[#79869c]">กด Enter ในช่องเพิ่มเพื่อสร้าง · คลิกช่องรหัสหรือชื่อเพื่อแก้ไข แล้วกด Enter และยืนยันเพื่อบันทึก · กด Esc เพื่อยกเลิกการแก้ไข · การปิดใช้ศูนย์จะไม่ลบข้อมูลใบสมัครเดิม</span></div>
+    <div className="admin-fee-foot mt-3.5 border-t border-[#edf0f5] pt-3"><span className="text-[10px] leading-normal text-[#79869c]">กดปุ่ม Enter ในช่องเพิ่มเพื่อสร้างรายการ · เลือกช่องรหัสหรือชื่อเพื่อแก้ไข จากนั้นกดปุ่ม Enter และยืนยันการบันทึก · กดปุ่ม Esc เพื่อยกเลิกการแก้ไข · การปิดใช้งานศูนย์สอบจะไม่ลบข้อมูลในใบสมัครเดิม</span></div>
   </>;
 }

@@ -5,14 +5,14 @@ export function DemoTransferSlip({ application, amount, className = "" }) {
   const displayAmount = Number(amount || 0).toLocaleString("th-TH");
   const recipient = application.paymentAccountType === "president" ? "บัญชีประธาน" : "บัญชีอื่น";
   return (
-    <svg className={`review-slip-demo-image block object-contain ${className || "h-auto w-full max-w-[440px]"}`} viewBox="0 0 440 640" role="img" aria-label={`ภาพสลิปตัวอย่าง ยอด ${displayAmount} บาท`} xmlns="http://www.w3.org/2000/svg">
+    <svg className={`review-slip-demo-image block object-contain ${className || "h-auto w-full max-w-[440px]"}`} viewBox="0 0 440 640" role="img" aria-label={`ภาพหลักฐานการชำระเงินตัวอย่าง ยอด ${displayAmount} บาท`} xmlns="http://www.w3.org/2000/svg">
       <rect width="440" height="640" rx="18" fill="#edf0f8" />
       <rect x="22" y="18" width="396" height="604" rx="18" fill="#fff" />
       <path d="M40 18h360a18 18 0 0 1 18 18v83H22V36a18 18 0 0 1 18-18Z" fill="#45499a" />
       <circle cx="68" cy="58" r="19" fill="#fff" fillOpacity=".16" />
       <path d="m59 58 6 6 12-14" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-      <text x="99" y="55" fill="#fff" fontFamily="Kanit, sans-serif" fontSize="16" fontWeight="700">โอนเงินสำเร็จ</text>
-      <text x="99" y="78" fill="#e2e5ff" fontFamily="Kanit, sans-serif" fontSize="11">สลิปตัวอย่าง · ข้อมูลจำลอง</text>
+      <text x="99" y="55" fill="#fff" fontFamily="Kanit, sans-serif" fontSize="16" fontWeight="700">ดำเนินการโอนเงินสำเร็จ</text>
+      <text x="99" y="78" fill="#e2e5ff" fontFamily="Kanit, sans-serif" fontSize="11">หลักฐานการชำระเงินตัวอย่าง · ข้อมูลตัวอย่าง</text>
       <text x="220" y="155" fill="#7a8799" textAnchor="middle" fontFamily="Kanit, sans-serif" fontSize="12">จำนวนเงินที่โอน</text>
       <text x="220" y="198" fill="#263554" textAnchor="middle" fontFamily="Kanit, sans-serif" fontSize="34" fontWeight="700">฿{displayAmount}</text>
       <line x1="52" y1="226" x2="388" y2="226" stroke="#e9ecf2" strokeDasharray="4 5" />
@@ -33,7 +33,7 @@ export function DemoTransferSlip({ application, amount, className = "" }) {
 
 export function ReviewSlipDialog({ application, amount, fileName, dataUrl, fileType, backendEnabled, onClose }) {
   const dialogRef = useRef(null);
-  const title = `สลิปโอนเงินของ ${application.candidate}`;
+  const title = `หลักฐานการชำระเงินโอนเงินของ ${application.candidate}`;
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -47,13 +47,13 @@ export function ReviewSlipDialog({ application, amount, fileName, dataUrl, fileT
   return (
     <dialog ref={dialogRef} className="review-slip-dialog fixed inset-0 m-auto hidden h-fit w-[calc(100vw-32px)] max-h-[92dvh] max-w-[920px] overflow-hidden rounded-[14px] border border-[#e3e6ed] bg-white p-[14px] text-[#334761] shadow-[0_22px_80px_rgba(23,36,59,0.24)] open:grid max-[540px]:w-[calc(100vw-20px)] max-[540px]:p-[10px] backdrop:bg-[rgba(20,30,49,0.72)]" aria-label={title} onClose={onClose} onClick={(event) => { if (event.target === dialogRef.current) closeDialog(); }}>
       <div className="review-slip-dialog-head flex items-center justify-between gap-3 border-b border-[#e8ebf1] pb-[10px]">
-        <div className="grid min-w-0 gap-[3px]"><strong className="text-[15px]">สลิปโอนเงิน</strong><small className="truncate text-[12px] text-[#77869b]">{fileName}</small></div>
-        <button type="button" className="review-slip-dialog-close grid h-11 w-11 flex-none place-items-center rounded-[9px] border border-[#e3e6ed] bg-white text-[#435570] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#7773c2]" aria-label="ปิดภาพสลิป" onClick={closeDialog}><Icon name="close" size={17} /></button>
+        <div className="grid min-w-0 gap-[3px]"><strong className="text-[15px]">หลักฐานการชำระเงินโอนเงิน</strong><small className="truncate text-[12px] text-[#77869b]">{fileName}</small></div>
+        <button type="button" className="review-slip-dialog-close grid h-11 w-11 flex-none place-items-center rounded-[9px] border border-[#e3e6ed] bg-white text-[#435570] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#7773c2]" aria-label="ปิดภาพหลักฐานการชำระเงิน" onClick={closeDialog}><Icon name="close" size={17} /></button>
       </div>
       <div className="review-slip-dialog-content grid max-h-[calc(92dvh-78px)] place-items-center overflow-auto pt-[10px] max-[540px]:max-h-[calc(92dvh-70px)]">
         {dataUrl && fileType.startsWith("image/") ? <img className="review-slip-dialog-image h-auto w-auto max-h-[calc(92dvh-105px)] max-w-full object-contain" src={dataUrl} alt={title} />
           : dataUrl && fileType === "application/pdf" ? <iframe className="review-slip-dialog-pdf h-[calc(92dvh-100px)] w-[min(100%,880px)] rounded-[7px] border-0 bg-white" src={dataUrl} title={title} />
-            : backendEnabled ? <div className="review-slip-empty"><Icon name="info" /><strong>ไม่พบไฟล์สลิปใน Portal</strong><small>ตรวจสอบข้อมูลไฟล์บน Google Drive หรืออัปโหลดสลิปใหม่</small></div> : <DemoTransferSlip application={application} amount={amount} className="h-[min(78dvh,780px)] w-auto max-w-full object-contain" />}
+            : backendEnabled ? <div className="review-slip-empty"><Icon name="info" /><strong>ไม่พบไฟล์หลักฐานการชำระเงินใน Portal</strong><small>ตรวจสอบข้อมูลไฟล์บน Google Drive หรืออัปโหลดหลักฐานการชำระเงินใหม่</small></div> : <DemoTransferSlip application={application} amount={amount} className="h-[min(78dvh,780px)] w-auto max-w-full object-contain" />}
       </div>
     </dialog>
   );
@@ -89,9 +89,9 @@ export function ReviewRejectDialog({ application, onReject, onClose }) {
       <h2 id="review-reject-title" className="mb-1 mt-4 text-[22px] font-semibold">ไม่อนุมัติใบสมัคร?</h2>
       <p className="mb-5 text-[13px] leading-[1.7] text-[#656773]">ใบสมัครของ <strong className="font-semibold text-[#252630]">{application.candidate}</strong> จะเปลี่ยนเป็นสถานะไม่อนุมัติ และระบบจะส่งอีเมลแจ้งผล</p>
       <label className="mb-2 block text-[13px] font-semibold" htmlFor={reasonId}>เหตุผลที่ไม่อนุมัติ <span className="font-normal text-[#858791]">(ไม่บังคับ)</span></label>
-      <textarea className="min-h-[104px] w-full resize-y rounded-[14px] border border-[#dfe2e9] bg-white px-[14px] py-3 text-[13px] leading-[1.6] text-[#252630] focus:border-[#ff8a00] focus-visible:outline-3 focus-visible:outline-[#fff0d9] pointer-coarse:text-base" id={reasonId} value={reason} onChange={(event) => setReason(event.target.value)} maxLength={240} placeholder="ระบุเหตุผลเพิ่มเติม หากต้องการแจ้งผู้สมัคร" autoFocus />
-      <small className="mt-[5px] block text-[11px] text-[#858791]">{reason.length}/240 ตัวอักษร · เว้นว่างได้</small>
-      <div className="review-reject-dialog-actions mt-6 flex justify-end gap-[9px]"><Button className="min-h-11 max-[480px]:flex-1 max-[480px]:px-[10px]" type="button" variant="outline" disabled={busy} onClick={closeDialog}>ยกเลิก</Button><Button className="min-h-11 max-[480px]:flex-1 max-[480px]:px-[10px]" type="submit" disabled={busy}>{busy ? "กำลังบันทึก…" : "ยืนยันไม่อนุมัติ"}</Button></div>
+      <textarea className="min-h-[104px] w-full resize-y rounded-[14px] border border-[#dfe2e9] bg-white px-[14px] py-3 text-[13px] leading-[1.6] text-[#252630] focus:border-[#ff8a00] focus-visible:outline-3 focus-visible:outline-[#fff0d9] pointer-coarse:text-base" id={reasonId} value={reason} onChange={(event) => setReason(event.target.value)} maxLength={240} placeholder="ระบุเหตุผลเพิ่มเติมเพื่อแจ้งให้ผู้สมัครทราบ (ไม่บังคับ)" autoFocus />
+      <small className="mt-[5px] block text-[11px] text-[#858791]">{reason.length}/240 ตัวอักษร · ไม่จำเป็นต้องกรอก</small>
+      <div className="review-reject-dialog-actions mt-6 flex justify-end gap-[9px]"><Button className="min-h-11 max-[480px]:flex-1 max-[480px]:px-[10px]" type="button" variant="outline" disabled={busy} onClick={closeDialog}>ยกเลิก</Button><Button className="min-h-11 max-[480px]:flex-1 max-[480px]:px-[10px]" type="submit" disabled={busy}>{busy ? "กำลังบันทึก…" : "ยืนยันการไม่อนุมัติ"}</Button></div>
     </form>
   </dialog>;
 }
