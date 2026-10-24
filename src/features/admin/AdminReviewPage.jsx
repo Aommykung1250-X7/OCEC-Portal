@@ -23,14 +23,13 @@ function getReviewCompetitionKey(competition) {
   return String(competition?.short || competition?.name || competition?.id || "").trim().toLocaleUpperCase("en");
 }
 
-export function AdminReviewPage({ applications, schoolBatches = [], onApprove, onReject, onSlipIssue, notify, navigate, activeApplicationId, backendEnabled }) {
+export function AdminReviewPage({ applications, schoolBatches = [], sourceFilter = "all", onApprove, onReject, onSlipIssue, notify, navigate, activeApplicationId, backendEnabled }) {
   const hasUnreviewedPayment = (item) => (item.paymentRecords || []).some((payment) => payment.status === "pending");
   const pendingApps = applications.filter((item) => item.status === "pending" || hasUnreviewedPayment(item));
   const [selectedId, setSelectedId] = useState(activeApplicationId || pendingApps[0]?.id || applications[0]?.id || "");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState(activeApplicationId ? "all" : "pending");
   const [kindFilter, setKindFilter] = useState("all");
-  const [sourceFilter, setSourceFilter] = useState("all");
   const [competitionFilters, setCompetitionFilters] = useState([]);
   const [reviewView, setReviewView] = useState("all");
   const [selectedGroupKey, setSelectedGroupKey] = useState("");
@@ -39,6 +38,9 @@ export function AdminReviewPage({ applications, schoolBatches = [], onApprove, o
   const [selectedPaymentId, setSelectedPaymentId] = useState("");
   const [rejectApplicationId, setRejectApplicationId] = useState("");
   const schoolApplications = applications.filter((item) => item.source === "school");
+  const sourceApplications = sourceFilter === "all"
+    ? applications
+    : applications.filter((item) => sourceFilter === "school" ? item.source === "school" : item.source !== "school");
   const schoolGroups = Object.values(schoolApplications.reduce((groups, item) => {
     const key = `${item.year}|${item.exam}`;
     groups[key] ||= { key, year: item.year, exam: item.exam, applications: [] };
@@ -46,14 +48,14 @@ export function AdminReviewPage({ applications, schoolBatches = [], onApprove, o
     return groups;
   }, {})).map((group) => ({ ...group, pending: group.applications.filter((item) => item.status === "pending" || hasUnreviewedPayment(item)).length }));
   const selectedGroup = schoolGroups.find((group) => group.key === selectedGroupKey);
-  const competitionOptions = [...new Map(applications.flatMap((item) => item.competitions || [])
+  const competitionOptions = [...new Map(sourceApplications.flatMap((item) => item.competitions || [])
     .map((competition) => [getReviewCompetitionKey(competition), competition.short || competition.name || competition.id])
     .filter(([key]) => key)).entries()]
     .map(([key, label]) => ({ key, label }))
     .sort((a, b) => a.label.localeCompare(b.label, "en"));
   const reviewPool = reviewView === "school-groups"
     ? selectedGroup?.applications || []
-    : applications;
+    : sourceApplications;
   const filteredApplications = reviewPool.filter((item) => {
     const query = search.trim().toLowerCase();
     const applicationNumber = `OC-${item.year}-${String(item.id || "").toUpperCase()}`;
@@ -63,7 +65,7 @@ export function AdminReviewPage({ applications, schoolBatches = [], onApprove, o
       || (statusFilter === "pending" ? item.status === "pending" || hasUnreviewedPayment(item) : item.status === statusFilter && !hasUnreviewedPayment(item));
     const matchesCompetition = reviewView !== "all" || competitionFilters.length === 0
       || (item.competitions || []).some((competition) => competitionFilters.includes(getReviewCompetitionKey(competition)));
-    return matchesSearch && matchesStatus && matchesCompetition && (kindFilter === "all" || item.kind === kindFilter) && (sourceFilter === "all" || (sourceFilter === "school" ? item.source === "school" : item.source !== "school"));
+    return matchesSearch && matchesStatus && matchesCompetition && (kindFilter === "all" || item.kind === kindFilter);
   });
   const selected = filteredApplications.find((item) => item.id === selectedId) || filteredApplications[0];
   const rejectTarget = applications.find((item) => item.id === rejectApplicationId);
@@ -138,9 +140,9 @@ export function AdminReviewPage({ applications, schoolBatches = [], onApprove, o
       <PageHeading eyebrow="จัดการใบสมัคร · คิวตรวจ" title="ตรวจใบสมัครและหลักฐานการชำระเงิน" description="ตรวจสอบข้อมูลผู้สมัคร รายการสอบ และยอดชำระ ก่อนอนุมัติใบสมัครหรือแจ้งปัญหาเกี่ยวกับหลักฐานการชำระเงิน" action={<span className="queue-indicator"><span />รอตรวจสอบ {pendingCount} ใบ</span>} />
       <div className="review-layout grid min-w-0 grid-cols-[300px_minmax(0,1fr)] items-start gap-[17px] max-[1020px]:grid-cols-[255px_minmax(0,1fr)] max-[800px]:grid-cols-1">
         <section className="surface review-queue min-w-0 overflow-hidden">
-          <div className="admin-review-mode" role="tablist" aria-label="มุมมองคิวใบสมัคร">
-            <button type="button" role="tab" aria-selected={reviewView === "all"} className={reviewView === "all" ? "active" : ""} onClick={() => { setReviewView("all"); setSelectedGroupKey(""); setSearch(""); }}>ใบสมัครทั้งหมด <span>{applications.length}</span></button>
-            <button type="button" role="tab" aria-label={`ส่งผ่านโรงเรียน · ${schoolApplications.length} ใบสมัครทั้งหมด`} aria-selected={reviewView === "school-groups"} className={reviewView === "school-groups" ? "active" : ""} onClick={() => { setReviewView("school-groups"); setSelectedGroupKey(""); setSearch(""); setSourceFilter("all"); setKindFilter("all"); }}>ส่งผ่านโรงเรียน <span title={`${schoolApplications.length} ใบสมัครจากโรงเรียนทั้งหมด`}>{schoolApplications.length}</span></button>
+          <div className={`admin-review-mode ${sourceFilter === "self" ? "grid-cols-1" : ""}`} role="tablist" aria-label="มุมมองคิวใบสมัคร">
+            <button type="button" role="tab" aria-selected={reviewView === "all"} className={reviewView === "all" ? "active" : ""} onClick={() => { setReviewView("all"); setSelectedGroupKey(""); setSearch(""); }}>ใบสมัคร <span>{sourceApplications.length}</span></button>
+            {sourceFilter !== "self" ? <button type="button" role="tab" aria-label={`กลุ่มโรงเรียน · ${schoolApplications.length} ใบสมัครทั้งหมด`} aria-selected={reviewView === "school-groups"} className={reviewView === "school-groups" ? "active" : ""} onClick={() => { setReviewView("school-groups"); setSelectedGroupKey(""); setSearch(""); setKindFilter("all"); }}>กลุ่มโรงเรียน <span title={`${schoolApplications.length} ใบสมัครจากโรงเรียนทั้งหมด`}>{schoolApplications.length}</span></button> : null}
           </div>
           {reviewView === "school-groups" && !selectedGroup ? (
             <>
@@ -149,10 +151,10 @@ export function AdminReviewPage({ applications, schoolBatches = [], onApprove, o
             </>
           ) : (
             <>
-              <div className="review-queue-head flex items-center justify-between px-[15px] pb-[10px] pt-[15px]"><div>{reviewView === "school-groups" ? <button type="button" className="review-back-groups" onClick={() => { setSelectedGroupKey(""); setSearch(""); }}><Icon name="arrow" size={15} />กลับไปกลุ่ม</button> : null}<h2 className="m-0 text-[16px] text-[#2e3c5d]">{selectedGroup?.exam || "ใบสมัคร"}</h2><p className="mb-0 mt-[3px] text-xs text-[#8996a7]">{selectedGroup ? `ปีการศึกษา ${selectedGroup.year} · ${filteredApplications.length} จาก ${reviewPool.length} ใบ` : `${filteredApplications.length} จาก ${applications.length} รายการ`}</p></div><span className="queue-pill grid h-[25px] w-[25px] place-items-center rounded-[7px] bg-[#fff2d4] text-xs font-bold text-[#83540f]">{reviewPool.filter((item) => item.status === "pending").length}</span></div>
+              <div className="review-queue-head flex items-center justify-between px-[15px] pb-[10px] pt-[15px]"><div>{reviewView === "school-groups" ? <button type="button" className="review-back-groups" onClick={() => { setSelectedGroupKey(""); setSearch(""); }}><Icon name="arrow" size={15} />กลับไปกลุ่ม</button> : null}<h2 className="m-0 text-[16px] text-[#2e3c5d]">{selectedGroup?.exam || (sourceFilter === "school" ? "ผ่านโรงเรียน" : sourceFilter === "self" ? "สมัครด้วยตนเอง" : "ใบสมัคร")}</h2><p className="mb-0 mt-[3px] text-xs text-[#8996a7]">{selectedGroup ? `ปีการศึกษา ${selectedGroup.year} · ${filteredApplications.length} จาก ${reviewPool.length} ใบ` : `${filteredApplications.length} จาก ${reviewPool.length} รายการ`}</p></div><span className="queue-pill grid h-[25px] w-[25px] place-items-center rounded-[7px] bg-[#fff2d4] text-xs font-bold text-[#83540f]">{reviewPool.filter((item) => item.status === "pending" || hasUnreviewedPayment(item)).length}</span></div>
               <label className="input-with-icon review-search mx-[11px] mb-[9px]"><Icon name="search" /><input className="min-h-9 text-xs" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ค้นหาชื่อ โรงเรียน หรือเลขประจำตัวสอบ" /></label>
               <div className="review-filter-row" role="group" aria-label="กรองสถานะใบสมัคร">{[{ id: "pending", label: "อยู่ระหว่างตรวจสอบ" }, { id: "confirmed", label: "ยืนยันแล้ว" }, { id: "all", label: "ทั้งหมด" }].map((filter) => <button type="button" key={filter.id} className={statusFilter === filter.id ? "review-filter-active" : ""} aria-pressed={statusFilter === filter.id} onClick={() => setStatusFilter(filter.id)}>{filter.label}<span>{scopedStatusCount(filter.id)}</span></button>)}</div>
-              <div className="review-filter-selects"><label><span>ประเภท</span><select value={kindFilter} onChange={(event) => setKindFilter(event.target.value)}><option value="all">รอบ HEAT และ Final</option><option value="Heat">HEAT</option><option value="Final">Final</option></select></label>{reviewView === "all" ? <label><span>ผู้สมัคร</span><select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}><option value="all">ทุกช่องทาง</option><option value="school">ผ่านโรงเรียน</option><option value="self">สมัครด้วยตนเอง</option></select></label> : null}</div>
+              <div className="review-filter-selects grid-cols-1"><label><span>ประเภท</span><select value={kindFilter} onChange={(event) => setKindFilter(event.target.value)}><option value="all">รอบ HEAT และ Final</option><option value="Heat">HEAT</option><option value="Final">Final</option></select></label></div>
               {reviewView === "all" && competitionOptions.length > 0 ? <fieldset className="review-competition-filter">
                 <legend>รายการสอบ</legend>
                 <div className="review-competition-filter-heading"><span>เลือกได้หลายรายการ · แสดงใบสมัครที่ตรงกับรายการใดรายการหนึ่ง · หากไม่เลือกจะแสดงทั้งหมด</span>{competitionFilters.length > 0 ? <button type="button" onClick={() => setCompetitionFilters([])}>ล้างที่เลือก</button> : null}</div>

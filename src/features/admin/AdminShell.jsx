@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { BrandMark, Button, GoogleMark, Icon, PageHeading, ProfileAvatar } from "../../components/ui/index.jsx";
 
-export function Sidebar({ page, persona, applications = [], competitionCatalog = [], selectedAdminCompetitionId = "", navigate, open, onClose, notify, activeYear }) {
+export function Sidebar({ page, persona, applications = [], competitionCatalog = [], selectedAdminCompetitionId = "", adminReviewSourceFilter = "all", navigate, open, onClose, notify, activeYear }) {
   const [examMenuOpen, setExamMenuOpen] = useState(true);
+  const [reviewMenuOpen, setReviewMenuOpen] = useState(true);
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [adminTooltip, setAdminTooltip] = useState(null);
   const sidebarRef = useRef(null);
@@ -15,6 +16,9 @@ export function Sidebar({ page, persona, applications = [], competitionCatalog =
     ? `z-30 overflow-hidden border-r border-[#ecebee] bg-white transition-[width,box-shadow,transform] duration-[220ms] motion-reduce:transition-none min-[801px]:px-[13px] min-[801px]:py-[22px] ${sidebarExpanded ? "min-[801px]:w-[260px] min-[801px]:shadow-[14px_0_34px_rgba(28,26,35,.085)]" : "min-[801px]:w-[82px]"} max-[800px]:z-[60] max-[800px]:w-[280px] max-[800px]:max-w-[calc(100vw-55px)] max-[800px]:-translate-x-[105%] max-[800px]:transition-transform max-[800px]:shadow-[12px_0_35px_rgba(24,43,75,.12)]`
     : "";
   const competitionMenuClass = examMenuOpen
+    ? `mt-1 grid gap-1 pl-1 ${sidebarExpanded ? "min-[801px]:grid" : "min-[801px]:hidden"} max-[800px]:grid`
+    : "hidden";
+  const reviewMenuClass = reviewMenuOpen
     ? `mt-1 grid gap-1 pl-1 ${sidebarExpanded ? "min-[801px]:grid" : "min-[801px]:hidden"} max-[800px]:grid`
     : "hidden";
   const showAdminTooltip = (event, label) => {
@@ -44,7 +48,6 @@ export function Sidebar({ page, persona, applications = [], competitionCatalog =
   ];
   const adminItems = [
     { id: "admin-home", label: "ภาพรวมผู้ดูแลระบบ", icon: "grid" },
-    { id: "admin-review", label: "ตรวจใบสมัคร", icon: "file", count: String(pendingReviewCount) },
     { id: "admin-form-options", label: "ข้อมูลตัวเลือกในแบบฟอร์ม", icon: "settings" },
     { id: "admin-results", label: "นำเข้าผลสอบ", icon: "award" },
     { id: "admin-final-ids", label: "เลขประจำตัว Final", icon: "users" },
@@ -155,12 +158,58 @@ export function Sidebar({ page, persona, applications = [], competitionCatalog =
                       }) : <p className={`px-3 py-2 text-[11px] leading-5 text-[#8d8b95] ${sidebarExpanded ? "min-[801px]:block" : "min-[801px]:hidden"} max-[800px]:block`}>ไม่พบรายการสอบ</p>}
                     </div>
                   </section>
-                  {renderItems(adminItems.slice(1, 2))}
+                  <section className="grid min-w-0" aria-label="ตรวจใบสมัคร">
+                    <div className="flex min-h-12 min-w-0 items-center gap-0">
+                      <a
+                        href="#admin-review"
+                        className={`nav-link relative flex min-h-12 min-w-0 flex-1 items-center justify-center overflow-hidden rounded-[15px] text-[13px] font-medium text-[#706f78] transition-colors hover:bg-[#f6f5f6] hover:text-[#29252a] ${sidebarExpanded ? "min-[801px]:justify-start min-[801px]:gap-3 min-[801px]:px-[14px]" : "min-[801px]:justify-center min-[801px]:px-0"} ${page === "admin-review" ? "nav-link-active bg-ocec-brand-soft text-ocec-brand font-bold hover:bg-ocec-brand-soft hover:text-ocec-brand" : ""}`}
+                        aria-label="ตรวจใบสมัคร"
+                        aria-describedby={adminTooltip?.label === "ตรวจใบสมัคร" ? "admin-sidebar-tooltip" : undefined}
+                        aria-current={page === "admin-review" ? "page" : undefined}
+                        onMouseEnter={(event) => showAdminTooltip(event, "ตรวจใบสมัคร")}
+                        onMouseLeave={hideAdminTooltip}
+                        onFocus={(event) => showAdminTooltip(event, "ตรวจใบสมัคร")}
+                        onBlur={hideAdminTooltip}
+                        onClick={(event) => { hideAdminTooltip(); event.preventDefault(); navigate("admin-review", "", "", "all"); }}
+                      >
+                        <Icon name="file" size={18} className="shrink-0" />
+                        <span className={`min-w-0 whitespace-nowrap ${sidebarExpanded ? "min-[801px]:inline max-[800px]:inline" : "min-[801px]:hidden max-[800px]:inline"}`}>ตรวจใบสมัคร</span>
+                        <span className={`nav-count absolute right-0 top-0 grid min-w-[17px] h-[17px] place-items-center rounded-[7px] bg-[#ffdf9e] px-[3px] text-[10px] font-bold text-[#6f4a00] ${sidebarExpanded ? "min-[801px]:static min-[801px]:ml-auto min-[801px]:h-[21px] min-[801px]:min-w-[22px] min-[801px]:text-xs" : ""}`}>{pendingReviewCount}</span>
+                      </a>
+                      <button
+                        type="button"
+                        className={`grid size-8 max-[800px]:size-11 shrink-0 place-items-center rounded-md text-[#85828e] transition-colors hover:bg-[#f0effb] hover:text-ocec-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ocec-brand ${sidebarExpanded ? "min-[801px]:grid" : "min-[801px]:hidden"} ${page === "admin-review" ? "text-ocec-brand" : ""}`}
+                        aria-expanded={reviewMenuOpen && (sidebarExpanded || open)}
+                        aria-controls="admin-review-nav-items"
+                        aria-label={`${reviewMenuOpen ? "ยุบ" : "ขยาย"}เมนูตรวจใบสมัคร`}
+                        title={`${reviewMenuOpen ? "ยุบ" : "ขยาย"}ตรวจใบสมัคร`}
+                        onClick={() => setReviewMenuOpen((isOpen) => !isOpen)}
+                      >
+                        <Icon name="chevron" size={14} className={`transition-transform duration-200 motion-reduce:transition-none ${reviewMenuOpen ? "rotate-90" : ""}`} />
+                      </button>
+                    </div>
+                    <div id="admin-review-nav-items" className={reviewMenuClass}>
+                      {[
+                        { source: "self", label: "สมัครด้วยตนเอง" },
+                        { source: "school", label: "ผ่านโรงเรียน" },
+                      ].map(({ source, label }) => {
+                        const selected = page === "admin-review" && adminReviewSourceFilter === source;
+                        return <button
+                          type="button"
+                          key={source}
+                          title={label}
+                          aria-current={selected ? "page" : undefined}
+                          className={`admin-review-nav-link appearance-none flex min-h-11 w-full min-w-0 items-center rounded-xl border-0 px-3 text-left text-xs font-semibold shadow-none transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ocec-brand ${sidebarExpanded ? "min-[801px]:flex" : "min-[801px]:hidden"} max-[800px]:flex ${selected ? "bg-ocec-brand-soft text-ocec-brand hover:bg-ocec-brand-soft hover:text-ocec-brand" : "bg-transparent text-[#615663] hover:bg-[#f7f5f7] hover:text-ocec-brand"}`}
+                          onClick={() => navigate("admin-review", "", "", source)}
+                        >{label}</button>;
+                      })}
+                    </div>
+                  </section>
                 </div>
               </section>
               <section className={`min-w-0 ${sidebarExpanded ? "" : "min-[801px]:border-t min-[801px]:border-[#ecebee] min-[801px]:pt-2"}`} aria-label="เครื่องมือผู้ดูแลระบบ">
                 <p className={`m-0 mb-1 px-[14px] pt-1 text-[10px] font-semibold tracking-[.08em] text-[#928d98] ${sidebarExpanded ? "min-[801px]:block" : "min-[801px]:hidden"} max-[800px]:block`}>เครื่องมือผู้ดูแลระบบ</p>
-                <div className="nav-list grid gap-[5px]">{renderItems(adminItems.slice(2))}</div>
+                <div className="nav-list grid gap-[5px]">{renderItems(adminItems.slice(1))}</div>
               </section>
             </div>
           ) : null}
@@ -394,12 +443,12 @@ export function AdminLoginPage({ authProfile, authChecked, backendEnabled, onSig
   );
 }
 
-export function AdminShell({ page, title, persona, applications, competitionCatalog, selectedAdminCompetitionId, navigate, menuOpen, setMenuOpen, onSetPersona, authProfile, onSignOut, activeYear, backendEnabled, children, toast, setToast, notify }) {
+export function AdminShell({ page, title, persona, applications, competitionCatalog, selectedAdminCompetitionId, adminReviewSourceFilter, navigate, menuOpen, setMenuOpen, onSetPersona, authProfile, onSignOut, activeYear, backendEnabled, children, toast, setToast, notify }) {
   const isAdmin = persona === "admin";
   return (
     <div className={`app-shell min-h-screen ${isAdmin ? "admin-shell bg-[#f6f5f7]" : ""}`}>
       <a className="skip-link" href="#main-content">ข้ามไปยังเนื้อหาหลัก</a>
-      <Sidebar page={page} persona={persona} applications={applications} competitionCatalog={competitionCatalog} selectedAdminCompetitionId={selectedAdminCompetitionId} navigate={navigate} open={menuOpen} onClose={() => setMenuOpen(false)} notify={notify} activeYear={activeYear} />
+      <Sidebar page={page} persona={persona} applications={applications} competitionCatalog={competitionCatalog} selectedAdminCompetitionId={selectedAdminCompetitionId} adminReviewSourceFilter={adminReviewSourceFilter} navigate={navigate} open={menuOpen} onClose={() => setMenuOpen(false)} notify={notify} activeYear={activeYear} />
       <main className={`main-column min-h-screen min-w-0 ${isAdmin ? "min-[801px]:ml-[82px] bg-[radial-gradient(circle_at_100%_150px,rgba(235,225,255,.36),transparent_30%),#f6f5f7]" : ""}`} id="main-content" tabIndex="-1">
         <Topbar backendEnabled={backendEnabled} title={title} persona={persona} setPersona={onSetPersona} menuOpen={menuOpen} setMenuOpen={setMenuOpen} navigate={navigate} authProfile={authProfile} onSignOut={onSignOut} activeYear={activeYear} />
         <div className={`content-wrap min-w-0 ${isAdmin ? "mx-auto w-full max-w-[1560px] px-[34px] pt-[30px] max-[1250px]:px-[25px] max-[800px]:px-5 max-[800px]:pt-[19px] max-[600px]:px-[13px] max-[600px]:pt-[13px]" : ""}`}>

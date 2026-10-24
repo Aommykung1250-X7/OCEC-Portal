@@ -863,6 +863,7 @@ function App() {
   const [adminPortalPath, setAdminPortalPath] = useState(isAdminPortalPath);
   const [menuOpen, setMenuOpen] = useState(false);
   const [selectedAdminCompetitionId, setSelectedAdminCompetitionId] = useState("");
+  const [adminReviewNavigation, setAdminReviewNavigation] = useState({ source: "all", revision: 0 });
   const [calendarDay, setCalendarDay] = useState(getBangkokTodayISO);
   const [centerCatalog, setCenterCatalog] = useState(BACKEND_ENABLED ? [] : DEFAULT_CENTER_CATALOG);
   const [centerPosterVersion, setCenterPosterVersion] = useState(null);
@@ -1056,12 +1057,18 @@ function App() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  async function navigate(nextPage, applicationId, competitionId = "") {
+  async function navigate(nextPage, applicationId, competitionId = "", reviewSource) {
     const switchingCompetition = nextPage === "admin-round" && competitionId !== selectedAdminCompetitionId;
     if (catalogPage && catalogDirty && (nextPage !== page || switchingCompetition) && !await confirmAction({ title: 'ออกจากหน้านี้?', message: 'มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก', confirmLabel: 'ออกจากหน้า', tone: 'danger' })) return;
     if (nextPage !== "edit-application") {
       setPublicEditApplication(null);
       setPublicEditCredentials(null);
+    }
+    if (nextPage === "admin-review") {
+      setAdminReviewNavigation((current) => ({
+        source: reviewSource ?? (page === "admin-application-edit" ? current.source : "all"),
+        revision: current.revision + 1,
+      }));
     }
     setSelectedAdminCompetitionId(nextPage === "admin-round" ? competitionId : "");
     if (applicationId !== undefined) setActiveApplicationId(applicationId || "");
@@ -1744,7 +1751,7 @@ function App() {
       case "admin-home":
         return <AdminHomePage applications={applications} examCatalog={effectiveExamCatalog} resultWorkflows={resultWorkflows} navigate={navigate} resultPublished={resultPublished} backendEnabled={BACKEND_ENABLED} />;
       case "admin-review":
-        return <AdminReviewPage backendEnabled={BACKEND_ENABLED} applications={applications} schoolBatches={schoolBatches} onApprove={approveApplication} onReject={rejectApplication} onSlipIssue={notifySlipIssue} notify={notify} navigate={navigate} activeApplicationId={activeApplicationId} />;
+        return <AdminReviewPage key={adminReviewNavigation.revision} sourceFilter={adminReviewNavigation.source} backendEnabled={BACKEND_ENABLED} applications={applications} schoolBatches={schoolBatches} onApprove={approveApplication} onReject={rejectApplication} onSlipIssue={notifySlipIssue} notify={notify} navigate={navigate} activeApplicationId={activeApplicationId} />;
       case "admin-application-edit":
         return adminEditApplication
           ? <AdminApplicationEditPage key={activeApplicationId} application={adminEditApplication} onSave={saveAdminApplication} navigate={navigate} competitionFees={competitionFees} examCatalog={examCatalog} competitionCatalog={competitionCatalog} centerCatalog={centerCatalog} gradeCatalogEntries={gradeCatalogEntries} />
@@ -1787,6 +1794,7 @@ function App() {
     applications={applications}
     competitionCatalog={competitionCatalog}
     selectedAdminCompetitionId={selectedAdminCompetitionId}
+    adminReviewSourceFilter={adminReviewNavigation.source}
     navigate={navigate}
     menuOpen={menuOpen}
     setMenuOpen={setMenuOpen}
