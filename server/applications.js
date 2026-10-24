@@ -1204,15 +1204,36 @@ async function getPhotoUploadContext(applicationId, userId, userEmail, isAdmin) 
   const isApplicant = Boolean(userEmail) && application.contact_email.toLowerCase() === String(userEmail).toLowerCase();
   if (!isAdmin && application.owner_user_id !== userId && !isApplicant) throw invalid('ไม่มีสิทธิ์จัดการภาพของใบสมัครนี้',403);
   if (application.status !== 'approved') throw invalid('สามารถอัปโหลดภาพได้หลังผู้ดูแลระบบอนุมัติใบสมัครแล้วเท่านั้น',409);
-  const deadline = await getPool().query(`SELECT bool_and(r.edit_close_date IS NOT NULL AND (now() AT TIME ZONE 'Asia/Bangkok')::date<=r.edit_close_date) AS editable
-    FROM application_items ai JOIN exam_rounds r ON r.id=ai.exam_round_id WHERE ai.application_id=$1`, [applicationId]);
-  if (!deadline.rows[0]?.editable) throw invalid('หมดช่วงเวลาอัปโหลดภาพ หรือยังไม่ได้กำหนดวันปิดแก้ไข',409);
   const items = await getPool().query(`SELECT ai.id AS application_item_id,ai.exam_number,r.id AS round_id,r.year,r.round_type,
       c.short_name,c.name AS competition_name
     FROM application_items ai JOIN exam_rounds r ON r.id=ai.exam_round_id JOIN competitions c ON c.id=r.competition_id
     WHERE ai.application_id=$1 ORDER BY ai.id`, [applicationId]);
-  if (!items.rowCount || items.rows.some((item) => !item.exam_number)) throw invalid('โปรดสร้างเลขประจำตัวสอบก่อนอัปโหลดภาพเกียรติบัตร',409);
+  assertCertificatePhotoEligibility(await getCertificatePhotoEligibility(getPool(), applicationId));
   return { application, items: items.rows };
+}
+
+async function getCertificatePhotoEligibility(db, applicationId) {
+  const result = await db.query(`SELECT count(ai.id)::int AS item_count,
+      bool_and(r.close_date IS NOT NULL AND (now() AT TIME ZONE 'Asia/Bangkok')::date > r.close_date) AS registration_closed,
+      bool_and(ai.exam_number IS NOT NULL AND btrim(ai.exam_number) <> '') AS exam_numbers_assigned
+    FROM application_items ai JOIN exam_rounds r ON r.id=ai.exam_round_id WHERE ai.application_id=$1`, [applicationId]);
+  return result.rows[0] || {};
+}
+
+function assertCertificatePhotoEligibility(eligibility) {
+  if (!eligibility.item_count) throw invalid('ใบสมัครนี้ยังไม่มีรายการสอบ',409);
+  if (!eligibility.registration_closed) throw invalid('อัปโหลดรูปสำหรับเกียรติบัตรได้หลังปิดรับสมัครเท่านั้น',409);
+  if (!eligibility.exam_numbers_assigned) throw invalid('ปิดรับสมัครแล้ว แต่ยังรอเลขประจำตัวสอบครบ กรุณาลองใหม่ภายหลัง',409);
+}
+
+async function assertCertificatePhotoPermission(db, applicationId, userId, userEmail, isAdmin) {
+  const checked = await db.query(`SELECT a.id,a.owner_user_id,a.status,ap.contact_email
+    FROM applications a JOIN applicants ap ON ap.id=a.applicant_id WHERE a.id=$1 FOR UPDATE OF a`, [applicationId]);
+  if (!checked.rowCount || checked.rows[0].status !== 'approved') throw invalid('ใบสมัครอยู่นอกช่วงเวลาที่อนุญาตให้อัปโหลดภาพ',409);
+  const contactEmail = String(checked.rows[0].contact_email || '').toLowerCase();
+  const applicantEmailMatches = Boolean(userEmail) && contactEmail === String(userEmail).toLowerCase();
+  if (!isAdmin && checked.rows[0].owner_user_id !== userId && !applicantEmailMatches) throw invalid('ไม่มีสิทธิ์จัดการภาพของใบสมัครนี้',403);
+  assertCertificatePhotoEligibility(await getCertificatePhotoEligibility(db, applicationId));
 }
 
 const safeFilePart = (value) => String(value || '').normalize('NFKC').trim().replace(/[^\p{L}\p{N}-]+/gu, '_').replace(/^_+|_+$/g, '').slice(0, 80);
@@ -1231,13 +1252,7 @@ export async function uploadCertificatePhoto(applicationId, photoInput, userId, 
       uploads.push({ ...item, driveFileId: driveFile.id, fileName });
     }
     const oldFileIds = await transaction(async (client) => {
-      const checked = await client.query(`SELECT a.id,a.owner_user_id,a.status,ap.contact_email
-        FROM applications a JOIN applicants ap ON ap.id=a.applicant_id WHERE a.id=$1 FOR UPDATE OF a`, [applicationId]);
-      const stillEditable = await client.query(`SELECT bool_and(r.edit_close_date IS NOT NULL AND (now() AT TIME ZONE 'Asia/Bangkok')::date<=r.edit_close_date) AS editable
-        FROM application_items ai JOIN exam_rounds r ON r.id=ai.exam_round_id WHERE ai.application_id=$1`, [applicationId]);
-      if (!checked.rowCount || checked.rows[0].status !== 'approved' || !stillEditable.rows[0]?.editable) throw invalid('ใบสมัครอยู่นอกช่วงเวลาที่อนุญาตให้อัปโหลดภาพ',409);
-      const applicantEmailMatches = Boolean(userEmail) && checked.rows[0]?.contact_email.toLowerCase() === String(userEmail).toLowerCase();
-      if (!isAdmin && checked.rows[0].owner_user_id !== userId && !applicantEmailMatches) throw invalid('ไม่มีสิทธิ์จัดการภาพของใบสมัครนี้',403);
+      await assertCertificatePhotoPermission(client, applicationId, userId, userEmail, isAdmin);
       const prior = await client.query('SELECT application_item_id,drive_file_id FROM certificate_photos WHERE application_item_id=ANY($1::uuid[]) FOR UPDATE', [items.map((item) => item.application_item_id)]);
       for (const upload of uploads) await client.query(`INSERT INTO certificate_photos(application_item_id,drive_file_id,file_name,uploaded_by,mime_type,sha256,file_size,uploaded_at,updated_at)
         VALUES($1,$2,$3,$4,$5,$6,$7,now(),now()) ON CONFLICT(application_item_id) DO UPDATE SET
@@ -1259,6 +1274,7 @@ export async function uploadCertificatePhoto(applicationId, photoInput, userId, 
 export async function removeCertificatePhoto(applicationId, userId, userEmail, isAdmin = false) {
   const { items } = await getPhotoUploadContext(applicationId,userId,userEmail,isAdmin);
   const removed = await transaction(async (client) => {
+    await assertCertificatePhotoPermission(client, applicationId, userId, userEmail, isAdmin);
     const existing = await client.query('SELECT cp.application_item_id,cp.drive_file_id FROM certificate_photos cp JOIN application_items ai ON ai.id=cp.application_item_id WHERE ai.application_id=$1 FOR UPDATE OF cp', [applicationId]);
     await client.query('DELETE FROM certificate_photos cp USING application_items ai WHERE cp.application_item_id=ai.id AND ai.application_id=$1', [applicationId]);
     await client.query(`INSERT INTO audit_logs(actor_user_id,entity_type,entity_id,action,after_data)
@@ -1299,7 +1315,7 @@ async function queryApplications({ userId = null, userEmail = null, excludeDraft
       ai.id AS application_item_id, ai.exam_round_id, ai.grade_id, ai.format, ai.center_id,
       ai.online_exam_email, ai.fee_satang, ai.snapshot, ai.exam_number,
       cp.file_name AS certificate_photo_file_name,cp.mime_type AS certificate_photo_mime_type,cp.uploaded_at AS certificate_photo_uploaded_at,
-      r.year AS academic_year, r.round_type, r.title AS round_title, r.exam_date,
+      r.year AS academic_year, r.round_type, r.title AS round_title, r.exam_date, r.close_date::text AS registration_close_date,
       c.id AS competition_id, c.short_name, c.name AS competition_name, c.subject,
       g.label AS grade_label, ec.code AS center_code,
       coalesce(ai.snapshot->'center'->>'name', ec.name) AS center_name,
@@ -1400,7 +1416,7 @@ async function queryApplications({ userId = null, userEmail = null, excludeDraft
       grade: row.grade_label, format: row.format === 'online' ? 'Online Exam' : 'Paper-Based',
       examEmail: row.online_exam_email || '', fee: money(row.fee_satang), chargedFee: money(row.fee_satang),
       center: row.center_name, centerId: row.center_id, centerCode: row.center_code, centerSnapshot,
-      roundId: row.exam_round_id, roundType: row.round_type, examDate: row.exam_date?.toISOString?.().slice(0, 10) || row.exam_date || '', examNumber: row.exam_number || '',
+      roundId: row.exam_round_id, roundType: row.round_type, examDate: row.exam_date?.toISOString?.().slice(0, 10) || row.exam_date || '', closeDate: row.registration_close_date || '', examNumber: row.exam_number || '',
       certificatePhoto: row.certificate_photo_file_name ? { name: row.certificate_photo_file_name, type: row.certificate_photo_mime_type, uploadedAt: row.certificate_photo_uploaded_at?.toISOString?.() || row.certificate_photo_uploaded_at, url: `/api/certificate-photos/${row.application_item_id}` } : null,
     });
   }

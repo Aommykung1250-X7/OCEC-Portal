@@ -13,6 +13,7 @@ import {
   getApplicationEditDeadline,
   getApplicationFormatSummary,
   getApplicationPhone,
+  getCertificatePhotoAvailability,
   getEligibleFinalRounds,
   isApplicationEditable,
   isFinalEligibleAward,
@@ -230,6 +231,7 @@ export function ApplicationDetailPage({ application, navigate, resultRows = [], 
   if (!application) return <div className="surface empty-state">ไม่พบใบสมัครที่เลือก</div>;
   const canEdit = isApplicationEditable(application, examCatalog);
   const applicationResults = resultRows.filter((result) => result.applicationId === application.id);
+  const certificatePhotoAvailability = getCertificatePhotoAvailability(application, examCatalog, today);
   const finalRounds = application.kind === "Heat" ? getEligibleFinalRounds(application, examCatalog, resultRows, today) : [];
   const isOwnAccountApplication = Boolean(authProfile?.email
     && !authProfile?.isAdmin
@@ -270,7 +272,7 @@ export function ApplicationDetailPage({ application, navigate, resultRows = [], 
             </div>
             <div className="detail-competition-list">{(application.competitions || []).map((competition) => { const online = getApplicationCompetitionFormat(application, competition) === "Online"; const examEmail = getApplicationCompetitionExamEmail(application, competition); return <div className="detail-competition-item" key={competition.id}><strong>{competition.short || competition.name}</strong><span>{competition.grade || "ไม่ระบุระดับชั้น"}</span><span>{online ? "Online Exam" : "Paper-Based"}</span><small>{getApplicationCompetitionCenter(application, competition) || "—"}</small>{online ? <small>อีเมลเข้าสอบ: {examEmail || "ยังไม่ได้ระบุ"}</small> : null}</div>; })}</div>
           </section>
-          {application.status === "confirmed" ? <CertificatePhotoSection application={application} canEdit={canEdit} onSave={(certificatePhoto) => onSaveCertificatePhoto(application.id, certificatePhoto)} /> : null}
+          {application.status === "confirmed" ? <CertificatePhotoSection application={application} availability={certificatePhotoAvailability} onSave={(certificatePhoto) => onSaveCertificatePhoto(application.id, certificatePhoto)} /> : null}
         </div>
         <aside className="surface timeline-card p-[18px] max-[960px]:order-[-1]">
           <p className="eyebrow">ความคืบหน้า</p><h2>ขั้นตอนใบสมัคร</h2>
@@ -290,10 +292,18 @@ export function ApplicationDetailPage({ application, navigate, resultRows = [], 
   );
 }
 
-function CertificatePhotoSection({ application, canEdit, onSave }) {
+function CertificatePhotoSection({ application, availability, onSave }) {
   const photo = application.certificatePhoto;
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const formattedCloseDate = availability.closeDate ? formatThaiDate(availability.closeDate) : "ยังไม่กำหนด";
+  const availabilityMessage = availability.status === "before-close"
+    ? `อัปโหลดได้หลังปิดรับสมัครวันที่ ${formattedCloseDate} และเมื่อมีเลขประจำตัวสอบครบแล้ว`
+    : availability.status === "waiting-for-exam-numbers"
+      ? `ปิดรับสมัครแล้ววันที่ ${formattedCloseDate} · กำลังรอเลขประจำตัวสอบครบ`
+      : availability.status === "missing-close-date"
+        ? "ยังไม่มีวันปิดรับสมัครของรายการสอบนี้ จึงยังไม่เปิดให้อัปโหลดรูป"
+        : "อัปโหลดหรือเปลี่ยนรูปได้แล้ว";
   async function choosePhoto(file) {
     setError("");
     if (!file) return;
@@ -323,8 +333,11 @@ function CertificatePhotoSection({ application, canEdit, onSave }) {
   }
   return (
     <section className="surface certificate-photo-section">
-      <div className="certificate-photo-copy"><span className="certificate-photo-icon"><Icon name="image" /></span><div><p className="eyebrow">หลังอนุมัติใบสมัคร</p><h2>รูปสำหรับจัดทำเกียรติบัตร</h2><p>ผู้สมัครหรือผู้ประสานงานโรงเรียนอัปโหลดรูปให้ OCEC ใช้จัดทำใบประกาศรางวัลได้ตามต้องการ</p><small>รองรับ JPG, PNG หรือ WebP · ไม่เกิน 10 MB · จัดเก็บใน Google Drive</small></div></div>
-      {photo?.url ? <div className="certificate-photo-preview"><img src={photo.url} alt={`รูปภาพสำหรับเกียรติบัตรของ ${application.candidate}`} /><span><strong>{photo.name}</strong><small>อัปโหลดแล้ว · เลือกเปลี่ยนหรือลบรูปได้</small></span>{canEdit ? <label className="button button-outline certificate-photo-change"><Icon name="upload" size={16} /><span>{busy ? "กำลังอัปโหลด…" : "เปลี่ยนรูปภาพ"}</span><input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={(event) => { choosePhoto(event.target.files?.[0]); event.target.value = ""; }} /></label> : null}{canEdit ? <Button variant="text" icon="close" className="certificate-photo-remove" disabled={busy} onClick={() => onSave(null)}>ลบรูป</Button> : null}</div> : canEdit ? <label className="file-drop file-drop-inline certificate-photo-upload"><input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={(event) => { choosePhoto(event.target.files?.[0]); event.target.value = ""; }} /><span className="file-drop-icon"><Icon name="upload" /></span><span className="file-drop-copy"><strong>{busy ? "กำลังอัปโหลดรูปภาพ…" : "เพิ่มรูปภาพสำหรับเกียรติบัตร (ไม่บังคับ)"}</strong><small>รูปจะถูกจัดเก็บในโฟลเดอร์ Google Drive ตามรายการสอบและรอบ</small></span><span className="file-select-label">เลือกไฟล์</span></label> : <div className="notice notice-amber"><Icon name="lock" /><div><strong>ปิดรับการแก้ไขรูปแล้ว</strong><p>อัปโหลดหรือเปลี่ยนรูปภาพได้ถึงวันปิดแก้ไข: {application.editDeadline || "—"}</p></div></div>}
+      <div className="certificate-photo-copy"><span className="certificate-photo-icon"><Icon name="image" /></span><div><p className="eyebrow">หลังปิดรับสมัครและมีเลขประจำตัวสอบ</p><h2>รูปสำหรับจัดทำเกียรติบัตร</h2><p>ผู้สมัครหรือผู้ประสานงานโรงเรียนอัปโหลดรูปให้ OCEC ใช้จัดทำใบประกาศรางวัลได้ตามต้องการ</p><small>รองรับ JPG, PNG หรือ WebP · ไม่เกิน 10 MB · จัดเก็บใน Google Drive</small></div></div>
+      {photo?.url ? <>
+        <div className="certificate-photo-preview"><img src={photo.url} alt={`รูปภาพสำหรับเกียรติบัตรของ ${application.candidate}`} /><span><strong>{photo.name}</strong><small>อัปโหลดแล้ว{availability.canUpload ? " · เลือกเปลี่ยนหรือลบรูปได้" : ""}</small></span>{availability.canUpload ? <label className="button button-outline certificate-photo-change"><Icon name="upload" size={16} /><span>{busy ? "กำลังอัปโหลด…" : "เปลี่ยนรูปภาพ"}</span><input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={(event) => { choosePhoto(event.target.files?.[0]); event.target.value = ""; }} /></label> : null}{availability.canUpload ? <Button variant="text" icon="close" className="certificate-photo-remove" disabled={busy} onClick={() => onSave(null)}>ลบรูป</Button> : null}</div>
+        {!availability.canUpload ? <div className="notice notice-amber"><Icon name="lock" /><div><strong>ยังแก้ไขรูปไม่ได้</strong><p>{availabilityMessage}</p></div></div> : null}
+      </> : availability.canUpload ? <label className="file-drop file-drop-inline certificate-photo-upload"><input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={(event) => { choosePhoto(event.target.files?.[0]); event.target.value = ""; }} /><span className="file-drop-icon"><Icon name="upload" /></span><span className="file-drop-copy"><strong>{busy ? "กำลังอัปโหลดรูปภาพ…" : "เพิ่มรูปภาพสำหรับเกียรติบัตร (ไม่บังคับ)"}</strong><small>รูปจะถูกจัดเก็บในโฟลเดอร์ Google Drive ตามรายการสอบและรอบ</small></span><span className="file-select-label">เลือกไฟล์</span></label> : <div className="notice notice-amber"><Icon name="lock" /><div><strong>ยังไม่เปิดให้อัปโหลดรูป</strong><p>{availabilityMessage}</p></div></div>}
       {error ? <p className="inline-error certificate-photo-error" role="alert"><Icon name="info" size={15} />{error}</p> : null}
     </section>
   );

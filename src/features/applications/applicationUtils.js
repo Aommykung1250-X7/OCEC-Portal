@@ -74,6 +74,32 @@ export function getBangkokTodayISO() {
   return `${values.year}-${values.month}-${values.day}`;
 }
 
+export function getCertificatePhotoAvailability(application, examCatalog = [], today = getBangkokTodayISO()) {
+  const roundType = application?.kind === "Final" ? "FINAL" : "HEAT";
+  const examItems = (application?.competitions || []).map((competition) => {
+    const round = (examCatalog || []).find((exam) => exam.id === competition.roundId)
+      || (examCatalog || []).find((exam) => exam.competitionId === competition.id
+        && String(exam.year) === String(application?.year)
+        && getExamRoundType(exam) === roundType);
+    return {
+      closeDate: competition.closeDate || round?.closeDate || "",
+      examNumber: String(competition.examNumber || "").trim(),
+    };
+  });
+  const hasRounds = examItems.length > 0;
+  const hasCloseDates = hasRounds && examItems.every((item) => /^\d{4}-\d{2}-\d{2}$/.test(item.closeDate));
+  const closeDate = hasCloseDates ? examItems.map((item) => item.closeDate).sort().at(-1) : "";
+  const registrationClosed = Boolean(closeDate && today > closeDate);
+  const hasAllExamNumbers = hasRounds && examItems.every((item) => item.examNumber);
+
+  return {
+    closeDate,
+    hasAllExamNumbers,
+    canUpload: registrationClosed && hasAllExamNumbers,
+    status: !hasCloseDates ? "missing-close-date" : !registrationClosed ? "before-close" : !hasAllExamNumbers ? "waiting-for-exam-numbers" : "ready",
+  };
+}
+
 export function getApplicationEditDeadline(application, examCatalog) {
   if (application?.editDeadline !== undefined) return application.editDeadline || "";
   const roundType = application?.kind === "Final" ? "FINAL" : "HEAT";
