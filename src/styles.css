@@ -443,7 +443,7 @@ a { color: inherit; }
 .competition-fee small { color: #8994a5; font-size: 9px; font-weight: 500; }
 .competition-fee-options { display: grid; justify-items: end; gap: 3px; }
 .competition-fee-options > span { display: flex; align-items: baseline; gap: 4px; line-height: 1.25; }
-.competition-fee strong { color: var(--primary); }
+.competition-fee strong { color: inherit; }
 .competition-fee-options strong { font-size: 11px; }
 .competition-fee-selected { display: grid; justify-items: end; gap: 2px; }
 .competition-fee-selected strong { font-size: 12px; }

@@ -17,7 +17,7 @@ export function CompetitionFormatPicker({ competitionId, format, paperPrice, onl
   return <fieldset className={`competition-format-picker ${application ? applicationFormatClasses.fieldset : ""}`}><legend className={application ? applicationFormatClasses.legend : ""}>รูปแบบสอบ <span className="required-mark">*</span></legend><div className={`competition-format-options ${application ? applicationFormatClasses.options : ""}`}>
     <label className={optionClass(format === "Paper-Based")}>
       <input className={application ? applicationFormatClasses.input : ""} type="radio" name={`format-${prefix}-${competitionId}`} checked={format === "Paper-Based"} disabled={disabled} onChange={() => onChange("Paper-Based")} />
-      <span className={application ? applicationFormatClasses.label : ""}><strong className={application ? applicationFormatClasses.name : ""}>Paper-Based</strong></span><b className={application ? applicationFormatClasses.price : ""}>฿{Number(paperPrice || 0).toLocaleString()}</b>
+      <span className={application ? applicationFormatClasses.label : ""}><strong className={application ? applicationFormatClasses.name : ""}>{application ? "Paper-based" : "Paper-Based"}</strong></span><b className={application ? applicationFormatClasses.price : ""}>฿{Number(paperPrice || 0).toLocaleString()}</b>
     </label>
     <label className={optionClass(format === "Online")}>
       <input className={application ? applicationFormatClasses.input : ""} type="radio" name={`format-${prefix}-${competitionId}`} checked={format === "Online"} disabled={disabled} onChange={() => onChange("Online")} />
@@ -28,18 +28,18 @@ export function CompetitionFormatPicker({ competitionId, format, paperPrice, onl
 
 export function CompetitionPriceSummary({ selected, format, paperPrice, onlinePrice }) {
   const isOnline = format === "Online" || format === "Online Exam";
-  const onsiteAmount = Number(paperPrice || 0).toLocaleString();
+  const paperAmount = Number(paperPrice || 0).toLocaleString();
   const onlineAmount = Number(onlinePrice || 0).toLocaleString();
   if (selected) {
-    const selectedMode = isOnline ? "Online" : "Onsite";
-    const selectedAmount = isOnline ? onlineAmount : onsiteAmount;
+    const selectedMode = isOnline ? "Online Exam" : "Paper-based";
+    const selectedAmount = isOnline ? onlineAmount : paperAmount;
     return <span className="competition-fee competition-fee-selected" aria-label={`ค่าสมัคร ${selectedMode} ฿${selectedAmount}`}>
       <small>{selectedMode}</small><strong>฿{selectedAmount}</strong>
     </span>;
   }
-  return <span className="competition-fee competition-fee-options" aria-label={`Onsite ฿${onsiteAmount}, Online ฿${onlineAmount}`}>
-    <span><small>Onsite</small><strong>฿{onsiteAmount}</strong></span>
-    <span><small>Online</small><strong>฿{onlineAmount}</strong></span>
+  return <span className="competition-fee competition-fee-options" aria-label={`Paper-based ฿${paperAmount}, Online Exam ฿${onlineAmount}`}>
+    <span><small>Paper-based</small><strong>฿{paperAmount}</strong></span>
+    <span><small>Online Exam</small><strong>฿{onlineAmount}</strong></span>
   </span>;
 }
 
