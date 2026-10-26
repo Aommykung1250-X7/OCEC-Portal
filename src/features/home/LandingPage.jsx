@@ -1,12 +1,12 @@
 import { useEffect } from "react";
-import { PublicPortalFooter } from "../../components/public/PublicPortalFooter.jsx";
+import { PublicGradientBackground } from "../../components/public/PublicGradientBackground.jsx";
 import { PublicPortalHeader } from "../../components/public/PublicPortalHeader.jsx";
-import { ExamRounds, HomeHero } from "./HomeSections.jsx";
+import { ExamRounds, HomeFooter, HomeHero } from "./HomeSections.jsx";
 
 export function LandingPage({ navigate, setPersona, authProfile, onSignIn, onSignOut, onStartApplication, resultPublished, examCatalog, demoProfile, backendEnabled }) {
   useEffect(() => {
     const section = document.getElementById("open-exams");
-    const heading = section?.querySelector(".landing-gallery-toolbar");
+    const heading = section?.querySelector(".home-rounds-intro");
     if (!section || !heading || !window.IntersectionObserver || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return undefined;
 
     section.classList.add("has-card-motion");
@@ -26,6 +26,7 @@ export function LandingPage({ navigate, setPersona, authProfile, onSignIn, onSig
   const featuredExam = openExams[0];
   return (
     <div className="public-landing public-landing-home">
+      <PublicGradientBackground />
       <a className="skip-link" href="#landing-main">ข้ามไปยังเนื้อหาหลัก</a>
       <PublicPortalHeader page="home" navigate={navigate} setPersona={setPersona} authProfile={authProfile} onSignIn={onSignIn} onSignOut={onSignOut} demoProfile={demoProfile} backendEnabled={backendEnabled} />
       <main className="m-0 w-full max-w-none" id="landing-main" tabIndex="-1">
@@ -33,11 +34,10 @@ export function LandingPage({ navigate, setPersona, authProfile, onSignIn, onSig
           featuredExam={featuredExam}
           onStartApplication={onStartApplication}
           onLookup={() => navigate("lookup-choice")}
-          onShowRounds={() => document.getElementById("open-exams")?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" })}
         />
-        <ExamRounds openExams={openExams} resultPublished={resultPublished} navigate={navigate} />
+        <ExamRounds openExams={openExams} resultPublished={resultPublished} navigate={navigate} onStartApplication={onStartApplication} />
       </main>
-      <PublicPortalFooter />
+      <HomeFooter navigate={navigate} />
     </div>
   );
 }

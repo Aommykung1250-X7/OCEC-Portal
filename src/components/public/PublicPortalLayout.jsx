@@ -1,6 +1,9 @@
 import { Icon } from "../ui/index.jsx";
 import { PublicPortalFooter } from "./PublicPortalFooter.jsx";
 import { PublicPortalHeader } from "./PublicPortalHeader.jsx";
+import { PublicGradientBackground } from "./PublicGradientBackground.jsx";
+
+const GRADIENT_PAGES = new Set(["lookup-choice", "check-status", "edit-verify", "edit-application", "final-confirm", "results"]);
 
 export function PublicPortalLayout({
   page,
@@ -16,8 +19,10 @@ export function PublicPortalLayout({
   scheduleNotice,
   children,
 }) {
+  const gradientBackground = GRADIENT_PAGES.has(page);
   return (
-    <div className="public-landing public-portal-page">
+    <div className={"public-landing public-portal-page" + (gradientBackground ? " public-portal-gradient" : "")}>
+      {gradientBackground ? <PublicGradientBackground /> : null}
       <a className="skip-link" href="#landing-main">ข้ามไปยังเนื้อหาหลัก</a>
       {scheduleNotice}
       <PublicPortalHeader

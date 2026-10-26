@@ -1,5 +1,5 @@
 /* Migrate feature styles incrementally without resetting legacy element styles. */
-@import url("https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Bai+Jamjuree:wght@400;500;600;700&family=Kanit:wght@300;400;500;600;700;800&family=Sarabun:wght@400;500;600;700&display=swap");
 @layer theme, base, components, utilities;
 @import "tailwindcss/theme.css" layer(theme);
 @import "./styles.css" layer(components);
@@ -9,6 +9,8 @@
 @import "./public-blue-theme.css" layer(components);
 @import "./public-refero-theme.css" layer(components);
 @import "./brand-theme.css" layer(components);
+@import "./public-cream-theme.css" layer(components);
+@import "./public-home-theme.css" layer(components);
 @import "tailwindcss/utilities.css" layer(utilities) source(none);
 @source "./components/ui";
 @source "./components/public";

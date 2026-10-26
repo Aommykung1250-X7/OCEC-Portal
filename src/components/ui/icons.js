@@ -7,6 +7,8 @@ export const iconGlyphs = {
   award: "medal",
   grid: "apps",
   users: "users",
+  user: "user",
+  headset: "headset",
   settings: "settings",
   upload: "upload",
   sync: "refresh",

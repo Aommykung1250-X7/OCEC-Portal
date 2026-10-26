@@ -1,80 +1,138 @@
-import { ExamLogo, Icon } from "../../components/ui/index.jsx";
+import { lazy, Suspense } from "react";
+import { BrandMark, Icon } from "../../components/ui/index.jsx";
 import { formatThaiDate, getExamRoundType } from "../../examUtils.js";
 
-export function HomeHero({ featuredExam, onStartApplication, onLookup, onShowRounds }) {
+const GraduationCapScene = lazy(() => import("./GraduationCapScene.jsx").then((module) => ({ default: module.GraduationCapScene })));
+const HERO_DIVIDER_WAVES = 12;
+const heroDividerPath = "M0 24 " + Array.from({ length: HERO_DIVIDER_WAVES }, (_, index) => {
+  const x = index * 120;
+  return "Q" + (x + 30) + " 0 " + (x + 60) + " 24 Q" + (x + 90) + " 48 " + (x + 120) + " 24";
+}).join(" ") + " L1440 48 L0 48 Z";
+const FACEBOOK_PAGES = [
+  ["OCEC-TH", "https://www.facebook.com/OCECTH"],
+  ["TIMO", "https://www.facebook.com/timo.thailand"],
+  ["BBB", "https://www.facebook.com/profile.php?id=100076545241501"],
+  ["HKIMO", "https://www.facebook.com/profile.php?id=100063468886052"],
+];
+
+function FacebookMark() {
+  return <svg className="home-facebook-mark" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="#1877f2" /><path d="M13.5 21v-7h2.4l.35-2.8H13.5V9.4c0-.8.22-1.35 1.36-1.35h1.45v-2.5c-.25-.03-1.11-.1-2.12-.1-2.1 0-3.54 1.3-3.54 3.68v2.07H8.3V14h2.35v7Z" fill="#fff" /></svg>;
+}
+
+export function HomeHero({ featuredExam, onStartApplication, onLookup }) {
   return (
-    <section className="landing-gallery-hero relative isolate mt-0 block min-h-[100svh] w-full max-w-none overflow-hidden rounded-none border-0 bg-ocec-background bg-none p-0 shadow-none" aria-labelledby="homepage-title">
-      <div className="landing-gallery-hero-inner pointer-events-none relative z-[2] mx-auto w-[calc(100%_-_80px)] max-w-[1280px] pt-[clamp(160px,19svh,210px)] pb-[110px] max-[700px]:w-[calc(100%_-_36px)] max-[700px]:pt-[198px] max-[700px]:pb-[275px] max-[390px]:pt-[195px] max-[390px]:pb-[267px] animate-[public-hero-enter_var(--motion-enter)_var(--motion-ease-out)_both] motion-reduce:animate-none">
-        <p className="landing-gallery-kicker mt-0 mb-[19px] flex items-center gap-[14px] text-xs font-semibold tracking-[.08em] text-ocec-brand max-[390px]:flex-wrap max-[390px]:gap-[7px] max-[390px]:text-[10px]">OCEC EXAM PORTAL <span className="h-[2px] w-[30px] rounded-full bg-ocec-accent" /> ปีการศึกษา {featuredExam?.year || "2569"}</p>
-        <h1 className="mt-0 mb-[18px] max-w-[780px] text-[clamp(70px,8.4vw,132px)] leading-[1.02] font-medium tracking-[-.055em] text-ocec-brand max-[1050px]:text-[clamp(68px,9vw,100px)] max-[700px]:max-w-full max-[700px]:text-[clamp(59px,12vw,83px)] max-[700px]:leading-[1.12] max-[390px]:text-[55px]" id="homepage-title">สมัครสอบ<br />กับ OCEC<span className="refero-title-dot text-ocec-accent">.</span></h1>
-        <p className="landing-gallery-lead m-0 max-w-[490px] text-[17px] leading-[1.8] text-ocec-muted max-[700px]:max-w-[430px] max-[700px]:text-[15px]">เลือกรายการสอบที่สนใจ ตรวจสอบกำหนดการ และสมัครได้หลายรายการผ่านแบบฟอร์มเดียว</p>
-        <div className="landing-gallery-actions mt-[26px] flex flex-wrap gap-4 max-[700px]:gap-[9px]">
-          <button className="landing-gallery-primary pointer-events-auto inline-flex min-h-[60px] min-w-[196px] items-center justify-between gap-[26px] rounded-full px-[9px] py-2 pl-[23px] text-[15px] font-semibold text-ocec-brand shadow-none transition-[transform,background-color,border-color] duration-[220ms] ease-[cubic-bezier(.23,1,.32,1)] active:scale-[.98] motion-reduce:transition-none max-[700px]:min-h-[53px] max-[700px]:min-w-0 max-[700px]:gap-[11px] max-[700px]:p-[6px_6px_6px_14px] max-[700px]:text-xs max-[390px]:text-[11px]" type="button" onClick={onStartApplication}>เข้าสู่การสมัครสอบ <Icon name="arrow" size={17} className="size-[41px] rounded-full p-[11px]" /></button>
-          <button className="landing-gallery-secondary pointer-events-auto inline-flex min-h-[60px] min-w-[192px] items-center justify-between gap-[26px] rounded-full px-[9px] py-2 pl-[23px] text-[15px] font-semibold text-ocec-brand shadow-none transition-[transform,background-color,border-color] duration-[220ms] ease-[cubic-bezier(.23,1,.32,1)] active:scale-[.98] motion-reduce:transition-none max-[700px]:min-h-[53px] max-[700px]:min-w-0 max-[700px]:gap-[11px] max-[700px]:p-[6px_6px_6px_14px] max-[700px]:text-xs max-[390px]:text-[11px]" type="button" onClick={onLookup}>ตรวจสอบสถานะใบสมัคร <Icon name="arrow" size={17} className="size-[41px] rounded-full p-[11px]" /></button>
+    <section className="home-hero" aria-labelledby="homepage-title">
+      <div className="home-container home-hero-grid">
+        <div className="home-hero-copy">
+          <p className="home-kicker"><Icon name="sparkle" size={14} /> OCEC EXAM PORTAL • ปีการศึกษา {featuredExam?.year || "2569"}</p>
+          <h1 id="homepage-title">สมัครสอบกับ <span>OCEC.</span></h1>
+          <span className="home-title-rule" aria-hidden="true" />
+          <p className="home-hero-lead">เลือกรายการสอบที่สนใจ ตรวจสอบกำหนดการ และสมัครได้หลายรายการผ่านแบบฟอร์มเดียว</p>
+          <div className="home-hero-actions">
+            <button className="home-button home-button-primary" type="button" onClick={onStartApplication}>เข้าสู่การสมัครสอบ <Icon name="arrow" size={16} /></button>
+            <button className="home-button home-button-secondary" type="button" onClick={onLookup}><Icon name="file" size={16} /> ตรวจสอบสถานะใบสมัคร</button>
+          </div>
+          <div className="home-social" role="group" aria-label="ติดตามข่าวสารและประชาสัมพันธ์ทาง Facebook">
+            <FacebookMark />
+            <ul className="home-social-links">
+              {FACEBOOK_PAGES.map(([name, href]) => <li key={name}><a className="home-social-link" href={href} target="_blank" rel="noopener noreferrer" aria-label={"ติดตาม " + name + " บน Facebook (เปิดแท็บใหม่)"}>{name}</a></li>)}
+            </ul>
+          </div>
         </div>
-        <div className="landing-gallery-assurance mt-[26px] flex flex-wrap gap-x-[23px] gap-y-2 text-xs text-ocec-muted max-[700px]:mt-5 max-[700px]:gap-x-[15px] max-[700px]:gap-y-[5px]"><span className="inline-flex items-center gap-[7px]"><Icon name="check" size={14} />สมัครสอบได้หลายรายการในครั้งเดียว</span><span className="inline-flex items-center gap-[7px]"><Icon name="check" size={14} />ตรวจสอบสถานะใบสมัครได้ตลอดเวลา</span></div>
+        <div className="home-art">
+          <div className="home-art-stage">
+            <div className="home-art-panel" aria-hidden="true" />
+            <Suspense fallback={<div className="home-scene-loading" aria-hidden="true" />}>
+              <GraduationCapScene />
+            </Suspense>
+          </div>
+        </div>
       </div>
-      <img className="refero-hero-illustration pointer-events-none absolute right-[max(-52px,calc((100vw_-_1530px)/2))] bottom-[-18px] z-[1] w-[min(58vw,835px)] h-auto object-contain [filter:none] max-[1050px]:right-[-65px] max-[1050px]:w-[58vw] max-[700px]:right-[-35px] max-[700px]:bottom-[-8px] max-[700px]:w-[min(110vw,570px)] max-[390px]:right-[-65px] max-[390px]:w-[120vw]" src="/ocec-exam-paper-cut-indigo.png" alt="ภาพประกอบนักเรียนเตรียมตัวสำหรับการสอบท่ามกลางต้นไม้และดอกไม้" />
-      <button className="landing-scene-next absolute bottom-[30px] left-[max(40px,calc((100vw_-_1280px)/2))] z-[3] inline-flex cursor-pointer items-center gap-3 border-0 bg-transparent px-0 py-[6px] text-xs font-semibold text-ocec-brand max-[700px]:hidden" type="button" onClick={onShowRounds}>ดูขั้นตอนและรอบสอบ <Icon name="arrow" size={16} className="rotate-90" /></button>
+      <svg className="home-section-wave" viewBox="0 0 1440 48" preserveAspectRatio="none" aria-hidden="true" data-wave-count={HERO_DIVIDER_WAVES}><path d={heroDividerPath} /></svg>
     </section>
   );
 }
 
-export function ExamRounds({ openExams, resultPublished, navigate }) {
-  const openExamCount = openExams.length;
-  const orderedExams = [...openExams];
-  const isEmpty = openExamCount === 0;
+function RoundCard({ exam, index, onStartApplication }) {
+  const roundType = getExamRoundType(exam);
+  const roundLabel = roundType === "HEAT" ? "HEAT ROUND · รอบคัดเลือก" : roundType === "FINAL" ? "FINAL ROUND · รอบชิงชนะเลิศ" : roundType === "FINAL_X" ? "FINAL X · รอบสอบ" : (exam.round || roundType) + " · รอบสอบ";
   return (
-    <section className={`landing-gallery-section relative z-[2] m-0 min-h-[100svh] w-full scroll-mt-0 bg-ocec-background px-[max(40px,calc((100vw_-_1280px)/2))] pt-[clamp(150px,18svh,185px)] pb-[70px] max-[700px]:px-[18px] max-[700px]:pt-[205px] max-[700px]:pb-[55px]${isEmpty ? " is-empty pb-[clamp(70px,9svh,110px)] max-[700px]:pt-[165px] max-[700px]:min-h-0" : ""}`} id="open-exams" aria-labelledby="open-exams-title">
-      <div className="landing-gallery-toolbar flex min-h-0 items-center justify-between gap-6 border-0 rounded-none bg-transparent px-[2px] pt-0 pb-[31px] shadow-none max-[700px]:items-start max-[700px]:flex-col max-[700px]:gap-[14px] max-[700px]:pb-[23px]">
-        <div><p className="landing-gallery-toolbar-kicker mt-0 mb-[6px] text-xs text-ocec-brand">EXAM ROUNDS · รอบสอบปัจจุบัน</p><h2 className="m-0 text-[clamp(34px,4vw,54px)] leading-[1.2] font-medium tracking-[-.035em] text-ocec-brand max-[700px]:text-[32px]" id="open-exams-title">รายการสอบที่เปิดรับสมัคร</h2><p className="mt-[7px] mb-0 text-sm text-ocec-muted">{openExamCount ? "โปรดตรวจสอบรายละเอียดก่อนสมัคร" : "เมื่อมีรายการเปิดรับสมัคร รายละเอียดและกำหนดการจะแสดงในส่วนนี้"}</p></div>
-        <div className="landing-gallery-summary flex flex-none items-center gap-3"><span className={`landing-gallery-open-count inline-flex items-center gap-[7px] rounded-full px-[15px] py-[10px] text-xs font-semibold whitespace-nowrap text-ocec-brand bg-ocec-brand-soft${openExamCount ? "" : " is-empty text-ocec-muted bg-[#F8F9FB]"}`}><i className={`size-[7px] flex-none rounded-full bg-ocec-brand${openExamCount ? "" : " bg-ocec-muted"}`} />{openExamCount} รายการเปิดรับสมัคร</span></div>
+    <article className="home-round-card" style={{ "--exam-entrance-delay": Math.min(index, 8) * 70 + "ms" }}>
+      <div className="home-round-top">
+        <div className="home-round-labels"><span className="home-round-status"><i />เปิดรับสมัคร</span><span>{roundLabel}</span></div>
+        <span className="home-round-year">ปีการศึกษา {exam.year} <span>สมัครผ่านแบบฟอร์มเดียว</span></span>
       </div>
-      {orderedExams.length === 0 ? <div className="landing-gallery-empty relative grid min-h-[178px] grid-cols-[62px_minmax(0,1fr)_auto] items-center gap-[21px] overflow-hidden rounded-[42px] border border-ocec-border bg-white p-8 max-[950px]:grid-cols-[62px_minmax(0,1fr)] max-[700px]:grid-cols-[50px_minmax(0,1fr)] max-[700px]:gap-[14px] max-[700px]:rounded-[27px] max-[700px]:p-[21px] max-[700px]:min-h-0">
-        <span className="landing-gallery-empty-icon relative z-[1] grid size-[62px] flex-none place-items-center rounded-[20px] bg-ocec-brand-soft text-ocec-brand max-[700px]:size-[50px]"><Icon name="calendar" size={26} /></span>
-        <div className="landing-gallery-empty-copy relative z-[1] col-start-2 max-w-[470px]"><strong className="block text-[20px] text-ocec-brand max-[700px]:text-[17px]">ขณะนี้ไม่มีรายการสอบที่เปิดรับสมัคร</strong><p className="mt-[7px] mb-0 text-[13px] leading-[1.65] text-ocec-muted">เมื่อมีรายการเปิดรับสมัคร ระบบจะแสดงรายละเอียดและกำหนดการในส่วนนี้ ระหว่างนี้สามารถศึกษาขั้นตอนการสมัครหรือตรวจสอบใบสมัครได้</p></div>
-        <div className="landing-gallery-empty-actions relative z-[1] flex flex-col gap-[9px] max-[950px]:col-start-2 max-[950px]:flex-row max-[950px]:flex-wrap max-[700px]:col-span-full">
-          <a className="inline-flex min-h-11 items-center justify-between gap-[18px] rounded-full border border-ocec-border bg-white px-4 py-2 text-[13px] font-semibold text-ocec-brand no-underline whitespace-nowrap transition-[background-color,border-color,transform] duration-[180ms] motion-reduce:transition-none" href="#how-to-apply">ดูขั้นตอนการสมัคร <Icon name="arrow" size={15} /></a>
-          <button className="inline-flex min-h-11 items-center justify-between gap-[18px] rounded-full border border-ocec-brand bg-ocec-brand px-4 py-2 text-[13px] font-semibold text-white whitespace-nowrap transition-[background-color,border-color,transform] duration-[180ms] motion-reduce:transition-none" type="button" onClick={() => navigate("lookup-choice")}>ตรวจสอบสถานะใบสมัคร <Icon name="arrow" size={15} /></button>
+      <h3>{exam.title}</h3>
+      <p className="home-round-description">{exam.description || "ตรวจสอบกำหนดการและรายละเอียดการสมัคร"}</p>
+      <div className="home-round-dates">
+        <div><i><Icon name="calendar" size={16} /></i><span><small>วันสอบ</small><strong>{exam.examDate ? formatThaiDate(exam.examDate) : "ยังไม่กำหนด"}</strong></span></div>
+        <div><i><Icon name="clock" size={16} /></i><span><small>ปิดรับสมัคร</small><strong>{exam.closeDate ? formatThaiDate(exam.closeDate) : "ยังไม่กำหนด"}</strong></span></div>
+      </div>
+      <div className="home-round-foot"><button className="home-button home-button-primary" type="button" onClick={onStartApplication}>สมัครสอบทันที <Icon name="arrow" size={15} /></button></div>
+    </article>
+  );
+}
+
+export function ExamRounds({ openExams, resultPublished, navigate, onStartApplication }) {
+  return (
+    <section className="home-rounds" id="open-exams" aria-labelledby="open-exams-title">
+      <div className="home-container">
+        <div className="home-rounds-layout">
+          <div className="home-rounds-intro">
+            <div className="home-rounds-logo"><BrandMark /></div>
+            <p className="home-section-kicker">EXAM ROUNDS · รอบสอบปัจจุบัน</p>
+            <h2 id="open-exams-title">รายการสอบที่เปิดรับสมัคร</h2>
+            <span className="home-title-rule" aria-hidden="true" />
+            <p>{openExams.length ? "โปรดตรวจสอบรายละเอียดก่อนสมัคร" : "เมื่อมีรายการเปิดรับสมัคร รายละเอียดและกำหนดการจะแสดงในส่วนนี้"}</p>
+            <span className="home-open-count"><i />{openExams.length} รายการเปิดรับสมัคร</span>
+          </div>
+          <div className="home-rounds-list" aria-label="รายการสอบที่เปิดรับ">
+            {openExams.length ? openExams.map((exam, index) => <RoundCard key={exam.id} exam={exam} index={index} onStartApplication={onStartApplication} />) : (
+              <div className="home-rounds-empty">
+                <span className="home-empty-icon"><Icon name="calendar" size={28} /></span>
+                <h3>ขณะนี้ไม่มีรายการสอบที่เปิดรับสมัคร</h3>
+                <p>เมื่อมีรายการเปิดรับสมัคร ระบบจะแสดงรายละเอียดและกำหนดการในส่วนนี้ ระหว่างนี้สามารถศึกษาขั้นตอนการสมัครหรือตรวจสอบใบสมัครได้</p>
+                <div><a className="home-button home-button-secondary" href="#how-to-apply">ดูขั้นตอนการสมัคร <Icon name="arrow" size={15} /></a><button className="home-button home-button-primary" type="button" onClick={() => navigate("lookup-choice")}>ตรวจสอบสถานะใบสมัคร</button></div>
+              </div>
+            )}
+          </div>
         </div>
-      </div> : <div className="landing-gallery-grid grid grid-cols-3 items-stretch gap-5 mt-0 max-[1050px]:grid-cols-2 max-[700px]:grid-cols-1 max-[700px]:gap-3" aria-label="รายการสอบที่เปิดรับ">
-        {orderedExams.map((exam, index) => {
-          const roundType = getExamRoundType(exam);
-          return <article className={`landing-gallery-card exam-card-${exam.accent}${exam.isOpen ? "" : " is-upcoming"} relative flex min-h-[328px] min-w-0 flex-col overflow-hidden rounded-[42px] border border-[#E9DDEA] bg-white p-[30px] shadow-none transition-[transform,border-color] duration-[240ms] ease-[cubic-bezier(.23,1,.32,1)] motion-reduce:transition-none max-[700px]:min-h-0 max-[700px]:rounded-[28px] max-[700px]:p-6`} key={exam.id} style={{ "--exam-entrance-delay": `${Math.min(index, 8) * 110}ms` }}>
-            <div className="landing-gallery-card-top flex items-start justify-between gap-[10px]"><ExamLogo exam={exam} className="landing-gallery-exam-mark grid size-[55px] flex-none place-items-center overflow-hidden rounded-[18px] bg-ocec-brand-soft text-ocec-brand" iconSize={22} /><span className={`landing-gallery-status inline-flex max-w-[70%] items-center justify-end gap-[7px] rounded-full px-[9px] py-[7px] text-right text-[10px] font-semibold leading-[1.35]${exam.isOpen ? " is-open whitespace-nowrap text-ocec-brand bg-ocec-brand-soft" : " text-ocec-muted bg-[#F8F9FB]"}`}><i className={`size-[6px] flex-none rounded-full ${exam.isOpen ? "bg-ocec-accent" : "bg-ocec-muted"}`} />{exam.isOpen ? "เปิดรับสมัคร" : exam.finalRegistrationStatus === "waiting-results" ? "รอประกาศผล HEAT" : exam.finalRegistrationStatus === "no-eligible-applicants" ? "ไม่มีผู้มีสิทธิ์สมัครรอบ Final" : exam.finalRegistrationStatus === "closed-manual" ? "ปิดรับสมัครโดยผู้ดูแลระบบ" : exam.finalRegistrationStatus === "closed-deadline" ? "ปิดรับสมัครแล้ว" : "ยังไม่เปิดรับสมัคร"}</span></div>
-            <p className="landing-gallery-card-round mt-[31px] mb-1 text-[11px] font-semibold tracking-[.045em] text-ocec-brand max-[700px]:mt-[22px]">{roundType === "HEAT" ? "HEAT ROUND · รอบคัดเลือก" : roundType === "FINAL" ? "FINAL ROUND · รอบชิงชนะเลิศ" : roundType === "FINAL_X" ? "FINAL X · รอบสอบ" : `${exam.round || roundType} · รอบสอบ`}</p>
-            <h3 className="m-0 mb-1 text-[clamp(26px,2.7vw,38px)] leading-[1.27] font-medium tracking-[-.025em] text-ocec-brand max-[700px]:text-[27px]">{exam.title}</h3>
-            <p className="landing-gallery-card-description m-0 mb-6 text-[13px] leading-[1.55] text-ocec-muted">{exam.description || `ปีการศึกษา ${exam.year}`}</p>
-            <div className="landing-gallery-dates mt-auto grid grid-cols-2 gap-0 border-t border-ocec-border"><div className="min-w-0 rounded-none bg-transparent pt-[15px] pr-4"><small className="mb-[3px] block text-[10px] text-ocec-muted">วันสอบ</small><strong className="block text-xs font-semibold text-ocec-brand [overflow-wrap:anywhere]">{formatThaiDate(exam.examDate)}</strong></div><div className="min-w-0 rounded-none bg-transparent pt-[15px] pr-4"><small className="mb-[3px] block text-[10px] text-ocec-muted">ปิดรับสมัคร</small><strong className="block text-xs font-semibold text-ocec-brand [overflow-wrap:anywhere]">{formatThaiDate(exam.closeDate)}</strong></div></div>
-            <div className="landing-gallery-card-foot mt-[19px] flex items-center justify-between gap-3 border-t border-ocec-border pt-[14px] text-[11px] text-ocec-muted"><span>ปีการศึกษา {exam.year}</span><span className="text-right font-semibold text-ocec-brand">{exam.isOpen ? "สมัครผ่านแบบฟอร์มเดียว" : "ติดตามประกาศ"}</span></div>
-          </article>;
-        })}
-      </div>}
-      <Journey />
-      {resultPublished ? <FinalOpportunity navigate={navigate} /> : null}
+        <Journey navigate={navigate} />
+        {resultPublished ? <button className="home-final-link" onClick={() => navigate("final-confirm")}><Icon name="award" size={24} /><span><strong>ตรวจสอบสิทธิ์สมัครรอบ OCEC Final</strong><small>สำหรับผู้ที่ผ่านการสอบรอบ HEAT</small></span><Icon name="arrow" size={18} /></button> : null}
+      </div>
     </section>
   );
 }
 
-export function Journey() {
+export function Journey({ navigate }) {
+  const steps = [
+    ["01", "file", "เลือกรอบสอบ", "โปรดตรวจสอบวันสอบและกำหนดปิดรับสมัครก่อนเลือกรายการสอบ"],
+    ["02", "user", "กรอกใบสมัคร", "เข้าสู่ระบบ กรอกข้อมูลให้ครบถ้วน และส่งใบสมัครผ่านแบบฟอร์ม"],
+    ["03", "check", "ตรวจสอบสถานะ", "ตรวจสอบสถานะใบสมัคร และแก้ไขข้อมูลตามสิทธิ์ที่กำหนด"],
+  ];
   return (
-    <div className="landing-journey mt-[26px] grid grid-cols-[minmax(215px,.8fr)_minmax(0,2fr)] gap-[30px] scroll-mt-[130px] rounded-[30px] border border-ocec-border bg-white px-[31px] py-[27px] shadow-[0_16px_38px_rgba(58,15,52,.035)] max-[950px]:grid-cols-1 max-[950px]:gap-[22px] max-[700px]:gap-[18px] max-[700px]:rounded-[27px] max-[700px]:p-[23px]" id="how-to-apply" aria-labelledby="how-to-apply-title">
-      <div className="landing-journey-intro self-center"><span className="text-[10px] font-bold tracking-[.09em] text-[#3A0F34]">APPLICATION GUIDE · ขั้นตอนการสมัคร</span><h3 className="mt-[7px] mb-1 text-[clamp(19px,2vw,26px)] leading-[1.3] font-semibold text-ocec-brand">ขั้นตอนการสมัคร 3 ขั้นตอน</h3><p className="m-0 max-w-[270px] text-[13px] leading-[1.6] text-ocec-muted max-[950px]:max-w-none">โปรดเตรียมข้อมูลให้พร้อมก่อนสมัคร และตรวจสอบสถานะใบสมัครได้ทุกเมื่อ</p></div>
-      <ol className="landing-journey-list m-0 grid list-none grid-cols-3 items-stretch p-0 max-[700px]:grid-cols-1 max-[700px]:gap-0">
-        <li className="grid min-w-0 content-start gap-[10px] border-l border-[#E6E4E8] px-[19px] py-[2px] max-[950px]:first:border-l-0 max-[950px]:first:pl-0 max-[700px]:grid-cols-[37px_minmax(0,1fr)] max-[700px]:items-center max-[700px]:gap-[14px] max-[700px]:border-t max-[700px]:border-l-0 max-[700px]:py-[13px] max-[700px]:first:border-t-0"><span className="landing-journey-number grid size-[37px] place-items-center rounded-xl border border-[#EBD99E] bg-[#FFF7DC] text-[11px] font-bold text-ocec-brand">01</span><div><strong className="text-sm text-ocec-brand">เลือกรอบสอบ</strong><p className="mt-[3px] mb-0 text-xs leading-[1.55] text-ocec-muted">โปรดตรวจสอบวันสอบและกำหนดปิดรับสมัครก่อนเลือกรายการสอบ</p></div></li>
-        <li className="grid min-w-0 content-start gap-[10px] border-l border-[#E6E4E8] px-[19px] py-[2px] max-[700px]:grid-cols-[37px_minmax(0,1fr)] max-[700px]:items-center max-[700px]:gap-[14px] max-[700px]:border-t max-[700px]:border-l-0 max-[700px]:py-[13px]"><span className="landing-journey-number grid size-[37px] place-items-center rounded-xl border border-[#EBD99E] bg-[#FFF7DC] text-[11px] font-bold text-ocec-brand">02</span><div><strong className="text-sm text-ocec-brand">กรอกใบสมัคร</strong><p className="mt-[3px] mb-0 text-xs leading-[1.55] text-ocec-muted">เข้าสู่ระบบ กรอกข้อมูลให้ครบถ้วน และส่งใบสมัครผ่านแบบฟอร์ม</p></div></li>
-        <li className="grid min-w-0 content-start gap-[10px] border-l border-[#E6E4E8] px-[19px] py-[2px] max-[700px]:grid-cols-[37px_minmax(0,1fr)] max-[700px]:items-center max-[700px]:gap-[14px] max-[700px]:border-t max-[700px]:border-l-0 max-[700px]:py-[13px]"><span className="landing-journey-number grid size-[37px] place-items-center rounded-xl border border-[#EBD99E] bg-[#FFF7DC] text-[11px] font-bold text-ocec-brand">03</span><div><strong className="text-sm text-ocec-brand">ตรวจสอบสถานะ</strong><p className="mt-[3px] mb-0 text-xs leading-[1.55] text-ocec-muted">ตรวจสอบสถานะใบสมัคร และแก้ไขข้อมูลตามสิทธิ์ที่กำหนด</p></div></li>
-      </ol>
+    <div className="home-journey" id="how-to-apply" aria-labelledby="how-to-apply-title">
+      <p className="home-guide-kicker">APPLICATION GUIDE · ขั้นตอนการสมัคร</p>
+      <h3 id="how-to-apply-title">ขั้นตอนการสมัคร 3 ขั้นตอน</h3>
+      <p className="home-guide-description">โปรดเตรียมข้อมูลให้พร้อมก่อนสมัคร และตรวจสอบสถานะใบสมัครได้ทุกเมื่อ</p>
+      <ol>{steps.map(([number, icon, title, description]) => <li key={number}><div className="home-step-top"><span>{number}</span><i><Icon name={icon} size={20} /></i></div><h4>{title}</h4><p>{description}</p>{number === "03" ? <button type="button" onClick={() => navigate("lookup-choice")}>ดูรายละเอียด <Icon name="arrow" size={13} /></button> : null}</li>)}</ol>
     </div>
   );
 }
 
-function FinalOpportunity({ navigate }) {
+export function HomeFooter({ navigate }) {
+  const links = [["รายการสอบ", "home"], ["ตรวจสอบสถานะใบสมัคร", "lookup-choice"], ["ยืนยันสิทธิ์", "final-confirm"], ["ประกาศผล", "results"]];
+  const goTo = (page) => {
+    if (page === "home") document.getElementById("open-exams")?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    else navigate(page);
+  };
   return (
-    <button className="final-opportunity-link mt-[15px] flex min-h-[73px] w-full items-center gap-3 rounded-xl border border-[#dcebe0] px-[14px] py-[11px] text-left text-[#38634b] bg-[#f6fbf6]" onClick={() => navigate("final-confirm")}>
-      <span className="final-opportunity-icon grid size-[39px] flex-none place-items-center rounded-[11px] bg-[#e2f4e8] text-[#217249]"><Icon name="award" /></span>
-      <span><strong>ตรวจสอบสิทธิ์สมัครรอบ OCEC Final</strong><small>สำหรับผู้ที่ผ่านการสอบรอบ HEAT</small></span>
-      <Icon name="arrow" size={17} />
-    </button>
+    <footer className="home-footer">
+      <div className="home-container">
+        <div className="home-help"><span className="home-help-icon"><Icon name="headset" size={25} /></span><div><h3>ต้องการความช่วยเหลือในการสมัครสอบ?</h3><p>ติดต่อศูนย์ช่วยเหลือของเรา</p></div><a className="home-button" href="https://lin.ee/3hzFg1z" target="_blank" rel="noopener noreferrer">ศูนย์ช่วยเหลือ <Icon name="arrow" size={16} /></a></div>
+        <div className="home-footer-bottom"><a className="home-footer-brand" href="/"><BrandMark /><span>OCEC Portal ระบบสมัครสอบ<small>© 2569 OCEC Portal. All rights reserved.</small></span></a><nav aria-label="เมนูส่วนท้าย">{links.map(([label, page]) => <button type="button" key={page} onClick={() => goTo(page)}>{label}</button>)}</nav></div>
+        <div className="home-footer-credit"><a href="https://lin.ee/3hzFg1z" target="_blank" rel="noopener noreferrer">ศูนย์ช่วยเหลือ</a><a href="https://www.flaticon.com/uicons" target="_blank" rel="noreferrer">UIcons by Flaticon</a></div>
+      </div>
+    </footer>
   );
 }
