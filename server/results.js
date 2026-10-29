@@ -1,3 +1,4 @@
+import { isEligibleForNextRound, nextExamRoundType } from '../shared/examProgression.js';
 import { getPool, transaction } from './db.js';
 
 const clean = (value, length = 255) => String(value ?? '').normalize('NFKC').replace(/\s+/g, ' ').trim().slice(0, length);
@@ -10,11 +11,8 @@ function fail(message, statusCode = 400) {
   return error;
 }
 
-export function isFinalEligible(award, competitionId) {
-  const value = clean(award).toUpperCase().replace(/\s+/g, ' ');
-  if (competitionId === 'bbb') return /^(1ST|2ND|3RD)( (AWARD|PLACE|PRIZE))?$/.test(value);
-  const medal = value.match(/^(GOLD|SILVER|BRONZE)(?: (?:MEDAL|AWARD))?$/);
-  return Boolean(medal);
+export function isFinalEligible(award, competitionId, roundType = 'HEAT') {
+  return isEligibleForNextRound(award, competitionId, roundType);
 }
 
 function mapImportRow(row) {
@@ -36,7 +34,7 @@ function mapImportRow(row) {
     applicationGrade: row.application_grade || '',
     matchStatus: row.match_status,
     matchNote: row.match_note || '',
-    result: isFinalEligible(row.award, row.competition_id) ? 'pass' : 'not-passed',
+    result: isFinalEligible(row.award, row.competition_id, row.round_type) ? 'pass' : 'not-passed',
   };
 }
 
@@ -48,7 +46,7 @@ async function readResultBatch(client, batchId) {
   if (!batch.rowCount) return null;
   const rows = await client.query(`SELECT ir.*,a.id AS application_id,
       concat_ws(' ',ap.first_name_en,nullif(ap.middle_name_en,''),ap.last_name_en) AS application_candidate_name,
-      ap.school_name AS application_school_name,g.label AS application_grade,r.competition_id
+      ap.school_name AS application_school_name,g.label AS application_grade,r.competition_id,r.round_type
     FROM result_import_rows ir LEFT JOIN application_items ai ON ai.id=ir.application_item_id
     LEFT JOIN applications a ON a.id=ai.application_id LEFT JOIN applicants ap ON ap.id=a.applicant_id
     LEFT JOIN grade_catalog g ON g.id=ai.grade_id LEFT JOIN exam_rounds r ON r.id=ai.exam_round_id
@@ -179,7 +177,7 @@ export async function publishResultBatch(examRoundId, adminId) {
     if (new Set(itemIds).size !== itemIds.length) throw fail('พบใบสมัครซ้ำในผลสอบ โปรดแก้ไขก่อนประกาศผล', 409);
     const eligibleRows = [];
     for (const row of rows.rows) {
-      const eligible = isFinalEligible(row.award, batch.competition_id);
+      const eligible = isFinalEligible(row.award, batch.competition_id, batch.round_type);
       await client.query(`INSERT INTO results(application_item_id,award,eligible_for_final,published_at,published_by)
         VALUES($1,$2,$3,now(),$4) ON CONFLICT(application_item_id) DO UPDATE SET
           award=excluded.award,eligible_for_final=excluded.eligible_for_final,published_at=excluded.published_at,published_by=excluded.published_by`,
@@ -190,13 +188,14 @@ export async function publishResultBatch(examRoundId, adminId) {
     await client.query(`INSERT INTO audit_logs(actor_user_id,entity_type,entity_id,action,after_data)
       VALUES($1,'exam_round',$2,'publish_results',$3)`, [adminId,examRoundId,{ batchId: batch.id, rows: rows.rowCount, eligibleForFinal: eligibleRows.length }]);
     let openedFinalRounds = 0;
-    if (batch.round_type === 'HEAT' && eligibleRows.length) {
+    const nextRoundType = nextExamRoundType(batch.competition_id, batch.round_type);
+    if (nextRoundType && eligibleRows.length) {
       const finals = await client.query(`UPDATE exam_rounds final SET is_open=(NOT final.final_manually_closed AND final.open_date IS NOT NULL AND final.close_date IS NOT NULL
           AND (now() AT TIME ZONE 'Asia/Bangkok')::date BETWEEN final.open_date AND final.close_date),updated_at=now()
-        WHERE final.active=true AND final.competition_id=$1 AND final.year=$2 AND final.round_type='FINAL'
+        WHERE final.active=true AND final.competition_id=$1 AND final.year=$2 AND final.round_type=$3
           AND final.close_date IS NOT NULL
           AND (now() AT TIME ZONE 'Asia/Bangkok')::date<=final.close_date
-        RETURNING final.id,final.is_open`, [batch.competition_id,batch.year]);
+        RETURNING final.id,final.is_open`, [batch.competition_id,batch.year,nextRoundType]);
       openedFinalRounds = finals.rows.filter((final) => final.is_open).length;
       for (const heatItemId of eligibleRows) {
         for (const final of finals.rows) await client.query(`INSERT INTO final_invitations(heat_application_item_id,final_exam_round_id)
@@ -217,7 +216,7 @@ export async function listPublishedResults() {
     JOIN competitions c ON c.id=r.competition_id WHERE res.published_at IS NOT NULL ORDER BY res.published_at DESC,ap.last_name_en,ap.first_name_en`);
   return result.rows.map((row) => ({ applicationId: row.application_id, applicationItemId: row.application_item_id,
     targetId: row.target_id, competitionId: row.competition_id, competitionTitle: row.competition_title,
-    roundType: row.round_type, round: row.round_type === 'HEAT' ? 'HEAT ROUND' : 'FINAL ROUND', year: row.year,
+    roundType: row.round_type, round: row.round_type === 'HEAT' ? 'HEAT ROUND' : row.round_type === 'FINAL_X' ? 'FINAL X' : 'FINAL ROUND', year: row.year,
     publishedAt: row.published_at, examNumber: row.candidate_no || '', candidateNo: row.candidate_no || '',
     grade: row.grade, school: row.school_name, schoolName: row.school_name, candidate: row.candidate_name,
     candidateName: row.candidate_name, award: row.award, eligibleForFinal: row.eligible_for_final,
@@ -294,7 +293,7 @@ export async function importFinalIds(examRoundId, fileName, inputRows, adminId) 
   const rows = inputRows.map((row) => ({ candidateNo: clean(row.candidateNo ?? row.examNumber, 80), grade: clean(row.grade, 120), school: clean(row.schoolName ?? row.school, 255), candidate: clean(row.candidateName ?? row.candidate, 255) }));
   if (rows.some((row) => !row.candidateNo || !row.school || !row.candidate)) throw fail('ทุกแถวต้องมี CANDIDATE NO, SCHOOL NAME และ CANDIDATE NAME');
   return transaction(async (client) => {
-    const round = await client.query("SELECT id FROM exam_rounds WHERE id=$1 AND active=true AND round_type='FINAL' FOR UPDATE", [examRoundId]);
+    const round = await client.query("SELECT id FROM exam_rounds WHERE id=$1 AND active=true AND (round_type='FINAL' OR (round_type='FINAL_X' AND competition_id='bbb')) FOR UPDATE", [examRoundId]);
     if (!round.rowCount) throw fail('เลือกได้เฉพาะรายการสอบรอบ FINAL', 404);
     const used = await client.query(`SELECT 1 FROM final_id_import_batches WHERE exam_round_id=$1 AND status='applied'`, [examRoundId]);
     if (used.rowCount) throw fail('นำเข้าและบันทึกเลขประจำตัวสอบ Final ของรอบนี้แล้ว', 409);

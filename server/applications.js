@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { getPool, transaction } from './db.js';
-import { finalGrantHash } from './finalEligibility.js';
+import { finalGrantHash, ensureFinalXInvitations } from './finalEligibility.js';
 import { deleteGoogleDriveFile, downloadGoogleDriveFile, uploadGoogleDriveFile } from './googleWorkspace.js';
 import { encryptQueuedEmailText, enqueueIntegrationJob } from './integrationQueue.js';
 import { paymentSlipDisplayName, paymentSlipFileName, paymentSlipFileNameBase, paymentSlipYear } from './paymentSlipFiles.js';
@@ -297,8 +297,10 @@ async function resolveDraft(client, candidate, ownerId, finalGrantToken = null) 
     }
     let finalInvitationId = null;
     let finalGrantId = null;
-    if (round.round_type === 'FINAL') {
-      if (!candidate.sourceHeatApplicationId) throw invalid('Final registration requires an eligible Heat application', 403);
+    if (round.round_type === 'FINAL_X' && round.competition_id !== 'bbb') throw invalid('Final X เปิดให้เฉพาะ BBB', 403);
+    if (['FINAL', 'FINAL_X'].includes(round.round_type)) {
+      if (round.round_type === 'FINAL_X') await ensureFinalXInvitations(client);
+      if (!candidate.sourceHeatApplicationId) throw invalid('Final registration requires an eligible previous-round application', 403);
       const invitation = await client.query(`SELECT fi.id,fg.id AS grant_id FROM final_invitations fi
         JOIN application_items heat_item ON heat_item.id=fi.heat_application_item_id
         JOIN applications heat_application ON heat_application.id=heat_item.application_id
@@ -311,9 +313,12 @@ async function resolveDraft(client, candidate, ownerId, finalGrantToken = null) 
         WHERE fi.final_exam_round_id=$1 AND heat_application.id=$2
           AND ((heat_application.source='self' AND heat_application.owner_user_id=$3)
             OR (heat_application.source='school' AND fg.id IS NOT NULL))
+          AND heat_round.year=$7 AND ((heat_round.round_type='HEAT' AND $8::text='FINAL')
+            OR (heat_round.round_type='FINAL' AND $8::text='FINAL_X' AND heat_round.competition_id='bbb'
+              AND upper(trim(res.award)) ~ '^(GOLD|SILVER|BRONZE)( (MEDAL|AWARD))?$'))
           AND heat_round.competition_id=$4 AND heat_item.grade_id=$5 AND fi.claimed_application_id IS NULL
-        LIMIT 1 FOR UPDATE OF fi`, [item.roundId, candidate.sourceHeatApplicationId, ownerId, round.competition_id, item.gradeId, finalGrantHash(finalGrantToken)]);
-      if (!invitation.rowCount) throw invalid('This Heat application is not eligible for this Final round', 403);
+        LIMIT 1 FOR UPDATE OF fi`, [item.roundId, candidate.sourceHeatApplicationId, ownerId, round.competition_id, item.gradeId, finalGrantHash(finalGrantToken), round.year, round.round_type]);
+      if (!invitation.rowCount) throw invalid('This application is not eligible for the selected Final round', 403);
       finalInvitationId = invitation.rows[0].id;
       finalGrantId = invitation.rows[0].grant_id;
     }
@@ -847,18 +852,23 @@ export async function updateAdminApplication(applicationId, input, adminUserId) 
         if (!retained && isPastSelectionLock) throw invalid(`ถึงวันสอบแล้ว จึงเพิ่มหรือเปลี่ยนรายการ ${round.short_name} ไม่ได้`, 409);
 
         let finalInvitationId = null;
-        if (round.round_type === 'FINAL') {
-          if (!application.source_heat_application_id) throw invalid('ไม่พบใบสมัครรอบ HEAT ที่ใช้ยืนยันสิทธิ์สมัครรอบ FINAL', 403);
+        if (round.round_type === 'FINAL_X' && round.competition_id !== 'bbb') throw invalid('Final X เปิดให้เฉพาะ BBB', 403);
+        if (['FINAL', 'FINAL_X'].includes(round.round_type)) {
+          if (round.round_type === 'FINAL_X') await ensureFinalXInvitations(client);
+          if (!application.source_heat_application_id) throw invalid('ไม่พบใบสมัครรอบก่อนหน้าที่ใช้ยืนยันสิทธิ์', 403);
           const invitation = await client.query(`SELECT fi.id FROM final_invitations fi
             JOIN application_items heat_item ON heat_item.id=fi.heat_application_item_id
             JOIN applications heat_application ON heat_application.id=heat_item.application_id
             JOIN exam_rounds heat_round ON heat_round.id=heat_item.exam_round_id
-            JOIN results res ON res.application_item_id=heat_item.id AND res.eligible_for_final=true
+            JOIN results res ON res.application_item_id=heat_item.id AND res.eligible_for_final=true AND res.published_at IS NOT NULL
             WHERE fi.final_exam_round_id=$1 AND heat_application.id=$2
+              AND heat_round.year=$7 AND ((heat_round.round_type='HEAT' AND $8::text='FINAL')
+                OR (heat_round.round_type='FINAL' AND $8::text='FINAL_X' AND heat_round.competition_id='bbb'
+                  AND upper(trim(res.award)) ~ '^(GOLD|SILVER|BRONZE)( (MEDAL|AWARD))?$'))
               AND heat_round.competition_id=$3 AND heat_item.grade_id=$4
               AND (fi.claimed_application_id IS NULL OR (fi.claimed_application_id=$5 AND $6::boolean))
             LIMIT 1 FOR UPDATE OF fi`, [round.id,application.source_heat_application_id,round.competition_id,itemInput.gradeId,
-            applicationId,Boolean(retained && !gradeChanged)]);
+            applicationId,Boolean(retained && !gradeChanged),round.year,round.round_type]);
           if (!invitation.rowCount) throw invalid(`ไม่พบสิทธิ์สมัคร FINAL สำหรับ ${round.short_name} ระดับ ${round.selected_grade_label}`, 403);
           finalInvitationId = invitation.rows[0].id;
         }
@@ -1245,10 +1255,10 @@ export async function uploadCertificatePhoto(applicationId, photoInput, userId, 
   const uploads = [];
   try {
     for (const item of items) {
-      const roundName = `${item.short_name} - ${item.round_type === 'HEAT' ? 'HEAT ROUND' : item.round_type === 'FINAL' ? 'FINAL ROUND' : 'FINAL X'} ${item.year}`;
+      const roundFolder = item.round_type === 'HEAT' ? 'Heat' : item.round_type === 'FINAL' ? 'Final' : 'Final X';
       const fileStem = `${safeFilePart(item.exam_number)}_${candidateName}`.slice(0, 175 - photo.extension.length);
       const fileName = `${fileStem}.${photo.extension}`;
-      const driveFile = await uploadGoogleDriveFile({ category:'photos', folders:[roundName], name:fileName, mimeType:photo.mimeType, buffer:photo.buffer });
+      const driveFile = await uploadGoogleDriveFile({ category:'photos', folders:[String(item.year), item.short_name, roundFolder], name:fileName, mimeType:photo.mimeType, buffer:photo.buffer });
       uploads.push({ ...item, driveFileId: driveFile.id, fileName });
     }
     const oldFileIds = await transaction(async (client) => {
@@ -1368,7 +1378,8 @@ async function queryApplications({ userId = null, userEmail = null, excludeDraft
         id: row.application_id,
         owner: row.source === 'school' ? 'coordinator' : row.source === 'guest' ? 'guest' : 'candidate',
         source: row.source === 'school' ? 'school' : row.source === 'guest' ? 'guest' : 'self',
-        kind: row.round_type === 'FINAL' ? 'Final' : 'Heat',
+        kind: row.round_type === 'HEAT' ? 'Heat' : 'Final',
+        roundType: row.round_type,
         year: row.academic_year,
         status,
         slipIssue: row.application_status === 'slip_issue' ? (row.review_note || 'รอตรวจสอบสลิป') : '',
@@ -1431,7 +1442,7 @@ async function queryApplications({ userId = null, userEmail = null, excludeDraft
     application.centerSnapshot = application.competitions[0]?.centerSnapshot || null;
     application.examEmail = application.competitions.find((item) => item.format === 'Online Exam')?.examEmail || '';
     application.heatId = application.kind === 'Heat' ? (application.competitions.find((item) => item.roundType === 'HEAT')?.examNumber || '') : '';
-    application.finalId = application.kind === 'Final' ? (application.competitions.find((item) => item.roundType === 'FINAL')?.examNumber || '') : '';
+    application.finalId = application.kind === 'Final' ? (application.competitions.find((item) => ['FINAL','FINAL_X'].includes(item.roundType))?.examNumber || '') : '';
     application.certificatePhoto = application.competitions.find((item) => item.certificatePhoto)?.certificatePhoto || null;
     return application;
   });

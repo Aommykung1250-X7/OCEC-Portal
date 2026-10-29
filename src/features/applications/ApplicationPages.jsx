@@ -15,20 +15,21 @@ import {
   getApplicationPhone,
   getCertificatePhotoAvailability,
   getEligibleFinalRounds,
+  getApplicationRoundType,
   isApplicationEditable,
   isFinalEligibleAward,
 } from "./applicationUtils.js";
 
 function ApplicationCard({ application, onOpen, resultRows = [], examCatalog = [], today, authProfile, hasFinalApplication = false, onConfirmFinal }) {
   const resultState = getApplicationHeatResultState(application, resultRows, today);
-  const finalRounds = application.kind === "Heat" ? getEligibleFinalRounds(application, examCatalog, resultRows, today) : [];
+  const finalRounds = getEligibleFinalRounds(application, examCatalog, resultRows, today);
+  const nextRoundLabel = finalRounds.some((round) => round.roundType === "FINAL_X") ? "Final X" : "Final";
   const isOwnAccountApplication = Boolean(authProfile?.email
     && !authProfile?.isAdmin
     && application.source === "self"
     && application.contactEmail?.toLowerCase() === authProfile.email.toLowerCase());
   const canConfirmFinal = isOwnAccountApplication && !hasFinalApplication && finalRounds.length > 0 && typeof onConfirmFinal === "function";
-  const hasFinalOpportunity = canConfirmFinal && resultState?.items.some(({ result, competition }) => result
-    && finalRounds.some((round) => round.competitionId === competition.id));
+  const hasFinalOpportunity = canConfirmFinal;
   const resultStageLabel = resultState?.status === "waiting"
     ? "รอประกาศผลการสอบ"
     : resultState?.status === "published" ? "ประกาศผลสอบ" : "";
@@ -37,13 +38,13 @@ function ApplicationCard({ application, onOpen, resultRows = [], examCatalog = [
       <div className="flex flex-wrap items-start gap-2.5">
         <div className="candidate-avatar">{application.candidate.split(" ").map((part) => part[0]).slice(0, 2).join("")}</div>
         <div className="application-card-title min-w-0 flex-1">
-          <p className="application-kind">{application.kind} · {application.year}</p>
+          <p className="application-kind">{getApplicationRoundType(application) === "FINAL_X" ? "Final X" : application.kind} · {application.year}</p>
           <h3>{application.candidate}</h3>
           <p>{application.school}</p>
         </div>
         <div className="application-card-status-group ml-auto flex max-w-full min-w-0 flex-wrap items-center justify-end gap-1.5 max-[600px]:flex-[1_0_100%]">
           {resultStageLabel ? <span className={`application-result-stage ${resultState.status === "published" ? "is-published" : "is-waiting"}`}><span className="status-dot" aria-hidden="true" />{resultStageLabel}</span> : <StatusBadge status={application.status} />}
-          {hasFinalOpportunity ? <div className="application-final-chip"><Icon name="award" size={15} /><span><strong>ได้รับสิทธิ์สมัครรอบ Final แล้ว</strong></span><Button variant="success" className="application-final-chip-button" onClick={() => onConfirmFinal(application, finalRounds)}>ยืนยัน</Button></div> : null}
+          {hasFinalOpportunity ? <div className="application-final-chip"><Icon name="award" size={15} /><span><strong>ได้รับสิทธิ์สมัครรอบ {nextRoundLabel} แล้ว</strong></span><Button variant="success" className="application-final-chip-button" onClick={() => onConfirmFinal(application, finalRounds)}>ยืนยัน</Button></div> : null}
         </div>
       </div>
       <div className="application-meta-grid grid grid-cols-[1.1fr_.9fr_.8fr] gap-2 my-4 border-y border-[#eef1f5] py-3 max-[600px]:grid-cols-2">
@@ -100,9 +101,9 @@ export function SchoolApplicationGroupPage({ applications, groupKey, navigate })
   const group = getSchoolApplicationGroups(applications).find((item) => item.key === groupKey);
   if (!group) return <div className="page-stack"><PageHeading eyebrow="ใบสมัครของฉัน" title="ไม่พบข้อมูลชุดใบสมัคร" action={<Button variant="outline" icon="arrow" onClick={() => navigate("applications")}>กลับไปยังใบสมัครของฉัน</Button>} /></div>;
   return <div className="page-stack">
-    <PageHeading eyebrow={`สมัครผ่านโรงเรียน · ปีการศึกษา ${group.year}`} title={`${group.competition.name || group.competition.short} · รอบ ${group.competition.roundType === "FINAL" ? "Final" : "HEAT"}`} description={`${group.school || "ไม่ระบุโรงเรียน"} · ผู้สมัคร ${group.rows.length} คน`} action={<Button variant="outline" icon="arrow" onClick={() => navigate("applications")}>กลับไปยังใบสมัครของฉัน</Button>} />
+    <PageHeading eyebrow={`สมัครผ่านโรงเรียน · ปีการศึกษา ${group.year}`} title={`${group.competition.name || group.competition.short} · รอบ ${EXAM_ROUND_LABELS[group.competition.roundType] || "HEAT"}`} description={`${group.school || "ไม่ระบุโรงเรียน"} · ผู้สมัคร ${group.rows.length} คน`} action={<Button variant="outline" icon="arrow" onClick={() => navigate("applications")}>กลับไปยังใบสมัครของฉัน</Button>} />
     <section className="surface school-application-detail" aria-label="รายชื่อผู้สมัครผ่านโรงเรียน">
-      <div className="school-application-detail-heading"><span className="school-application-card-icon"><Icon name="users" size={23} /></span><div><strong>รายชื่อผู้สมัคร</strong><small>{group.competition.short} · {group.competition.roundType === "FINAL" ? "Final" : "HEAT"} · {group.rows.length} คน</small></div></div>
+      <div className="school-application-detail-heading"><span className="school-application-card-icon"><Icon name="users" size={23} /></span><div><strong>รายชื่อผู้สมัคร</strong><small>{group.competition.short} · {EXAM_ROUND_LABELS[group.competition.roundType] || "HEAT"} · {group.rows.length} คน</small></div></div>
       <div className="school-application-table-wrap"><table className="school-application-table"><thead><tr><th>เลขประจำตัวสอบ</th><th>ชื่อผู้สมัคร</th><th>ระดับชั้น</th><th>หมายเลขโทรศัพท์</th><th>สถานะ</th><th><span className="sr-only">รายละเอียด</span></th></tr></thead><tbody>{group.rows.map(({ application, competition }) => (
         <tr key={`${application.id}:${competition.applicationItemId || competition.id}`}>
           <td data-label="เลขประจำตัวสอบ"><strong className="mono-number">{competition.examNumber || "รอจัดสรรเลขประจำตัวสอบ"}</strong></td>
@@ -139,10 +140,10 @@ export function ApplicationsPage({ applications, navigate, resultRows = [], exam
       </div>
       <div className="grid grid-cols-1 gap-3 min-[601px]:grid-cols-2">
         {visibleSchoolGroups.map((group) => (
-          <button type="button" className="school-application-card" key={group.key} onClick={() => navigate("school-application-group", group.key)} aria-label={`ดูผู้สมัคร ${group.competition.name || group.competition.short} รอบ ${group.competition.roundType === "FINAL" ? "Final" : "HEAT"} โรงเรียน ${group.school} ${group.rows.length} คน`}>
+          <button type="button" className="school-application-card" key={group.key} onClick={() => navigate("school-application-group", group.key)} aria-label={`ดูผู้สมัคร ${group.competition.name || group.competition.short} รอบ ${EXAM_ROUND_LABELS[group.competition.roundType] || "HEAT"} โรงเรียน ${group.school} ${group.rows.length} คน`}>
             <span className="school-application-card-summary">
               <span className="school-application-card-icon"><Icon name="users" size={23} /></span>
-              <span className="school-application-card-heading"><small>สมัครผ่านโรงเรียน · ปีการศึกษา {group.year}</small><strong>{group.competition.name || group.competition.short}</strong><span>{group.competition.roundType === "FINAL" ? "รอบ Final" : "รอบ HEAT"} · {group.competition.short}</span></span>
+              <span className="school-application-card-heading"><small>สมัครผ่านโรงเรียน · ปีการศึกษา {group.year}</small><strong>{group.competition.name || group.competition.short}</strong><span>{EXAM_ROUND_LABELS[group.competition.roundType] || "HEAT"} · {group.competition.short}</span></span>
               <span className="school-application-card-count"><strong>{group.rows.length}</strong><small>คน</small></span>
               <span className="school-application-card-school"><Icon name="building" size={17} /><span>{group.school || "ไม่ระบุโรงเรียน"}</span></span>
               <span className="school-application-card-action">ดูรายชื่อ <Icon name="arrow" size={15} /></span>
@@ -204,7 +205,7 @@ export function EditApplicationPage({ application, onSave, navigate, examCatalog
   }
 
   const competitionNames = application.competitions?.map((item) => item.short || item.name).filter(Boolean).join(", ");
-  const examNames = [competitionNames, application.kind === "Final" ? "FINAL ROUND" : "HEAT ROUND"].filter(Boolean).join(" · ");
+  const examNames = [competitionNames, EXAM_ROUND_LABELS[getApplicationRoundType(application)]].filter(Boolean).join(" · ");
   return (
     <div className="page-stack admin-edit-application-page user-edit-application-page">
       <PageHeading eyebrow={publicAccess ? "บริการผู้สมัคร" : "ใบสมัครของฉัน"} title="แก้ไขข้อมูลใบสมัคร" description={`${application.candidate} · ${application.exam}`} action={<Button variant="outline" icon="arrow" onClick={() => navigate(publicAccess ? "check-status" : "application-detail", application.id)}>{publicAccess ? "กลับไปตรวจสอบสถานะ" : "กลับไปยังใบสมัคร"}</Button>} />
@@ -232,7 +233,8 @@ export function ApplicationDetailPage({ application, navigate, resultRows = [], 
   const canEdit = isApplicationEditable(application, examCatalog);
   const applicationResults = resultRows.filter((result) => result.applicationId === application.id);
   const certificatePhotoAvailability = getCertificatePhotoAvailability(application, examCatalog, today);
-  const finalRounds = application.kind === "Heat" ? getEligibleFinalRounds(application, examCatalog, resultRows, today) : [];
+  const finalRounds = getEligibleFinalRounds(application, examCatalog, resultRows, today);
+  const nextRoundLabel = finalRounds.some((round) => round.roundType === "FINAL_X") ? "Final X" : "Final";
   const isOwnAccountApplication = Boolean(authProfile?.email
     && !authProfile?.isAdmin
     && application.source === "self"
@@ -241,11 +243,11 @@ export function ApplicationDetailPage({ application, navigate, resultRows = [], 
   const studentInformation = application.studentInformation || {};
   const applicantAddress = [studentInformation.address1, studentInformation.address2, studentInformation.city, studentInformation.province, studentInformation.postalCode].filter(Boolean).join(", ");
   const resultSummary = applicationResults.length
-    ? applicationResults.map((result) => `${result.competitionTitle} ${EXAM_ROUND_LABELS[result.roundType] || result.roundType}: ${result.result === "pass" ? "ผ่าน" : "ไม่ผ่าน"}`).join(" · ")
+    ? applicationResults.map((result) => `${result.competitionTitle} ${EXAM_ROUND_LABELS[result.roundType] || result.roundType}: ${result.award || (result.result === "pass" ? "ผ่าน" : "ไม่ผ่าน")}`).join(" · ")
     : "ยังไม่มีการประกาศผล";
   return (
     <div className="page-stack">
-      <PageHeading eyebrow={application.kind + " · ปีการศึกษา " + application.year} title="รายละเอียดใบสมัคร" description={application.candidate + " · " + application.school} action={<Button variant="outline" icon="arrow" onClick={() => navigate("applications")}>กลับไปยังใบสมัครของฉัน</Button>} />
+      <PageHeading eyebrow={(getApplicationRoundType(application) === "FINAL_X" ? "Final X" : application.kind) + " · ปีการศึกษา " + application.year} title="รายละเอียดใบสมัคร" description={application.candidate + " · " + application.school} action={<Button variant="outline" icon="arrow" onClick={() => navigate("applications")}>กลับไปยังใบสมัครของฉัน</Button>} />
       <div className="grid grid-cols-[minmax(0,1fr)_292px] items-start gap-[15px] max-[960px]:grid-cols-1">
         <div className="grid gap-3.5">
           <section className="surface detail-summary grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 p-[17px] max-[600px]:grid-cols-[auto_minmax(0,1fr)]">
@@ -282,8 +284,8 @@ export function ApplicationDetailPage({ application, navigate, resultRows = [], 
             <div className={"timeline-item relative flex min-h-[54px] items-start gap-[9px] max-[960px]:min-h-[45px] " + (applicationResults.length ? "timeline-done" : "")}><span>{applicationResults.length ? <Icon name="check" size={13} /> : "3"}</span><div className="flex flex-col gap-[3px] pt-px"><strong>ประกาศผลสอบ</strong><small>{applicationResults.length ? resultSummary : "รอประกาศผลการสอบ"}</small></div></div>
           </div>
           {canConfirmFinal ? <div className="detail-final-confirm grid gap-[11px] mb-[14px] rounded-[10px] border border-[#a9dcbb] bg-[#edfaf1] p-3">
-            <div className="flex items-center gap-[9px]"><span className="detail-final-confirm-icon"><Icon name="award" size={18} /></span><span className="grid min-w-0 gap-[3px]"><strong>ได้รับสิทธิ์สมัครรอบ Final</strong><small>ยืนยันสิทธิ์เพื่อไปสมัครสอบ Final</small></span></div>
-            <Button className="w-full min-h-[42px]" icon="arrow" onClick={() => onConfirmFinal(application, finalRounds)}>ยืนยันสิทธิ์ Final</Button>
+            <div className="flex items-center gap-[9px]"><span className="detail-final-confirm-icon"><Icon name="award" size={18} /></span><span className="grid min-w-0 gap-[3px]"><strong>ได้รับสิทธิ์สมัครรอบ {nextRoundLabel}</strong><small>ยืนยันสิทธิ์เพื่อไปสมัครสอบ {nextRoundLabel}</small></span></div>
+            <Button className="w-full min-h-[42px]" icon="arrow" onClick={() => onConfirmFinal(application, finalRounds)}>ยืนยันสิทธิ์ {nextRoundLabel}</Button>
           </div> : null}
           <div className="timeline-contact flex items-start gap-[7px] rounded-lg bg-[#f3f7fd] p-2.5 text-xs leading-[1.55] text-[#496489]"><Icon name="mail" size={16} /><span>แจ้งเตือนส่งไปที่<br /><strong>{application.contactEmail}</strong></span></div>
         </aside>

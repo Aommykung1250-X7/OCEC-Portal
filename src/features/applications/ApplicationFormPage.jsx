@@ -13,10 +13,12 @@ import { CenterPosterPreview } from "./CenterPosterPreview.jsx";
 
 export function ApplicationFormPage({ kind, prefill, applicationMode, allowedRoundIds, onSubmit, navigate, competitionFees, examCatalog, competitionCatalog, centerCatalog, pastPaperCatalog, paymentAccounts, centerPosterVersion = null, backendEnabled = false }) {
   const isFinal = kind === "Final";
-  const examRoundType = isFinal ? "FINAL" : "HEAT";
+  const selectedRound = (examCatalog || []).find((exam) => allowedRoundIds?.includes(exam.id));
+  const examRoundType = isFinal && selectedRound ? getExamRoundType(selectedRound) : isFinal ? "FINAL" : "HEAT";
+  const finalLabel = examRoundType === "FINAL_X" ? "Final X" : "Final";
+  const sourceLabel = examRoundType === "FINAL_X" ? "Final" : "HEAT";
   const examYear = isFinal && prefill?.year ? prefill.year : getActiveExamYear(examCatalog, examRoundType);
-  // Final applications are reached only through a verified HEAT result; show the matching Final rounds
-  // after that gate even when the public registration card is still marked closed.
+  // Final and Final X use only the exact rounds returned by the eligibility flow.
   const catalogCompetitions = getFormCompetitions(examCatalog, competitionCatalog, examRoundType, {
     openOnly: !isFinal,
     year: examYear,
@@ -27,7 +29,7 @@ export function ApplicationFormPage({ kind, prefill, applicationMode, allowedRou
     ? catalogCompetitions.filter((competition) => {
       const exam = examCatalog.find((entry) => entry.id === competition.roundId);
       return Boolean(exam && exam.competitionId === competition.id && exam.year === examYear
-        && getExamRoundType(exam) === "FINAL" && !exam.finalManuallyClosed
+        && getExamRoundType(exam) === examRoundType && !exam.finalManuallyClosed
         && isFinalConfirmationWindowOpen(exam) && (!allowedFinalRounds || allowedFinalRounds.has(exam.id)));
     })
     : catalogCompetitions;
@@ -206,7 +208,7 @@ export function ApplicationFormPage({ kind, prefill, applicationMode, allowedRou
     const legacyFormat = formats.size > 1 ? "Mixed" : formats.has("Online") ? "Online Exam" : "On-site";
     setIsSubmitting(true);
     try {
-      await onSubmit({ ...form, examEmail: examListings.find((listing) => listing.format === "Online")?.examEmail || "", format: legacyFormat, kind, examYear, candidate, school, contactEmail: form.email, grade: selectedCompetitions.map((competition) => `${competition.short}: ${form.grades[competition.id]}`).join(" · "), center: centersSummary, centerId: legacyCenter?.id || "", centerCode: legacyCenter?.code || "", centerSnapshot: legacyCenter || null, examListings, pastPaperSelections: allPastPapers.filter((paper) => form.pastPaperIds.includes(paper.id)), pastPapersTotal, registrationFee, totalPayment, fileName, slipFile, paymentAccountsSnapshot: formPaymentAccounts.map((account) => ({ ...account })), sourceHeatId: prefill?.id || "" });
+      await onSubmit({ ...form, examEmail: examListings.find((listing) => listing.format === "Online")?.examEmail || "", format: legacyFormat, kind, roundType: examRoundType, examYear, candidate, school, contactEmail: form.email, grade: selectedCompetitions.map((competition) => `${competition.short}: ${form.grades[competition.id]}`).join(" · "), center: centersSummary, centerId: legacyCenter?.id || "", centerCode: legacyCenter?.code || "", centerSnapshot: legacyCenter || null, examListings, pastPaperSelections: allPastPapers.filter((paper) => form.pastPaperIds.includes(paper.id)), pastPapersTotal, registrationFee, totalPayment, fileName, slipFile, paymentAccountsSnapshot: formPaymentAccounts.map((account) => ({ ...account })), sourceHeatId: prefill?.id || "" });
     } finally {
       setIsSubmitting(false);
     }
@@ -217,8 +219,8 @@ export function ApplicationFormPage({ kind, prefill, applicationMode, allowedRou
   return (
     <div className="page-stack">
       <PageHeading
-        eyebrow={isFinal ? `OCEC Final ${examYear}` : `เปิดรับสมัคร · ปีการศึกษา ${examYear}`}
-        title={isFinal ? "สมัครสอบ Final" : "สมัครสอบ OCEC"}
+        eyebrow={isFinal ? `OCEC ${finalLabel} ${examYear}` : `เปิดรับสมัคร · ปีการศึกษา ${examYear}`}
+        title={isFinal ? `สมัครสอบ ${finalLabel}` : "สมัครสอบ OCEC"}
         description={isFinal ? "ตรวจสอบข้อมูลและกรอกข้อมูลผู้เข้าสอบ รายการสอบ และการชำระเงินให้ครบในแบบฟอร์มเดียว" : "เลือกรายการที่เปิดรับสมัครและเลือกระดับชั้นแยกกันได้ในแบบฟอร์มเดียว"}
         action={<Button variant="outline" icon="arrow" onClick={() => navigate(isFinal ? "final-confirm" : "home")}>ยกเลิก</Button>}
       />
@@ -235,7 +237,7 @@ export function ApplicationFormPage({ kind, prefill, applicationMode, allowedRou
               </div>
             </div>
           ) : (
-            <div className="notice notice-blue"><Icon name="info" /><div><strong>ข้อมูลจากใบสมัครรอบ HEAT · เลขประจำตัวสอบ {prefill?.heatId}</strong><p>โปรดตรวจสอบข้อมูลที่ระบบกรอกไว้ และกรอกข้อมูลในช่องที่ยังว่างก่อนส่งใบสมัครรอบ Final</p></div></div>
+            <div className="notice notice-blue"><Icon name="info" /><div><strong>ข้อมูลจากใบสมัครรอบ {sourceLabel} · เลขประจำตัวสอบ {prefill?.heatId || prefill?.finalId || "—"}</strong><p>โปรดตรวจสอบข้อมูลที่ระบบกรอกไว้ และกรอกข้อมูลในช่องที่ยังว่างก่อนส่งใบสมัครรอบ {finalLabel}</p></div></div>
           )}
           <div className="form-grid grid grid-cols-1 gap-x-3 gap-y-4 md:grid-cols-2">
             <ApplicationField label="English First Name" required><input autoComplete="given-name" value={form.firstName} onChange={(event) => update("firstName", event.target.value)} placeholder="First name" required /></ApplicationField>
@@ -283,7 +285,7 @@ export function ApplicationFormPage({ kind, prefill, applicationMode, allowedRou
               })}
               {!competitions.length ? <div className="empty-inline flex min-w-0 items-center gap-2 rounded-xl border border-dashed border-ocec-border bg-ocec-background p-4 text-sm leading-relaxed text-ocec-muted"><Icon className="shrink-0" name="calendar" /><span>ขณะนี้ยังไม่มีรายการสอบรอบนี้ที่เปิดรับสมัคร</span></div> : null}
             </div>
-            <div className="schedule-note mt-3 flex min-w-0 items-start gap-2.5 rounded-xl border border-ocec-border bg-ocec-brand-soft p-3 text-ocec-brand"><Icon className="mt-0.5 shrink-0" name="calendar" size={16} /><div className="flex min-w-0 flex-col gap-1"><strong className="text-sm font-semibold">{isFinal ? "การสมัครรอบ Final" : "กำหนดการรอบสอบ"}</strong><span className="text-sm leading-relaxed">{isFinal ? "ใบสมัครรอบ Final แยกจากรอบ HEAT และต้องแนบหลักฐานการชำระเงินใหม่" : `ปิดรับสมัคร ${formatThaiDate(scheduleExam?.closeDate)} · วันสอบ ${formatThaiDate(scheduleExam?.examDate)}`}</span><small className="text-xs leading-relaxed text-ocec-muted">{isFinal ? "โปรดตรวจสอบรายการสอบและระดับชั้นจากรอบ HEAT ก่อนส่งใบสมัคร" : "โปรดตรวจสอบเวลาเข้าสอบในรายละเอียดของแต่ละรายการ"}</small></div></div>
+            <div className="schedule-note mt-3 flex min-w-0 items-start gap-2.5 rounded-xl border border-ocec-border bg-ocec-brand-soft p-3 text-ocec-brand"><Icon className="mt-0.5 shrink-0" name="calendar" size={16} /><div className="flex min-w-0 flex-col gap-1"><strong className="text-sm font-semibold">{isFinal ? `การสมัครรอบ ${finalLabel}` : "กำหนดการรอบสอบ"}</strong><span className="text-sm leading-relaxed">{isFinal ? `ใบสมัครรอบ ${finalLabel} แยกจากรอบ ${sourceLabel} และต้องแนบหลักฐานการชำระเงินใหม่` : `ปิดรับสมัคร ${formatThaiDate(scheduleExam?.closeDate)} · วันสอบ ${formatThaiDate(scheduleExam?.examDate)}`}</span><small className="text-xs leading-relaxed text-ocec-muted">{isFinal ? `โปรดตรวจสอบรายการสอบและระดับชั้นจากรอบ ${sourceLabel} ก่อนส่งใบสมัคร` : "โปรดตรวจสอบเวลาเข้าสอบในรายละเอียดของแต่ละรายการ"}</small></div></div>
             {selectionError ? <p className="inline-error selection-error mt-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm leading-relaxed text-red-700" role="alert"><Icon className="mt-0.5 shrink-0" name="info" size={16} />{selectionError}</p> : null}
           </section>
           {selectedCompetitions.length ? <p className="form-helper-note mb-4 rounded-lg bg-ocec-background px-3 py-2 text-xs leading-relaxed text-ocec-muted">โปรดตรวจสอบระดับชั้น รูปแบบสอบ ศูนย์สอบ หรืออีเมลเข้าสอบในแต่ละรายการก่อนชำระเงิน</p> : null}

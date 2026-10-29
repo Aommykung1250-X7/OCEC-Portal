@@ -87,7 +87,7 @@ export function ExamRounds({ openExams, resultPublished, navigate, onStartApplic
             <span className="home-open-count"><i />{openExams.length} รายการเปิดรับสมัคร</span>
           </div>
           <div className="home-rounds-list" aria-label="รายการสอบที่เปิดรับ">
-            {openExams.length ? openExams.map((exam, index) => <RoundCard key={exam.id} exam={exam} index={index} onStartApplication={onStartApplication} />) : (
+            {openExams.length ? openExams.map((exam, index) => <RoundCard key={exam.id} exam={exam} index={index} onStartApplication={getExamRoundType(exam) === "HEAT" ? onStartApplication : () => navigate("final-confirm")} />) : (
               <div className="home-rounds-empty">
                 <span className="home-empty-icon"><Icon name="calendar" size={28} /></span>
                 <h3>ขณะนี้ไม่มีรายการสอบที่เปิดรับสมัคร</h3>
@@ -98,7 +98,7 @@ export function ExamRounds({ openExams, resultPublished, navigate, onStartApplic
           </div>
         </div>
         <Journey navigate={navigate} />
-        {resultPublished ? <button className="home-final-link" onClick={() => navigate("final-confirm")}><Icon name="award" size={24} /><span><strong>ตรวจสอบสิทธิ์สมัครรอบ OCEC Final</strong><small>สำหรับผู้ที่ผ่านการสอบรอบ HEAT</small></span><Icon name="arrow" size={18} /></button> : null}
+        {resultPublished ? <button className="home-final-link" onClick={() => navigate("final-confirm")}><Icon name="award" size={24} /><span><strong>ตรวจสอบสิทธิ์สมัครรอบ Final / Final X</strong><small>สำหรับผู้ผ่าน HEAT หรือผู้ได้เหรียญ BBB รอบ Final</small></span><Icon name="arrow" size={18} /></button> : null}
       </div>
     </section>
   );

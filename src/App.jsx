@@ -1,3 +1,4 @@
+import { nextExamRoundType } from '../shared/examProgression.js';
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DEFAULT_CENTER_CATALOG, ONLINE_CENTER_CODE, getCommonCenters, isOnlineCenter } from "./centers.js";
 import { downloadWorkbook, readWorkbook, worksheetRows } from "./excel.js";
@@ -37,6 +38,7 @@ import {
   getApplicantEditValues,
   getBangkokTodayISO,
   getEligibleFinalRounds,
+  getApplicationRoundType,
   resultTargetLabel,
   isApplicationEditable,
   isFinalConfirmationWindowOpen,
@@ -124,18 +126,18 @@ function getFinalRegistrationCatalog(examCatalog, applications, publishedHeatRes
   const eligibleFinalIds = new Set();
   const qualifiedFinalIds = new Set();
   const finalsByCompetitionYear = new Map();
-  (examCatalog || []).filter((exam) => getExamRoundType(exam) === "FINAL").forEach((exam) => {
-    const key = `${exam.competitionId}::${exam.year}`;
+  (examCatalog || []).filter((exam) => ["FINAL", "FINAL_X"].includes(getExamRoundType(exam))).forEach((exam) => {
+    const key = `${exam.competitionId}::${exam.year}::${getExamRoundType(exam)}`;
     finalsByCompetitionYear.set(key, [...(finalsByCompetitionYear.get(key) || []), exam]);
   });
   const applicationsById = new Map((applications || []).map((application) => [application.id, application]));
   const heatResultKeys = new Set();
   (publishedHeatResults || []).forEach((result) => {
-    const key = `${result.competitionId}::${result.year}`;
+    const key = `${result.competitionId}::${result.year}::${nextExamRoundType(result.competitionId, result.roundType || "HEAT")}`;
     heatResultKeys.add(key);
-    if (!isFinalEligibleAward(result.award, result.competitionId)) return;
+    if (!isFinalEligibleAward(result.award, result.competitionId, result.roundType || "HEAT")) return;
     const application = applicationsById.get(result.applicationId);
-    if (application?.kind !== "Heat" || application.year !== result.year
+    if (!application || getApplicationRoundType(application) !== (result.roundType || "HEAT") || String(application?.year) !== String(result.year)
       || !(application.competitions || []).some((competition) => competition.id === result.competitionId)) return;
     (finalsByCompetitionYear.get(key) || []).forEach((exam) => {
       qualifiedFinalIds.add(exam.id);
@@ -143,8 +145,8 @@ function getFinalRegistrationCatalog(examCatalog, applications, publishedHeatRes
     });
   });
   return (examCatalog || []).map((exam) => {
-    if (getExamRoundType(exam) !== "FINAL") return { ...exam, isOpen: !exam.finalManuallyClosed && isWithinRegistrationWindow(exam, today) };
-    const hasHeatResults = heatResultKeys.has(`${exam.competitionId}::${exam.year}`);
+    if (!["FINAL", "FINAL_X"].includes(getExamRoundType(exam))) return { ...exam, isOpen: !exam.finalManuallyClosed && isWithinRegistrationWindow(exam, today) };
+    const hasHeatResults = heatResultKeys.has(`${exam.competitionId}::${exam.year}::${getExamRoundType(exam)}`);
     let status = "waiting-results";
     if (exam.finalManuallyClosed) status = "closed-manual";
     else if (exam.openDate && today < exam.openDate) status = "not-open-yet";
@@ -349,7 +351,7 @@ function AdminMockPapersPage({ applications, notify }) {
 
 function AdminApplicationEditPage({ application, onSave, navigate, competitionFees, examCatalog, competitionCatalog, centerCatalog, gradeCatalogEntries = [] }) {
   const savedCompetitions = application.competitions || [];
-  const roundType = application.kind === "Final" ? "FINAL" : "HEAT";
+  const roundType = getApplicationRoundType(application);
   const catalogCompetitions = getFormCompetitions(examCatalog, competitionCatalog, roundType, { year: application.year }).filter((item) => {
     const existing = savedCompetitions.some((entry) => entry.id === item.id);
     const matchingRounds = (examCatalog || []).filter((exam) => (exam.competitionId || exam.id) === item.id
@@ -573,7 +575,9 @@ function AdminResultsPage({ applications, examCatalog, resultWorkflows, onImport
   const targetOptions = [...examCatalog].sort((left, right) => Number(right.year) - Number(left.year) || left.title.localeCompare(right.title, 'th') || getExamRoundType(left).localeCompare(getExamRoundType(right)));
   const workflow = selectedTarget ? resultWorkflows[selectedTarget.id] || {} : {};
   const rows = workflow.rows || [];
-  const finalEligibleRows = rows.filter((row) => isFinalEligibleAward(row.award, selectedTarget?.competitionId));
+  const nextRoundType = selectedTarget ? nextExamRoundType(selectedTarget.competitionId, getExamRoundType(selectedTarget)) : null;
+  const nextRoundLabel = nextRoundType === "FINAL_X" ? "Final X" : "Final";
+  const finalEligibleRows = rows.filter((row) => isFinalEligibleAward(row.award, selectedTarget?.competitionId, selectedTarget ? getExamRoundType(selectedTarget) : "HEAT"));
   const issueRows = rows.filter((row) => row.matchStatus !== 'matched');
   const hasConflict = issueRows.length > 0;
   const matchedRows = rows.filter((row) => row.matchStatus === 'matched');
@@ -616,12 +620,12 @@ function AdminResultsPage({ applications, examCatalog, resultWorkflows, onImport
       {isPublished ? <div className="notice notice-green"><Icon name="check" /><div><strong>ประกาศผล {resultTargetLabel(selectedTarget)} แล้ว</strong><p>ผลสอบเผยแพร่บนหน้าประกาศผลแล้ว และไม่สามารถแก้ไขข้อมูลได้</p></div></div> : null}
       <div className="results-admin-grid"><section className="surface import-card">
         <div className="section-heading"><div><p className="eyebrow">ตรวจข้อมูลก่อนประกาศ</p><h2>ผลการนำเข้า · {resultTargetLabel(selectedTarget)}</h2></div><span className={isPublished ? 'schedule-open' : 'draft-badge'}>{isPublished ? 'ประกาศแล้ว' : workflow.id ? 'ฉบับร่าง' : 'รออัปโหลดไฟล์'}</span></div>
-        {workflow.id ? <div className="import-summary"><span className="summary-icon summary-green"><Icon name="check" /></span><div><strong>{isPublished ? 'ประกาศผลแล้ว · ปิดการแก้ไขข้อมูล' : 'บันทึกฉบับร่างเรียบร้อยแล้ว'}</strong><small>บันทึก {rows.length} รายการ · {workflow.fileName}</small></div><span className="summary-pill">มีสิทธิ์ Final {finalEligibleRows.length} ราย</span></div> : null}
-        <div className="results-count-strip"><span><strong>{rows.length}</strong> ผู้เข้าสอบ</span><span><strong>{finalEligibleRows.length}</strong> มีสิทธิ์ไป Final</span><span><strong>{matchedRows.length}</strong> จับคู่ได้</span><button type="button" className={`results-count-review ${hasConflict ? 'has-conflicts' : 'all-clear'}`} disabled={!workflow.id} aria-label={`${issueRows.length} รายการที่ต้องตรวจ · เลือกเพื่อเปิดรายการ`} title="เลือกเพื่อเปิดรายการที่ต้องตรวจ" aria-haspopup="dialog" aria-expanded={conflictsOpen} onClick={() => setConflictsOpen(true)}><strong>{issueRows.length}</strong><span className="results-review-action">รายการที่ต้องตรวจ</span><span className="results-review-indicator" aria-hidden="true"><Icon name="cursor" size={18} /></span></button></div>
+        {workflow.id ? <div className="import-summary"><span className="summary-icon summary-green"><Icon name="check" /></span><div><strong>{isPublished ? 'ประกาศผลแล้ว · ปิดการแก้ไขข้อมูล' : 'บันทึกฉบับร่างเรียบร้อยแล้ว'}</strong><small>บันทึก {rows.length} รายการ · {workflow.fileName}</small></div>{nextRoundType ? <span className="summary-pill">มีสิทธิ์ {nextRoundLabel} {finalEligibleRows.length} ราย</span> : null}</div> : null}
+        <div className="results-count-strip"><span><strong>{rows.length}</strong> ผู้เข้าสอบ</span>{nextRoundType ? <span><strong>{finalEligibleRows.length}</strong> มีสิทธิ์ไป {nextRoundLabel}</span> : null}<span><strong>{matchedRows.length}</strong> จับคู่ได้</span><button type="button" className={`results-count-review ${hasConflict ? 'has-conflicts' : 'all-clear'}`} disabled={!workflow.id} aria-label={`${issueRows.length} รายการที่ต้องตรวจ · เลือกเพื่อเปิดรายการ`} title="เลือกเพื่อเปิดรายการที่ต้องตรวจ" aria-haspopup="dialog" aria-expanded={conflictsOpen} onClick={() => setConflictsOpen(true)}><strong>{issueRows.length}</strong><span className="results-review-action">รายการที่ต้องตรวจ</span><span className="results-review-indicator" aria-hidden="true"><Icon name="cursor" size={18} /></span></button></div>
         <div className="results-award-breakdown" aria-label="จำนวนผู้เข้าสอบตามรางวัล">{awardBreakdown.map(({ award, count }) => <div className={`results-award-count award-count-${award.toLowerCase().replaceAll(' ', '-')}`} key={award}><span>{award}</span><strong>{count}</strong></div>)}</div>
       <div className="result-preview-heading"><div><strong>รายชื่อผู้เข้าสอบทั้งหมด</strong><small>โปรดตรวจสอบเลขประจำตัวสอบ ระดับชั้น โรงเรียน ชื่อ และรางวัลก่อนประกาศผล</small></div><span>{rows.length} ราย</span></div>
         {rows.length ? <div className="responsive-table admin-results-table-wrap"><table className="admin-results-table"><thead><tr><th>CANDIDATE NO</th><th>GRADE</th><th>SCHOOL NAME</th><th>CANDIDATE NAME</th><th>AWARD</th><th>จับคู่</th></tr></thead><tbody>{rows.map((row) => <tr className={row.matchStatus !== 'matched' ? 'admin-result-row-unmatched' : ''} key={row.id}><td data-label="CANDIDATE NO"><strong className="mono-number">{row.candidateNo}</strong></td><td data-label="GRADE">{row.grade}</td><td data-label="SCHOOL NAME">{row.schoolName}</td><td data-label="CANDIDATE NAME">{row.candidateName}</td><td data-label="AWARD"><span className={`award-badge award-${String(row.award || '').toLowerCase().replaceAll(' ', '-')}`}>{row.award}</span></td><td data-label="จับคู่">{row.matchStatus === 'matched' ? <span className="match-status match-ok"><Icon name="check" size={13} />จับคู่แล้ว</span> : <span className="match-status match-wait"><Icon name="info" size={13} />{row.matchNote || (row.matchStatus === 'data_mismatch' ? 'ข้อมูลไม่ตรง' : row.matchStatus === 'duplicate' ? 'เลขซ้ำ' : 'ไม่พบเลขสอบ')}</span>}</td></tr>)}</tbody></table></div> : <div className="empty-inline"><Icon name="info" /><span>นำเข้าไฟล์ผลสอบของรายการนี้เพื่อสร้างฉบับร่าง</span></div>}
-        <div className="publish-box"><div><strong>{isPublished ? 'ประกาศผลแล้ว' : 'ยืนยันประกาศผล'}</strong><small>{isPublished ? 'ประกาศผลแล้วและปิดการแก้ไขข้อมูล' : hasConflict ? `ยังไม่สามารถประกาศผลได้ · โปรดแก้ไขรายการที่ต้องตรวจสอบอีก ${issueRows.length} รายการ` : getExamRoundType(selectedTarget) === 'HEAT' ? 'เมื่อประกาศผลรอบ HEAT ผู้ได้รับเหรียญหรือผู้ที่ได้อันดับ 1st–3rd ของ BBB จะได้รับสิทธิ์สมัครรอบ Final โดยอัตโนมัติ' : 'เมื่อประกาศผลแล้ว ระบบจะแสดงผลต่อสาธารณะและปิดการแก้ไขข้อมูล'}</small></div><Button icon="check" disabled={!workflow.id || hasConflict || isPublished || !rows.length} onClick={() => onPublishResult(selectedTarget)}>{isPublished ? 'ประกาศผลแล้ว' : 'ประกาศผล'}</Button></div>
+        <div className="publish-box"><div><strong>{isPublished ? 'ประกาศผลแล้ว' : 'ยืนยันประกาศผล'}</strong><small>{isPublished ? 'ประกาศผลแล้วและปิดการแก้ไขข้อมูล' : hasConflict ? `ยังไม่สามารถประกาศผลได้ · โปรดแก้ไขรายการที่ต้องตรวจสอบอีก ${issueRows.length} รายการ` : getExamRoundType(selectedTarget) === 'HEAT' ? 'เมื่อประกาศผลรอบ HEAT ผู้ได้รับเหรียญหรือผู้ที่ได้อันดับ 1st–3rd ของ BBB จะได้รับสิทธิ์สมัครรอบ Final โดยอัตโนมัติ' : selectedTarget?.competitionId === 'bbb' && getExamRoundType(selectedTarget) === 'FINAL' ? 'ผู้ได้รับเหรียญทอง เงิน หรือทองแดงจะได้รับสิทธิ์สมัคร Final X' : 'เมื่อประกาศผลแล้ว ระบบจะแสดงผลต่อสาธารณะและปิดการแก้ไขข้อมูล'}</small></div><Button icon="check" disabled={!workflow.id || hasConflict || isPublished || !rows.length} onClick={() => onPublishResult(selectedTarget)}>{isPublished ? 'ประกาศผลแล้ว' : 'ประกาศผล'}</Button></div>
       </section></div>
       {conflictsOpen ? <div className="results-conflict-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setConflictsOpen(false); }}><section className="results-conflict-dialog" role="dialog" aria-modal="true" aria-labelledby="results-conflict-title">
         <div className="results-conflict-dialog-head"><div><p className="eyebrow">ตรวจสอบก่อนประกาศผล</p><h2 id="results-conflict-title">รายการที่ต้องตรวจ</h2><small>ยืนยันหรือจับคู่กับใบสมัครของรอบนี้ให้ครบก่อนประกาศ</small></div><span className={hasConflict ? 'conflict-count' : 'conflict-count conflict-count-clear'}>{issueRows.length} รายการ</span><button type="button" className="results-conflict-close" aria-label="ปิดหน้าต่าง" onClick={() => setConflictsOpen(false)}><Icon name="close" size={18} /></button></div>
@@ -638,7 +642,7 @@ function AdminResultsPage({ applications, examCatalog, resultWorkflows, onImport
 }
 
 function AdminFinalIdsPage({ applications, examCatalog, publishedHeatResults, onImport, onResolveRow, onApply, notify, navigate }) {
-  const finalRounds = examCatalog.filter((exam) => getExamRoundType(exam) === 'FINAL');
+  const finalRounds = examCatalog.filter((exam) => ['FINAL', 'FINAL_X'].includes(getExamRoundType(exam)));
   const [roundId, setRoundId] = useState('');
   const target = finalRounds.find((exam) => exam.id === roundId) || null;
   const [workflowRecord, setWorkflowRecord] = useState({ targetId: '', workflow: null });
@@ -988,7 +992,7 @@ function App() {
     }));
   });
   const publishedResultRows = BACKEND_ENABLED ? apiPublishedResults : demoPublishedResultRows;
-  const publishedHeatResults = publishedResultRows.filter((row) => row.roundType === "HEAT");
+  const publishedHeatResults = publishedResultRows.filter((row) => row.roundType === "HEAT" || (row.competitionId === "bbb" && row.roundType === "FINAL"));
   const resultPublished = publishedHeatResults.length > 0;
   const effectiveExamCatalog = getFinalRegistrationCatalog(examCatalog, applications, publishedHeatResults, calendarDay);
   const registrationOpen = effectiveExamCatalog.some((exam) => exam.isOpen);
@@ -1365,7 +1369,7 @@ function App() {
       try {
         const toCandidatePayload = (applicant) => {
           const examYear = applicant.examYear || values.examYear || getActiveExamYear(examCatalog, applicant.kind === "Final" ? "FINAL" : "HEAT");
-          const roundType = applicant.kind === "Final" ? "FINAL" : "HEAT";
+          const roundType = applicant.roundType || (applicant.kind === "Final" ? "FINAL" : "HEAT");
           const items = (applicant.examListings || []).map((listing) => {
             const round = getApplicationExamRound(examCatalog, listing, examYear, roundType);
             const grade = gradeCatalogEntries.find((item) => item.label === listing.grade);
@@ -1677,7 +1681,8 @@ function App() {
       } catch {
         refreshWarning = ' · ประกาศแล้ว แต่โหลดข้อมูลใหม่ไม่สำเร็จ กรุณารีเฟรชหน้า';
       }
-      notify(`ประกาศผล ${resultTargetLabel(target)} แล้ว · ผู้มีสิทธิ์ Final ${result.eligibleForFinal} ราย · เปิดรอบ Final อัตโนมัติ ${result.openedFinalRounds} รอบ${refreshWarning}`);
+      const nextRound = nextExamRoundType(target.competitionId, getExamRoundType(target));
+      notify(`ประกาศผล ${resultTargetLabel(target)} แล้ว${nextRound ? ` · ผู้มีสิทธิ์ ${nextRound === "FINAL_X" ? "Final X" : "Final"} ${result.eligibleForFinal} ราย` : " · สิ้นสุดการแข่งขัน"}${refreshWarning}`);
     } catch (error) { notify(error?.message || 'ประกาศผลสอบไม่สำเร็จ'); }
   }
 
@@ -1702,7 +1707,7 @@ function App() {
     const center = centerCatalog.find((entry) => entry.id === item.centerId);
     if (!exam || !grade || !center) { notify("ข้อมูลรอบสอบไม่ครบถ้วน โปรดตรวจสอบข้อมูลแล้วดำเนินการอีกครั้ง"); return; }
     const prefill = {
-      id: choice.sourceHeatApplicationId, year: item.year,
+      id: choice.sourceHeatApplicationId, year: item.year, heatId: item.roundType === "FINAL_X" ? "" : item.sourceExamNumber, finalId: item.roundType === "FINAL_X" ? item.sourceExamNumber : "", sourceRoundType: item.roundType === "FINAL_X" ? "FINAL" : "HEAT",
       candidate: [applicant.firstNameEn, applicant.middleNameEn, applicant.lastNameEn].filter(Boolean).join(" "),
       school: applicant.schoolName, contactEmail: applicant.contactEmail, center: center.name,
       competitions: [{ id: exam.competitionId, grade: grade.label, format: item.format === "online" ? "Online" : "Paper-Based", center: center.name, centerId: center.id, examEmail: item.examEmail }],

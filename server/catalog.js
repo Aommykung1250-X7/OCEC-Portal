@@ -188,6 +188,7 @@ export async function saveCatalogSnapshot(snapshot, actorId) {
     const year = cleanText(exam.year, 'Academic year', 8);
     const type = roundType(exam);
     if (!['HEAT', 'FINAL', 'FINAL_X'].includes(type)) throw fail(`Unsupported exam round type: ${type}`);
+    if (type === 'FINAL_X' && competitionId !== 'bbb') throw fail('Final X เปิดให้เฉพาะ BBB');
     if (roundIds.has(id)) throw fail(`Duplicate exam round: ${id}`);
     if (exam.isOpen && !Array.isArray(exam.gradeOptions ?? []) || exam.isOpen && !(exam.gradeOptions || []).length) throw fail(`Open round ${title} requires at least one grade`);
     const selectedGrades = [...new Set((exam.gradeOptions || []).map((label) => {

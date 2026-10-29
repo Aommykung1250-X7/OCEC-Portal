@@ -1,3 +1,4 @@
+import { isEligibleForNextRound, nextExamRoundType } from '../../../shared/examProgression.js';
 import { getExamRoundType } from "../../examUtils.js";
 
 export const EXAM_ROUND_LABELS = { HEAT: "HEAT ROUND", FINAL: "FINAL ROUND", FINAL_X: "FINAL X" };
@@ -15,7 +16,7 @@ export function resultTargetLabel(target) {
   return `${title} · ${round} · ปี ${target?.year || "ไม่ระบุ"}`;
 }
 
-const FINAL_ELIGIBLE_AWARDS = new Set(["GOLD AWARD", "SILVER AWARD", "BRONZE AWARD"]);
+
 
 export function normalizeAwardLabel(award) {
   const normalizedAward = String(award || "").trim().toUpperCase().replace(/\s+/g, " ");
@@ -25,10 +26,12 @@ export function normalizeAwardLabel(award) {
   return ordinalMatch ? ordinalMatch[1] : normalizedAward;
 }
 
-export function isFinalEligibleAward(award, competitionId = "") {
-  const normalizedAward = normalizeAwardLabel(award);
-  if (competitionId === "bbb") return ["1ST", "2ND", "3RD"].includes(normalizedAward);
-  return FINAL_ELIGIBLE_AWARDS.has(normalizedAward);
+export function isFinalEligibleAward(award, competitionId = "", roundType = "HEAT") {
+  return isEligibleForNextRound(award, competitionId, roundType);
+}
+
+export function getApplicationRoundType(application) {
+  return application?.roundType || application?.competitions?.[0]?.roundType || (application?.kind === "Final" ? "FINAL" : "HEAT");
 }
 
 export function normalizeExamFormat(format, fallback = "Paper-Based") {
@@ -75,7 +78,7 @@ export function getBangkokTodayISO() {
 }
 
 export function getCertificatePhotoAvailability(application, examCatalog = [], today = getBangkokTodayISO()) {
-  const roundType = application?.kind === "Final" ? "FINAL" : "HEAT";
+  const roundType = getApplicationRoundType(application);
   const examItems = (application?.competitions || []).map((competition) => {
     const round = (examCatalog || []).find((exam) => exam.id === competition.roundId)
       || (examCatalog || []).find((exam) => exam.competitionId === competition.id
@@ -102,7 +105,7 @@ export function getCertificatePhotoAvailability(application, examCatalog = [], t
 
 export function getApplicationEditDeadline(application, examCatalog) {
   if (application?.editDeadline !== undefined) return application.editDeadline || "";
-  const roundType = application?.kind === "Final" ? "FINAL" : "HEAT";
+  const roundType = getApplicationRoundType(application);
   const roundExams = (examCatalog || []).filter((exam) => exam.year === application?.year && getExamRoundType(exam) === roundType);
   const competitionIds = new Set((application?.competitions || []).map((item) => item.id));
   const matchingExams = roundExams.filter((exam) => competitionIds.has(exam.competitionId));
@@ -131,24 +134,19 @@ export function isFinalConfirmationWindowOpen(exam, today = getBangkokTodayISO()
   return isWithinRegistrationWindow(exam, today) && !exam?.finalManuallyClosed;
 }
 
-export function getEligibleFinalRounds(application, examCatalog, publishedHeatResults, today = getBangkokTodayISO()) {
-  const passedCompetitions = new Set((application?.competitions || []).filter((competition) => (publishedHeatResults || []).some((result) => {
-    const matchesItem = !result.applicationItemId || !competition.applicationItemId || result.applicationItemId === competition.applicationItemId;
-    const eligible = typeof result.eligibleForFinal === "boolean" ? result.eligibleForFinal : isFinalEligibleAward(result.award, result.competitionId);
-    return result.applicationId === application?.id
-      && String(result.year) === String(application?.year)
-      && (!result.roundType || result.roundType === "HEAT")
-      && result.competitionId === competition.id
-      && matchesItem
-      && eligible;
-  })).map((competition) => competition.id));
-  const applicationCompetitions = new Set((application?.competitions || []).map((competition) => competition.id));
-  return (examCatalog || []).filter((exam) => exam.year === application?.year
-    && getExamRoundType(exam) === "FINAL"
-    && !exam.finalManuallyClosed
-    && passedCompetitions.has(exam.competitionId)
-    && applicationCompetitions.has(exam.competitionId)
-    && isFinalConfirmationWindowOpen(exam, today));
+export function getEligibleFinalRounds(application, examCatalog, publishedResults, today = getBangkokTodayISO()) {
+  const sourceRoundType = getApplicationRoundType(application);
+  return (examCatalog || []).filter((exam) => String(exam.year) === String(application?.year)
+    && !exam.finalManuallyClosed && isFinalConfirmationWindowOpen(exam, today)
+    && (application?.competitions || []).some((competition) => nextExamRoundType(competition.id, sourceRoundType) === getExamRoundType(exam)
+      && exam.competitionId === competition.id
+      && (publishedResults || []).some((result) => result.applicationId === application.id
+        && String(result.year) === String(application.year)
+        && (result.roundType || "HEAT") === sourceRoundType
+        && result.competitionId === competition.id
+        && (!result.applicationItemId || !competition.applicationItemId || result.applicationItemId === competition.applicationItemId)
+        && isFinalEligibleAward(result.award, competition.id, sourceRoundType)
+        && result.eligibleForFinal !== false)));
 }
 
 export function getApplicantEditValues(application) {
