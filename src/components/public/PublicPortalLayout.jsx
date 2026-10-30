@@ -3,7 +3,7 @@ import { PublicPortalFooter } from "./PublicPortalFooter.jsx";
 import { PublicPortalHeader } from "./PublicPortalHeader.jsx";
 import { PublicGradientBackground } from "./PublicGradientBackground.jsx";
 
-const GRADIENT_PAGES = new Set(["lookup-choice", "check-status", "edit-verify", "edit-application", "final-confirm", "results"]);
+const GRADIENT_PAGES = new Set(["applications", "lookup-choice", "check-status", "edit-verify", "edit-application", "final-confirm", "results"]);
 
 export function PublicPortalLayout({
   page,
