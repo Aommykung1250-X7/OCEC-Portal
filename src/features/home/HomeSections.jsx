@@ -1,3 +1,5 @@
+import { registrationCountdown } from "./homeUtils.js";
+import { getBangkokTodayISO } from "../applications/applicationUtils.js";
 import { lazy, Suspense } from "react";
 import { BrandMark, Icon } from "../../components/ui/index.jsx";
 import { formatThaiDate, getExamRoundType } from "../../examUtils.js";
@@ -19,7 +21,18 @@ function FacebookMark() {
   return <svg className="home-facebook-mark" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="#1877f2" /><path d="M13.5 21v-7h2.4l.35-2.8H13.5V9.4c0-.8.22-1.35 1.36-1.35h1.45v-2.5c-.25-.03-1.11-.1-2.12-.1-2.1 0-3.54 1.3-3.54 3.68v2.07H8.3V14h2.35v7Z" fill="#fff" /></svg>;
 }
 
-export function HomeHero({ featuredExam, onStartApplication, onLookup }) {
+export function HomeSocialLinks() {
+  return (
+<div className="home-social" role="group" aria-label="ติดตามข่าวสารและประชาสัมพันธ์ทาง Facebook">
+            <FacebookMark />
+            <ul className="home-social-links">
+              {FACEBOOK_PAGES.map(([name, href]) => <li key={name}><a className="home-social-link" href={href} target="_blank" rel="noopener noreferrer" aria-label={"ติดตาม " + name + " บน Facebook (เปิดแท็บใหม่)"}>{name}</a></li>)}
+            </ul>
+          </div>
+  );
+}
+
+export function HomeHero({ featuredExam, onStartApplication, onLookup, applicationsSummary }) {
   return (
     <section className="home-hero" aria-labelledby="homepage-title">
       <div className="home-container home-hero-grid">
@@ -32,12 +45,7 @@ export function HomeHero({ featuredExam, onStartApplication, onLookup }) {
             <button className="home-button home-button-primary" type="button" onClick={onStartApplication}>เข้าสู่การสมัครสอบ <Icon name="arrow" size={16} /></button>
             <button className="home-button home-button-secondary" type="button" onClick={onLookup}><Icon name="file" size={16} /> ตรวจสอบสถานะใบสมัคร</button>
           </div>
-          <div className="home-social" role="group" aria-label="ติดตามข่าวสารและประชาสัมพันธ์ทาง Facebook">
-            <FacebookMark />
-            <ul className="home-social-links">
-              {FACEBOOK_PAGES.map(([name, href]) => <li key={name}><a className="home-social-link" href={href} target="_blank" rel="noopener noreferrer" aria-label={"ติดตาม " + name + " บน Facebook (เปิดแท็บใหม่)"}>{name}</a></li>)}
-            </ul>
-          </div>
+          {applicationsSummary}
         </div>
         <div className="home-art">
           <div className="home-art-stage">
@@ -53,14 +61,15 @@ export function HomeHero({ featuredExam, onStartApplication, onLookup }) {
   );
 }
 
-function RoundCard({ exam, index, onStartApplication }) {
+function RoundCard({ exam, index, onStartApplication, today }) {
+  const countdown = registrationCountdown(exam.closeDate, today);
   const roundType = getExamRoundType(exam);
   const roundLabel = roundType === "HEAT" ? "HEAT ROUND · รอบคัดเลือก" : roundType === "FINAL" ? "FINAL ROUND · รอบชิงชนะเลิศ" : roundType === "FINAL_X" ? "FINAL X · รอบสอบ" : (exam.round || roundType) + " · รอบสอบ";
   return (
     <article className="home-round-card" style={{ "--exam-entrance-delay": Math.min(index, 8) * 70 + "ms" }}>
       <div className="home-round-top">
         <div className="home-round-labels"><span className="home-round-status"><i />เปิดรับสมัคร</span><span>{roundLabel}</span></div>
-        <span className="home-round-year">ปีการศึกษา {exam.year} <span>สมัครผ่านแบบฟอร์มเดียว</span></span>
+        {countdown ? <span className="home-round-countdown"><Icon name="clock" size={15} />{countdown}</span> : null}
       </div>
       <h3>{exam.title}</h3>
       <p className="home-round-description">{exam.description || "ตรวจสอบกำหนดการและรายละเอียดการสมัคร"}</p>
@@ -73,7 +82,7 @@ function RoundCard({ exam, index, onStartApplication }) {
   );
 }
 
-export function ExamRounds({ openExams, resultPublished, navigate, onStartApplication }) {
+export function ExamRounds({ today = getBangkokTodayISO(), openExams, resultPublished, navigate, onStartApplication }) {
   return (
     <section className="home-rounds" id="open-exams" aria-labelledby="open-exams-title">
       <div className="home-container">
@@ -87,7 +96,7 @@ export function ExamRounds({ openExams, resultPublished, navigate, onStartApplic
             <span className="home-open-count"><i />{openExams.length} รายการเปิดรับสมัคร</span>
           </div>
           <div className="home-rounds-list" aria-label="รายการสอบที่เปิดรับ">
-            {openExams.length ? openExams.map((exam, index) => <RoundCard key={exam.id} exam={exam} index={index} onStartApplication={getExamRoundType(exam) === "HEAT" ? onStartApplication : () => navigate("final-confirm")} />) : (
+            {openExams.length ? openExams.map((exam, index) => <RoundCard today={today} key={exam.id} exam={exam} index={index} onStartApplication={getExamRoundType(exam) === "HEAT" ? onStartApplication : () => navigate("final-confirm")} />) : (
               <div className="home-rounds-empty">
                 <span className="home-empty-icon"><Icon name="calendar" size={28} /></span>
                 <h3>ขณะนี้ไม่มีรายการสอบที่เปิดรับสมัคร</h3>
@@ -131,7 +140,7 @@ export function HomeFooter({ navigate }) {
       <div className="home-container">
         <div className="home-help"><span className="home-help-icon"><Icon name="headset" size={25} /></span><div><h3>ต้องการความช่วยเหลือในการสมัครสอบ?</h3><p>ติดต่อศูนย์ช่วยเหลือของเรา</p></div><a className="home-button" href="https://lin.ee/3hzFg1z" target="_blank" rel="noopener noreferrer">ศูนย์ช่วยเหลือ <Icon name="arrow" size={16} /></a></div>
         <div className="home-footer-bottom"><a className="home-footer-brand" href="/"><BrandMark /><span>OCEC Portal ระบบสมัครสอบ<small>© 2569 OCEC Portal. All rights reserved.</small></span></a><nav aria-label="เมนูส่วนท้าย">{links.map(([label, page]) => <button type="button" key={page} onClick={() => goTo(page)}>{label}</button>)}</nav></div>
-        <div className="home-footer-credit"><a href="https://lin.ee/3hzFg1z" target="_blank" rel="noopener noreferrer">ศูนย์ช่วยเหลือ</a><a href="https://www.flaticon.com/uicons" target="_blank" rel="noreferrer">UIcons by Flaticon</a></div>
+        <div className="home-footer-credit"><HomeSocialLinks /><a href="https://lin.ee/3hzFg1z" target="_blank" rel="noopener noreferrer">ศูนย์ช่วยเหลือ</a><a href="https://www.flaticon.com/uicons" target="_blank" rel="noreferrer">UIcons by Flaticon</a></div>
       </div>
     </footer>
   );

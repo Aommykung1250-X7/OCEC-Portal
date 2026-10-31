@@ -1797,7 +1797,7 @@ function App() {
   }
 
   if (page === "home" && persona !== "admin") {
-    return <LandingPage navigate={navigate} setPersona={setPersona} authProfile={authProfile} onSignIn={signInWithGoogleDemo} onSignOut={signOut} onStartApplication={startApplication} resultPublished={resultPublished} examCatalog={effectiveExamCatalog} demoProfile={demoGoogleProfile} backendEnabled={BACKEND_ENABLED} />;
+    return <LandingPage applications={visibleApplications} today={calendarDay} navigate={navigate} setPersona={setPersona} authProfile={authProfile} onSignIn={signInWithGoogleDemo} onSignOut={signOut} onStartApplication={startApplication} resultPublished={resultPublished} examCatalog={effectiveExamCatalog} demoProfile={demoGoogleProfile} backendEnabled={BACKEND_ENABLED} />;
   }
 
   if (persona !== "admin" && !page.startsWith("admin-")) {

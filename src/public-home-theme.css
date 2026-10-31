@@ -61,8 +61,8 @@
 .public-landing-home .home-round-top, .public-landing-home .home-round-labels { display: flex; align-items: center; gap: 8px; }
 .public-landing-home .home-round-top { flex-wrap: wrap; justify-content: space-between; font-size: 12px; }
 .public-landing-home .home-round-labels > span:last-child { color: var(--home-muted); letter-spacing: .025em; }
-.public-landing-home .home-round-status { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border: 1px solid var(--home-border); border-radius: 999px; color: var(--home-ink); background: #fff0f3; font-weight: 600; line-height: 16px; }
-.public-landing-home .home-round-status i { width: 7px; height: 7px; border-radius: 50%; background: var(--home-primary); box-shadow: 0 0 0 3px #f6d5df; }
+.public-landing-home .home-round-status { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border: 1px solid var(--home-border); border-radius: 999px; color: #166534; background: #e8f8ee; font-weight: 600; line-height: 16px; }
+.public-landing-home .home-round-status i { width: 7px; height: 7px; border-radius: 50%; background: #22a06b; box-shadow: 0 0 0 3px #cfefdc; }
 .public-landing-home .home-round-year { display: inline-flex; flex-wrap: wrap; gap: 8px; padding: 3px 9px; border: 1px solid var(--home-border); border-radius: 999px; color: var(--home-muted); background: #ffefd4; font-size: 11px; line-height: 16px; }
 .public-landing-home .home-round-card h3 { margin: 12px 0 0; color: var(--home-ink); font: 700 20px/1.4 var(--home-display); }
 .public-landing-home .home-round-description { margin: 10px 0 0; color: var(--home-muted); font-size: 14px; line-height: 22px; }
@@ -145,7 +145,7 @@
 }
 @media (max-width: 700px) {
   .public-landing-home .home-container { padding-inline: 24px; }
-  .public-landing-home .home-hero { padding: 186px 0 96px; }
+  .public-landing-home .home-hero { padding: 238px 0 96px; }
   .public-landing-home .home-kicker { gap: 5px; padding-inline: 10px; font-size: 11px; }
   .public-landing-home .home-hero h1 { font-size: 36px; line-height: 1.25; }
   .public-landing-home .home-hero-lead { font-size: 16px; line-height: 1.7; }
@@ -191,4 +191,36 @@
   .public-landing-home .home-button, .public-landing-home .home-round-card { transition: none; }
   .public-landing-home .home-button:hover, .public-landing-home .home-round-card:hover { transform: none; }
   .public-landing-home .home-social-link { transition: none; }
+}
+
+/* Compact application rows live directly below the hero actions. */
+.public-landing-home .home-applications { min-width: 0; margin-top: 24px; }
+.public-landing-home .home-applications-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.public-landing-home .home-applications-heading h2 { margin: 0; color: var(--home-ink); font-size: 14px; font-weight: 600; }
+.public-landing-home .home-app-all { display: inline-flex; align-items: center; gap: 5px; min-height: 36px; padding: 4px 0 4px 8px; border: 0; background: transparent; color: var(--home-primary); font: inherit; font-size: 12px; cursor: pointer; }
+.public-landing-home .home-app-list { display: grid; gap: 6px; }
+.public-landing-home .home-app-row { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 8px; min-width: 0; min-height: 44px; width: 100%; padding: 3px 10px; border: 1px solid var(--home-border); border-radius: 10px; background: rgba(255,252,247,.9); color: var(--home-ink); text-align: left; font: inherit; font-size: 12px; cursor: pointer; }
+.public-landing-home .home-app-row:hover { background: #fff; border-color: var(--home-primary); }
+.public-landing-home .home-app-row strong, .public-landing-home .home-app-exams { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.public-landing-home .home-app-exams { color: var(--home-muted); text-align: right; font-size: 11px; }
+.public-landing-home .home-app-row .status-badge { font-size: 10px; padding-inline: 6px; }
+.public-landing-home .home-app-empty { margin: 0; color: var(--home-muted); font-size: 12px; }
+.public-landing-home .home-footer-credit { flex-wrap: wrap; align-items: center; }
+.public-landing-home .home-footer-credit .home-social { margin: 0 auto 0 0; gap: 8px; }
+.public-landing-home .home-footer-credit .home-social-link { color: #f8dce4; text-decoration-color: #d6b1bc; font-size: 12px; }
+.public-landing-home .home-footer-credit .home-facebook-mark { width: 22px; height: 22px; }
+.public-landing-home .home-round-countdown { display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 4px 10px; border: 1px solid var(--home-border); border-radius: 999px; background: #ffefd4; color: var(--home-primary); font-size: 12px; font-weight: 600; line-height: 1.5; }
+
+.public-landing-home .home-app-details { display: grid; grid-template-columns: auto minmax(0,1fr) minmax(48px,.6fr); align-items: center; gap: 10px; min-width: 0; min-height: 36px; width: 100%; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; font: inherit; cursor: pointer; }
+.public-landing-home .home-app-edit { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 36px; padding: 3px 7px; border: 1px solid var(--home-border); border-radius: 8px; background: #fff; color: var(--home-primary); font: inherit; font-size: 11px; cursor: pointer; }
+.public-landing-home .home-app-edit:hover:not(:disabled) { background: #f7e6e9; }
+.public-landing-home .home-app-edit:disabled { opacity: .45; cursor: not-allowed; }
+@media (max-width: 700px) {
+  .public-landing-home .home-app-details { grid-template-columns: auto minmax(0,1fr); gap: 3px 8px; }
+  .public-landing-home .home-app-details .status-badge { grid-row: span 2; }
+  .public-landing-home .home-app-details .home-app-exams { grid-column: 2; text-align: left; }
+}
+
+@media (pointer: coarse) {
+  .public-landing-home .home-app-details, .public-landing-home .home-app-edit { min-height: 44px; }
 }
