@@ -297,7 +297,7 @@ export async function uploadGoogleDriveFile({ category, folders = [], name, mime
   if (!fileName || fileName.length > 180 || /[\\/\x00-\x1f]/.test(fileName) || !/\.[A-Za-z0-9]{1,8}$/.test(fileName)) throw new Error('File name contains unsupported characters');
   if (!/^(image\/(jpeg|png|webp)|application\/pdf)$/.test(String(mimeType || ''))) throw new Error('Unsupported file type');
   const connection = await getConnection(folderLockClient);
-  if (!connection) throw new Error('Connect a Google account before uploading files');
+  if (!connection) throw Object.assign(new Error('ระบบยังไม่ได้เชื่อม Google Drive สำหรับจัดเก็บไฟล์ กรุณาให้ผู้ดูแลระบบเชื่อม Google Workspace ในหลังบ้านก่อนส่งใบสมัครหรืออัปโหลดไฟล์'), { code: 'GOOGLE_WORKSPACE_NOT_CONNECTED', statusCode: 503 });
   let parentId;
   if (category === 'slips') {
     parentId = (await ensureGoogleDriveSlipYearFolder(uploadedAt, { lockClient: folderLockClient,

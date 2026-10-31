@@ -50,6 +50,7 @@ function publicLookupRateLimit(scope, limit, perNameLimit = null) {
 
 app.setErrorHandler((error, request, reply) => {
   request.log.error(error);
+  if (error.code === 'GOOGLE_WORKSPACE_NOT_CONNECTED') return reply.code(503).send({ error: error.message });
   const validation = error.validation || error.code === 'FST_ERR_VALIDATION';
   const status = validation ? 400 : error.code === '23503' || error.code === '23514' ? 400 : error.code === '23505' ? 409 : error.statusCode && error.statusCode < 500 ? error.statusCode : 500;
   return reply.code(status).send({ error: status === 500 ? 'Internal server error' : error.message, ...(status === 409 && error.existingApplicationId ? { existingApplicationId: error.existingApplicationId } : {}) });
