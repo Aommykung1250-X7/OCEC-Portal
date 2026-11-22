@@ -52,7 +52,6 @@ import {
 } from "./features/applications/applicationUtils.js";
 
 const BACKEND_ENABLED = import.meta.env.VITE_BACKEND_ENABLED === "true";
-const HomeDesignPreview = BACKEND_ENABLED ? null : lazy(() => import("./features/home/HomeDesignPreview.jsx"));
 
 const DEFAULT_PAYMENT_ACCOUNTS = [
   { id: "ocec-main-account", bankName: "Kasikorn Bank", accountName: "บจก. โอซีอีซี (ไทยแลนด์)", accountNumber: "219-3-78805-2", category: "president", showInForm: true, active: true },
@@ -1846,14 +1845,24 @@ function App() {
   }
 
   if (page === "home" && persona !== "admin") {
-    if (HomeDesignPreview) {
-      return (
-        <Suspense fallback={null}>
-          <HomeDesignPreview applications={visibleApplications} today={calendarDay} navigate={navigate} setPersona={setPersona} authProfile={authProfile} onSignIn={signInForHomePreview} onSignOut={signOut} onStartApplication={startApplication} examCatalog={effectiveExamCatalog} competitionCatalog={competitionCatalog} />
-        </Suspense>
-      );
-    }
-    return <LandingPage applications={visibleApplications} today={calendarDay} navigate={navigate} setPersona={setPersona} authProfile={authProfile} onSignIn={signInWithGoogleDemo} onSignOut={signOut} onStartApplication={startApplication} resultPublished={resultPublished} examCatalog={effectiveExamCatalog} competitionCatalog={competitionCatalog} demoProfile={demoGoogleProfile} backendEnabled={BACKEND_ENABLED} />;
+    return (
+      <LandingPage
+        applications={visibleApplications}
+        today={calendarDay}
+        navigate={navigate}
+        setPersona={setPersona}
+        authProfile={authProfile}
+        onSignIn={BACKEND_ENABLED ? signInWithGoogleDemo : signInForHomePreview}
+        onSignOut={signOut}
+        onStartApplication={startApplication}
+        resultPublished={resultPublished}
+        examCatalog={effectiveExamCatalog}
+        competitionCatalog={competitionCatalog}
+        demoProfile={demoGoogleProfile}
+        backendEnabled={BACKEND_ENABLED}
+        demoSignIn={!BACKEND_ENABLED}
+      />
+    );
   }
 
   if (persona !== "admin" && !page.startsWith("admin-")) {

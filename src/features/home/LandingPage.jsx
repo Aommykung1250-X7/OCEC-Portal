@@ -17,6 +17,7 @@ export function LandingPage({
   today,
   demoProfile,
   backendEnabled,
+  demoSignIn = false,
 }) {
   const [ownApplications, setOwnApplications] = useState({ userId: "", items: [], error: "" });
 
@@ -61,6 +62,7 @@ export function LandingPage({
         onStartApplication={onStartApplication}
         demoProfile={demoProfile}
         backendEnabled={backendEnabled}
+        demoSignIn={demoSignIn}
       />
       <main className="m-0 w-full max-w-none" id="landing-main" tabIndex="-1">
         <HomeHero
