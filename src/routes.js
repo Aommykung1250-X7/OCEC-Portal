@@ -12,7 +12,7 @@ export const pageLabels = {
   "slip-upload": "อัปโหลดหลักฐานการชำระเงินใหม่",
   "slip-replacement": "ส่งหลักฐานการชำระเงินใหม่",
   "final-confirm": "ยืนยันสิทธิ์ Final",
-  results: "ประกาศผล",
+  results: "ผลสอบ",
   "admin-login": "เข้าสู่ระบบผู้ดูแลระบบ",
   "admin-home": "ภาพรวมผู้ดูแลระบบ",
   "admin-review": "ตรวจใบสมัคร",

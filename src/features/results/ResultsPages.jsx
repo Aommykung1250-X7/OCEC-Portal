@@ -1,28 +1,13 @@
-import { useEffect, useRef, useState } from "react";
-import { Button, Field, GoogleMark, Icon, PageHeading, ProfileAvatar } from "../../components/ui/index.jsx";
-import { formatThaiDate } from "../../examUtils.js";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Button, Field, GoogleMark, Icon, ProfileAvatar } from "../../components/ui/index.jsx";
+import { formatThaiDate, getExamRoundType } from "../../examUtils.js";
+import { getCompetitionDisplayMeta, toThaiYear } from "../home/homeUtils.js";
 import {
-  EXAM_ROUND_LABELS,
   getActiveExamYear,
   getBangkokTodayISO,
   getEligibleFinalRounds,
   isFinalEligibleAward,
-  resultTargetLabel,
 } from "../applications/applicationUtils.js";
-
-function getPublicResultStatus(row) {
-  if (row.competitionId === "bbb" && row.roundType === "FINAL") {
-    return isFinalEligibleAward(row.award, row.competitionId, "FINAL")
-      ? { label: "ได้รับสิทธิ์สมัคร Final X", tone: "eligible" }
-      : { label: "ประกาศผลแล้ว", tone: "published" };
-  }
-  if (row.roundType === "HEAT") {
-    return isFinalEligibleAward(row.award, row.competitionId)
-      ? { label: "ผ่านการสอบรอบ HEAT", tone: "eligible" }
-      : { label: "ไม่ผ่านการสอบรอบ HEAT", tone: "not-eligible" };
-  }
-  return { label: "ประกาศผลแล้ว", tone: "published" };
-}
 
 export function ApiFinalConfirmationPage({ authProfile, onContinue, onSignIn, navigate, resultPublished, examCatalog, demoProfile }) {
   const [path, setPath] = useState("school");
@@ -184,54 +169,226 @@ export function FinalConfirmationPage({ applications, applicationHint, onContinu
   );
 }
 
-export function PublicResultsPage({ resultRows = [] }) {
-  const [query, setQuery] = useState("");
-  const resultsTableRef = useRef(null);
-  const publishedTargets = [...new Map(resultRows.map((row) => [row.targetId, {
+const ROUND_DISPLAY = {
+  HEAT: "Heat",
+  FINAL: "Final",
+  FINAL_X: "Final X",
+};
+
+function getAwardTone(award) {
+  const value = String(award || "").toLowerCase();
+  if (value.includes("gold") || value.includes("1st") || value.includes("ทอง") && !value.includes("ทองแดง")) return "gold";
+  if (value.includes("silver") || value.includes("2nd") || value.includes("เงิน")) return "silver";
+  if (value.includes("bronze") || value.includes("3rd") || value.includes("ทองแดง")) return "bronze";
+  return "merit";
+}
+
+function getNextRoundEligibilityText(row) {
+  if (row.competitionId === "bbb" && row.roundType === "FINAL") {
+    return isFinalEligibleAward(row.award, row.competitionId, "FINAL")
+      ? { short: "มีสิทธิ์สมัคร Final X", card: "ผ่านเกณฑ์เข้าร่วมรอบ Final X", eligible: true }
+      : { short: "ประกาศผลแล้ว", card: "ประกาศผลอย่างเป็นทางการ", eligible: false };
+  }
+  if (row.roundType === "HEAT") {
+    return isFinalEligibleAward(row.award, row.competitionId)
+      ? { short: "มีสิทธิ์สมัคร Final", card: "ผ่านเกณฑ์เข้าร่วมรอบ Final", eligible: true }
+      : { short: "ไม่ผ่านเกณฑ์รอบ Final", card: "ขอบคุณที่ร่วมแข่งขัน", eligible: false };
+  }
+  return { short: "ประกาศผลแล้ว", card: "ประกาศผลอย่างเป็นทางการ", eligible: false };
+}
+
+export function PublicResultsPage({
+  resultRows = [],
+  navigate,
+  examCatalog = [],
+  competitionCatalog = [],
+  backendEnabled = false,
+}) {
+  const [mode, setMode] = useState("search");
+  const resultsListRef = useRef(null);
+
+  const publishedTargets = useMemo(() => [...new Map(resultRows.map((row) => [row.targetId, {
     targetId: row.targetId,
     competitionId: row.competitionId,
     competitionTitle: row.competitionTitle,
+    shortName: row.shortName || getCompetitionDisplayMeta(row, competitionCatalog.find((c) => c.id === row.competitionId)).short,
     roundType: row.roundType,
     round: row.round,
-    year: row.year,
+    year: String(row.year),
     publishedAt: row.publishedAt,
-  }])).values()].sort((left, right) => Date.parse(right.publishedAt || 0) - Date.parse(left.publishedAt || 0));
-  const competitionKey = (target) => `${target.competitionId}::${target.year}`;
-  const latestTarget = publishedTargets[0];
-  const [selectedCompetition, setSelectedCompetition] = useState(() => latestTarget ? competitionKey(latestTarget) : "all");
-  const [selectedRound, setSelectedRound] = useState(() => latestTarget?.roundType || "all");
-  const [selectedGrade, setSelectedGrade] = useState("all");
+  }])).values()].sort((left, right) => Date.parse(right.publishedAt || 0) - Date.parse(left.publishedAt || 0)), [resultRows, competitionCatalog]);
+
+  const latestTarget = publishedTargets[0] || null;
+  const compYearKey = (item) => `${item.competitionId}::${item.year}`;
+
+  // Tab 1 (ค้นหาผลสอบ) filter state
+  const [searchCompYear, setSearchCompYear] = useState(() => (latestTarget ? compYearKey(latestTarget) : "all"));
+  const [searchRound, setSearchRound] = useState(() => latestTarget?.roundType || "all");
+  const [searchGrade, setSearchGrade] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchRows, setSearchRows] = useState(null);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState("");
+
+  // Tab 2 (ดูประกาศผลทั้งหมด) filter state
+  const [allCompetitionId, setAllCompetitionId] = useState(() => latestTarget?.competitionId || "all");
+  const [allYear, setAllYear] = useState(() => latestTarget?.year || "all");
+  const [allInlineQuery, setAllInlineQuery] = useState("");
+  const [allGrade, setAllGrade] = useState("all");
+  const [allFetchedRows, setAllFetchedRows] = useState(null);
+  const [allLoading, setAllLoading] = useState(false);
+  const [allError, setAllError] = useState("");
   const [page, setPage] = useState(1);
   const pageSize = 100;
-  function changePage(nextPage) {
-    setPage(nextPage);
-    window.requestAnimationFrame(() => resultsTableRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
-  }
-  const competitionOptions = [...new Map(publishedTargets.map((target) => [competitionKey(target), {
-    key: competitionKey(target),
-    title: target.competitionTitle,
+
+  // Sync defaults when resultRows arrives asynchronously from /api/results
+  const initializedRef = useRef(false);
+  useEffect(() => {
+    if (!initializedRef.current && latestTarget) {
+      initializedRef.current = true;
+      setSearchCompYear(compYearKey(latestTarget));
+      setSearchRound(latestTarget.roundType || "all");
+      setAllCompetitionId(latestTarget.competitionId || "all");
+      setAllYear(latestTarget.year || "all");
+    }
+  }, [latestTarget]);
+
+  const compYearOptions = useMemo(() => [...new Map(publishedTargets.map((target) => [compYearKey(target), {
+    key: compYearKey(target),
+    competitionId: target.competitionId,
+    short: target.shortName,
     year: target.year,
-  }])).values()];
-  const targetMatchesCompetition = (target) => selectedCompetition === "all" || competitionKey(target) === selectedCompetition;
-  const roundOptions = [...new Set(publishedTargets.filter(targetMatchesCompetition).map((target) => target.roundType))];
-  const targetMatchesRound = (target) => selectedRound === "all" || target.roundType === selectedRound;
-  const gradeOptions = [...new Set(resultRows.filter((row) => {
-    const target = publishedTargets.find((item) => item.targetId === row.targetId);
-    return target && targetMatchesCompetition(target) && targetMatchesRound(target);
-  }).map((row) => row.grade).filter(Boolean))].sort((left, right) => left.localeCompare(right, "en"));
-  const searchTerm = query.trim().toLowerCase();
-  const results = resultRows.filter((row) => {
-    const target = publishedTargets.find((item) => item.targetId === row.targetId);
-    const matchesSearch = !searchTerm || (row.candidateName || row.candidate || "").toLowerCase().includes(searchTerm) || String(row.candidateNo || row.examNumber || "").toLowerCase().includes(searchTerm);
-    return target && targetMatchesCompetition(target) && targetMatchesRound(target)
-      && (selectedGrade === "all" || row.grade === selectedGrade) && matchesSearch;
-  });
-  const totalPages = Math.max(1, Math.ceil(results.length / pageSize));
+  }])).values()], [publishedTargets]);
+
+  const competitionOptions = useMemo(() => [...new Map(publishedTargets.map((target) => {
+    const comp = competitionCatalog.find((c) => c.id === target.competitionId);
+    const meta = getCompetitionDisplayMeta(target, comp);
+    return [target.competitionId, {
+      id: target.competitionId,
+      short: meta.short,
+      label: `${meta.short} — ${comp?.name && comp.name !== meta.short ? comp.name : meta.thaiName}`,
+    }];
+  })).values()], [publishedTargets, competitionCatalog]);
+
+  const yearOptions = useMemo(() => [...new Set(publishedTargets
+    .filter((target) => allCompetitionId === "all" || target.competitionId === allCompetitionId)
+    .map((target) => String(target.year)))].sort((a, b) => Number(b) - Number(a)), [publishedTargets, allCompetitionId]);
+
+  const searchRoundOptions = useMemo(() => [...new Set(publishedTargets
+    .filter((target) => searchCompYear === "all" || compYearKey(target) === searchCompYear)
+    .map((target) => target.roundType))], [publishedTargets, searchCompYear]);
+
+  const searchGradeOptions = useMemo(() => [...new Set(resultRows
+    .filter((row) => (searchCompYear === "all" || compYearKey(row) === searchCompYear)
+      && (searchRound === "all" || row.roundType === searchRound))
+    .map((row) => row.grade)
+    .filter(Boolean))].sort((a, b) => a.localeCompare(b, "en")), [resultRows, searchCompYear, searchRound]);
+
+  async function fetchServerResults(params) {
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value && value !== "all") searchParams.set(key, String(value));
+    });
+    const response = await fetch(`/api/results?${searchParams.toString()}`);
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || "ไม่สามารถโหลดข้อมูลผลสอบได้");
+    return payload.results || [];
+  }
+
+  async function handleSearchSubmit(event) {
+    event?.preventDefault();
+    setSearchError("");
+    if (!backendEnabled) {
+      setSearchRows(null);
+      return;
+    }
+    const [competitionId, year] = searchCompYear === "all" ? ["all", "all"] : searchCompYear.split("::");
+    setSearchLoading(true);
+    try {
+      const rows = await fetchServerResults({
+        competitionId,
+        year,
+        roundType: searchRound,
+        grade: searchGrade,
+        q: searchQuery.trim(),
+      });
+      setSearchRows(rows);
+    } catch (error) {
+      setSearchError(error.message || "ไม่สามารถค้นหาผลสอบได้");
+    } finally {
+      setSearchLoading(false);
+    }
+  }
+
+  async function handleAllSubmit(event) {
+    event?.preventDefault();
+    setAllError("");
+    setPage(1);
+    if (!backendEnabled) {
+      setAllFetchedRows(null);
+      return;
+    }
+    setAllLoading(true);
+    try {
+      const rows = await fetchServerResults({
+        competitionId: allCompetitionId,
+        year: allYear,
+      });
+      setAllFetchedRows(rows);
+    } catch (error) {
+      setAllError(error.message || "ไม่สามารถโหลดประกาศผลสอบได้");
+    } finally {
+      setAllLoading(false);
+    }
+  }
+
+  // Client-side filtered list for Tab 1 (instant reactive + synced with server submit)
+  const localSearchResults = useMemo(() => {
+    const term = searchQuery.trim().toLowerCase();
+    return resultRows.filter((row) => {
+      if (searchCompYear !== "all" && compYearKey(row) !== searchCompYear) return false;
+      if (searchRound !== "all" && row.roundType !== searchRound) return false;
+      if (searchGrade !== "all" && row.grade !== searchGrade) return false;
+      if (!term) return true;
+      return (row.candidateName || row.candidate || "").toLowerCase().includes(term)
+        || (row.candidateNameTh || "").toLowerCase().includes(term)
+        || String(row.candidateNo || row.examNumber || "").toLowerCase().includes(term)
+        || (row.schoolName || row.school || "").toLowerCase().includes(term);
+    });
+  }, [resultRows, searchCompYear, searchRound, searchGrade, searchQuery]);
+
+  const activeSearchResults = searchRows ?? localSearchResults;
+
+  // Tab 2 base rows + inline search & grade filter
+  const allBaseRows = useMemo(() => {
+    if (allFetchedRows !== null) return allFetchedRows;
+    return resultRows.filter((row) => {
+      if (allCompetitionId !== "all" && row.competitionId !== allCompetitionId) return false;
+      if (allYear !== "all" && String(row.year) !== String(allYear)) return false;
+      return true;
+    });
+  }, [allFetchedRows, resultRows, allCompetitionId, allYear]);
+
+  const allGradeOptions = useMemo(() => [...new Set(allBaseRows.map((row) => row.grade).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, "en")), [allBaseRows]);
+
+  const filteredAllResults = useMemo(() => {
+    const term = allInlineQuery.trim().toLowerCase();
+    return allBaseRows.filter((row) => {
+      if (allGrade !== "all" && row.grade !== allGrade) return false;
+      if (!term) return true;
+      return (row.candidateName || row.candidate || "").toLowerCase().includes(term)
+        || (row.candidateNameTh || "").toLowerCase().includes(term)
+        || String(row.candidateNo || row.examNumber || "").toLowerCase().includes(term)
+        || (row.schoolName || row.school || "").toLowerCase().includes(term);
+    });
+  }, [allBaseRows, allGrade, allInlineQuery]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredAllResults.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const pageStart = (currentPage - 1) * pageSize;
-  const resultsOnPage = results.slice(pageStart, pageStart + pageSize);
-  const rangeStart = results.length ? pageStart + 1 : 0;
-  const rangeEnd = Math.min(pageStart + pageSize, results.length);
+  const pagedAllResults = filteredAllResults.slice(pageStart, pageStart + pageSize);
+
   const pageItems = totalPages <= 6
     ? Array.from({ length: totalPages }, (_, index) => index + 1)
     : currentPage <= 4
@@ -239,59 +396,460 @@ export function PublicResultsPage({ resultRows = [] }) {
       : currentPage >= totalPages - 3
         ? [1, "ellipsis", totalPages - 3, totalPages - 2, totalPages - 1, totalPages]
         : [1, "ellipsis", currentPage - 1, currentPage, currentPage + 1, "ellipsis", totalPages];
-  const resultGroups = publishedTargets.filter((target) => targetMatchesCompetition(target) && targetMatchesRound(target))
-    .map((target) => ({ target, rows: resultsOnPage.filter((row) => row.targetId === target.targetId) }))
-    .filter((group) => group.rows.length);
+
+  function changePage(nextPage) {
+    setPage(nextPage);
+    window.requestAnimationFrame(() => resultsListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
+
+  // Labels for summary headers
+  const selectedCompYearObj = compYearOptions.find((option) => option.key === searchCompYear);
+  const searchSummaryTitle = selectedCompYearObj
+    ? `ผลสอบ ${selectedCompYearObj.short} ${toThaiYear(selectedCompYearObj.year)}${searchRound !== "all" ? ` • ${ROUND_DISPLAY[searchRound] || searchRound}` : ""}`
+    : "ผลสอบทั้งหมด";
+
+  const selectedAllComp = competitionOptions.find((option) => option.id === allCompetitionId);
+  const allSummaryTitle = selectedAllComp
+    ? `ผลสอบ ${selectedAllComp.short}${allYear !== "all" ? ` ${toThaiYear(allYear)}` : ""}`
+    : `ผลสอบทั้งหมด${allYear !== "all" ? ` ${toThaiYear(allYear)}` : ""}`;
+
+  // Open Final round info for CTA banner
+  const openFinalRound = useMemo(() => examCatalog.find((exam) => ["FINAL", "FINAL_X"].includes(getExamRoundType(exam)) && exam.isOpen)
+    || examCatalog.find((exam) => ["FINAL", "FINAL_X"].includes(getExamRoundType(exam)) && exam.closeDate)
+    || null, [examCatalog]);
+
+  function resetSearchFilters() {
+    setSearchQuery("");
+    setSearchCompYear("all");
+    setSearchRound("all");
+    setSearchGrade("all");
+    setSearchRows(null);
+    setSearchError("");
+  }
+
+  function resetAllFilters() {
+    setAllInlineQuery("");
+    setAllGrade("all");
+    setAllCompetitionId("all");
+    setAllYear("all");
+    setAllFetchedRows(null);
+    setAllError("");
+    setPage(1);
+  }
+
   return (
-    <div className="page-stack">
-      <PageHeading eyebrow="ผลการคัดเลือก" title="ประกาศผลสอบ OCEC" description="ตรวจผลสอบทุกระดับรางวัล ค้นหาด้วยชื่อภาษาอังกฤษหรือ CANDIDATE NO และกรองรายการสอบ รอบสอบ และระดับชั้นได้" />
-      {!publishedTargets.length ? (
-        <section className="surface results-pending grid min-h-[270px] content-center justify-items-center p-[25px] text-center">
-          <span className="results-pending-icon"><Icon name="clock" /></span>
-          <h2>รอประกาศผลการสอบอย่างเป็นทางการ</h2>
-          <p>เมื่อมีการประกาศผลรายการสอบแล้ว จะสามารถเลือกดูผลของแต่ละรายการและรอบได้จากหน้านี้</p>
-          <span className="result-date"><Icon name="calendar" size={15} />ประกาศผลตามกำหนดการของแต่ละรายการ</span>
-        </section>
-      ) : (
-        <>
-          <section className="surface results-public-filter-card p-[18px] max-[540px]:p-[14px]">
-            <div className="results-public-filter-heading mb-[14px] flex items-center justify-between gap-3 max-[540px]:items-start"><div><p className="eyebrow">ค้นหาผลสอบ</p><h2>เลือกตัวกรองที่ต้องการ</h2></div><span className="result-announced"><span />ประกาศแล้ว</span></div>
-            {latestTarget ? <div className="latest-result-hint -mt-1 mb-3 flex items-start gap-[7px] text-[10px] leading-[1.55]"><Icon name="clock" size={14} /><span>รายการผลสอบที่ประกาศล่าสุด: <strong>{resultTargetLabel(latestTarget)}</strong> · เลือกรายการสอบหรือรอบอื่นเพื่อดูผลสอบเพิ่มเติม</span></div> : null}
-            <div className="results-public-filters grid grid-cols-[minmax(250px,1.5fr)_repeat(3,minmax(145px,1fr))] items-end gap-[11px] max-[850px]:grid-cols-2 max-[540px]:grid-cols-1">
-              <label className="results-public-search grid min-w-0 gap-1.5 max-[850px]:col-span-full max-[540px]:[grid-column:auto]"><span>ค้นหาชื่อภาษาอังกฤษหรือ CANDIDATE NO</span><div className="input-with-icon"><Icon name="search" /><input value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="เช่น Kanya Rattanasuk หรือ 6000012" /></div></label>
-              <label className="grid min-w-0 gap-1.5"><span>รายการสอบ</span><select value={selectedCompetition} onChange={(event) => { const value = event.target.value; setSelectedCompetition(value); const newestExamRound = value === "all" ? "all" : publishedTargets.find((target) => competitionKey(target) === value)?.roundType || "all"; setSelectedRound(newestExamRound); setSelectedGrade("all"); setPage(1); }}><option value="all">ทุกรายการสอบ</option>{competitionOptions.map((option) => <option key={option.key} value={option.key}>{option.title} · ปี {option.year}</option>)}</select></label>
-              <label className="grid min-w-0 gap-1.5"><span>รอบสอบ</span><select value={selectedRound} onChange={(event) => { setSelectedRound(event.target.value); setSelectedGrade("all"); setPage(1); }}><option value="all">ทุกรอบสอบ</option>{roundOptions.map((round) => <option key={round} value={round}>{EXAM_ROUND_LABELS[round] || round}</option>)}</select></label>
-              <label className="grid min-w-0 gap-1.5"><span>ระดับชั้น</span><select value={selectedGrade} onChange={(event) => { setSelectedGrade(event.target.value); setPage(1); }}><option value="all">ทุกระดับชั้น</option>{gradeOptions.map((grade) => <option key={grade} value={grade}>{grade}</option>)}</select></label>
+    <div className="pc-results-wrap">
+      <div className="pc-results-container">
+        <header className="pc-results-header">
+          <p className="pc-results-eyebrow">ผลสอบ</p>
+          <h1>ทุกความพยายาม <span className="pc-results-nowrap">มีความหมาย</span></h1>
+          <p className="pc-results-lead">ค้นหาผลสอบและตรวจสอบโอกาสในรอบถัดไป</p>
+        </header>
+
+        {!publishedTargets.length ? (
+          <section className="pc-results-pending" aria-live="polite">
+            <span className="pc-results-pending-icon"><Icon name="clock" size={24} /></span>
+            <h2>รอประกาศผลอย่างเป็นทางการ</h2>
+            <p>เมื่อมีการประกาศผลรายการสอบแล้ว สามารถค้นหาผลสอบและดูประกาศผลทั้งหมดได้จากหน้านี้</p>
+            <span className="pc-results-pending-pill">
+              <Icon name="calendar" size={14} />
+              <span>ประกาศผลตามกำหนดการของแต่ละรายการ</span>
+            </span>
+          </section>
+        ) : (
+          <>
+            <div className="pc-results-tabs" role="tablist" aria-label="รูปแบบการดูผลสอบ" data-active={mode}>
+              <span className="pc-results-tab-slider" aria-hidden="true" />
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mode === "search"}
+                className={`pc-results-tab${mode === "search" ? " is-active" : ""}`}
+                onClick={() => setMode("search")}
+              >
+                ค้นหาผลสอบ
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mode === "all"}
+                className={`pc-results-tab${mode === "all" ? " is-active" : ""}`}
+                onClick={() => setMode("all")}
+              >
+                ดูประกาศผลทั้งหมด
+              </button>
             </div>
-          </section>
-          <section className="results-hero flex min-h-[156px] items-center justify-between gap-[18px] px-[26px] py-[23px] max-[540px]:min-h-[145px] max-[540px]:items-start max-[540px]:p-[17px]">
-            <div className="min-w-0"><span className="result-announced"><span />ประกาศผลอย่างเป็นทางการ</span><h2>ผลการสอบของผู้เข้าสอบทั้งหมด</h2><p>ผู้ได้ GOLD, SILVER หรือ BRONZE ผ่านการสอบรอบ HEAT ยกเว้น BBB ซึ่งใช้เกณฑ์อันดับ 1st–3rd</p></div>
-            <div className="result-total grid min-w-[88px] justify-items-center rounded-[13px] border border-[rgba(255,255,255,.25)] bg-[rgba(255,255,255,.12)] px-[14px] py-[10px] max-[540px]:min-w-[66px] max-[540px]:p-2"><strong>{results.length.toString().padStart(2, "0")}</strong><span>รายชื่อที่พบ</span></div>
-          </section>
-          <section className="surface results-table-card" ref={resultsTableRef}>
-            <div className="results-public-table-heading"><div><strong>ผลการสอบ</strong><small>แสดง {rangeStart.toLocaleString()}–{rangeEnd.toLocaleString()} จาก {results.length.toLocaleString()} รายชื่อ · สูงสุด {pageSize} รายการต่อหน้า</small></div></div>
-            <div className="responsive-table w-full overflow-x-auto overscroll-x-contain"><table className="w-full min-w-[950px] border-separate border-spacing-0">
-              <thead><tr><th>CANDIDATE NO</th><th>GRADE</th><th>SCHOOL NAME</th><th>CANDIDATE NAME</th><th>AWARD</th><th>ผลการสอบ / RESULT</th></tr></thead>
-              {results.length ? resultGroups.map((group) => <tbody key={group.target.targetId}>
-                <tr className="result-target-group-row"><th colSpan="6" scope="rowgroup">{resultTargetLabel(group.target)}</th></tr>
-                {group.rows.map((item) => {
-                  const resultStatus = getPublicResultStatus(item);
-                  return <tr key={`${item.applicationId}-${item.targetId}`}>
-                    <td><strong className="mono-number">{item.candidateNo || item.examNumber}</strong></td>
-                    <td>{item.grade}</td>
-                    <td>{item.schoolName || item.school}</td>
-                    <td>{item.candidateName || item.candidate}</td>
-                    <td><span className={`award-badge award-${String(item.award || "").toLowerCase().replaceAll(" ", "-")}`}>{item.award}</span></td>
-                    <td><span className={`result-outcome result-outcome-${resultStatus.tone}`}>{resultStatus.tone === "eligible" ? <Icon name="check" size={12} /> : null}{resultStatus.label}</span></td>
-                  </tr>;
-                })}
-              </tbody>) : <tbody><tr><td colSpan="6"><div className="results-empty-state"><span><Icon name="search" /></span><strong>ไม่พบผลสอบที่ตรงกับคำค้นหาหรือตัวกรอง</strong><small>โปรดลองเปลี่ยนชื่อหรือเลขประจำตัวสอบ หรือเลือก “ทั้งหมด” ในตัวกรอง</small><Button variant="text" onClick={() => { setQuery(""); setSelectedCompetition("all"); setSelectedRound("all"); setSelectedGrade("all"); setPage(1); }}>ล้างคำค้นหาและตัวกรอง</Button></div></td></tr></tbody>}
-            </table></div>
-            {results.length ? <div className="results-pagination"><span>หน้า {currentPage.toLocaleString()} จาก {totalPages.toLocaleString()}</span>{totalPages > 1 ? <nav aria-label="แบ่งหน้าผลสอบ"><button type="button" className="pagination-step" aria-label="หน้าก่อนหน้า" disabled={currentPage <= 1} onClick={() => changePage(currentPage - 1)}>ก่อนหน้า</button>{pageItems.map((item, index) => item === "ellipsis" ? <span className="pagination-ellipsis" key={`ellipsis-${index}`} aria-hidden="true">…</span> : <button type="button" key={item} className={`pagination-page${currentPage === item ? " is-active" : ""}`} aria-label={`หน้า ${item}`} aria-current={currentPage === item ? "page" : undefined} onClick={() => changePage(item)}>{item}</button>)}<button type="button" className="pagination-step" aria-label="หน้าถัดไป" disabled={currentPage >= totalPages} onClick={() => changePage(currentPage + 1)}>ถัดไป</button></nav> : null}</div> : null}
-            <div className="table-footnote"><Icon name="info" size={15} />ผู้ที่ได้รับรางวัล GOLD, SILVER หรือ BRONZE (ยกเว้นรายการ BBB) และผู้ที่ได้อันดับ 1st–3rd ของรายการ BBB สามารถยืนยันสิทธิ์สมัครรอบ Final ได้หลังประกาศผลการสอบรอบ HEAT</div>
-          </section>
-        </>
-      )}
+
+            {mode === "search" ? (
+              <div className="pc-results-panel" role="tabpanel">
+                <form className="pc-results-card pc-results-search-form" onSubmit={handleSearchSubmit}>
+                  <div className="pc-results-form-grid">
+                    <label className="pc-results-field">
+                      <span>รายการสอบ / ปี</span>
+                      <div className="pc-results-select-wrap">
+                        <select
+                          value={searchCompYear}
+                          onChange={(event) => {
+                            const value = event.target.value;
+                            setSearchCompYear(value);
+                            const nextRound = value === "all"
+                              ? "all"
+                              : publishedTargets.find((target) => compYearKey(target) === value)?.roundType || "all";
+                            setSearchRound(nextRound);
+                            setSearchGrade("all");
+                            setSearchRows(null);
+                          }}
+                        >
+                          <option value="all">ทุกรายการสอบ</option>
+                          {compYearOptions.map((option) => (
+                            <option key={option.key} value={option.key}>
+                              {option.short} • {toThaiYear(option.year)}
+                            </option>
+                          ))}
+                        </select>
+                        <span className="pc-results-caret" aria-hidden="true">▾</span>
+                      </div>
+                    </label>
+
+                    <label className="pc-results-field">
+                      <span>รอบสอบ</span>
+                      <div className="pc-results-select-wrap">
+                        <select
+                          value={searchRound}
+                          onChange={(event) => {
+                            setSearchRound(event.target.value);
+                            setSearchGrade("all");
+                            setSearchRows(null);
+                          }}
+                        >
+                          <option value="all">ทุกรอบสอบ</option>
+                          {searchRoundOptions.map((round) => (
+                            <option key={round} value={round}>
+                              {ROUND_DISPLAY[round] || round}
+                            </option>
+                          ))}
+                        </select>
+                        <span className="pc-results-caret" aria-hidden="true">▾</span>
+                      </div>
+                    </label>
+
+                    <label className="pc-results-field">
+                      <span>ระดับชั้น</span>
+                      <div className="pc-results-select-wrap">
+                        <select
+                          value={searchGrade}
+                          onChange={(event) => {
+                            setSearchGrade(event.target.value);
+                            setSearchRows(null);
+                          }}
+                        >
+                          <option value="all">ทุกระดับชั้น</option>
+                          {searchGradeOptions.map((grade) => (
+                            <option key={grade} value={grade}>{grade}</option>
+                          ))}
+                        </select>
+                        <span className="pc-results-caret" aria-hidden="true">▾</span>
+                      </div>
+                    </label>
+                  </div>
+
+                  <label className="pc-results-field pc-results-field-full">
+                    <span>ชื่อภาษาอังกฤษ หรือเลขประจำตัวสอบ</span>
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(event) => {
+                        setSearchQuery(event.target.value);
+                        setSearchRows(null);
+                      }}
+                      placeholder="ค้นหาชื่อหรือเลขประจำตัวสอบ..."
+                    />
+                  </label>
+
+                  {searchError ? <p className="pc-results-error" role="alert">{searchError}</p> : null}
+
+                  <button type="submit" className="pc-results-submit-btn" disabled={searchLoading}>
+                    {searchLoading ? "กำลังค้นหา..." : "ค้นหาผลสอบ"}
+                  </button>
+                </form>
+
+                <div className="pc-results-section-head">
+                  <h2>{searchSummaryTitle} / พบ {activeSearchResults.length.toLocaleString()} รายชื่อ</h2>
+                </div>
+
+                {activeSearchResults.length ? (
+                  <>
+                    <div className="pc-results-table-shell pc-results-desktop-only">
+                      <table className="pc-results-table pc-results-table-navy">
+                        <thead>
+                          <tr>
+                            <th>เลขประจำตัวสอบ</th>
+                            <th>ชื่อภาษาอังกฤษ</th>
+                            <th>ระดับชั้น</th>
+                            <th>โรงเรียน</th>
+                            <th>รางวัล</th>
+                            <th>การสมัครรอบถัดไป</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {activeSearchResults.slice(0, 100).map((item) => {
+                            const eligibility = getNextRoundEligibilityText(item);
+                            return (
+                              <tr key={`${item.applicationItemId || item.applicationId}-${item.targetId}`}>
+                                <td className="pc-results-mono">{item.candidateNo || item.examNumber || "—"}</td>
+                                <td className="pc-results-name">{item.candidateName || item.candidate}</td>
+                                <td>{item.grade}</td>
+                                <td>{item.schoolName || item.school}</td>
+                                <td>
+                                  <span className={`pc-award-pill is-${getAwardTone(item.award)}`}>
+                                    {item.award}
+                                  </span>
+                                </td>
+                                <td>
+                                  <span className={`pc-eligibility-text${eligibility.eligible ? " is-eligible" : ""}`}>
+                                    {eligibility.short}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="pc-results-mobile-cards pc-results-mobile-only">
+                      {activeSearchResults.slice(0, 50).map((item) => {
+                        const eligibility = getNextRoundEligibilityText(item);
+                        const comp = competitionCatalog.find((c) => c.id === item.competitionId);
+                        const meta = getCompetitionDisplayMeta(item, comp);
+                        return (
+                          <article className="pc-result-individual-card" key={`${item.applicationItemId || item.applicationId}-${item.targetId}`}>
+                            <span className="pc-result-status-chip">ประกาศผลแล้ว</span>
+                            <h3 className="pc-result-candidate-name">{(item.candidateName || item.candidate || "").toUpperCase()}</h3>
+                            <p className="pc-result-candidate-meta">
+                              <span className="pc-results-mono">{item.candidateNo || item.examNumber || "—"}</span>
+                              <span>{item.schoolName || item.school} • {item.grade}</span>
+                            </p>
+                            <div className="pc-result-award-box">
+                              <span className="pc-result-award-round">
+                                {meta.short} {toThaiYear(item.year)} • {ROUND_DISPLAY[item.roundType] || item.round}
+                              </span>
+                              <strong className="pc-result-award-value">{item.award}</strong>
+                              <span className="pc-result-award-elig">{eligibility.card}</span>
+                            </div>
+                            {eligibility.eligible ? (
+                              <p className="pc-result-congrats">ขอแสดงความยินดีกับความสำเร็จครั้งนี้</p>
+                            ) : null}
+                          </article>
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : (
+                  <div className="pc-results-empty-card results-empty-state">
+                    <span className="pc-results-empty-icon"><Icon name="search" size={20} /></span>
+                    <strong>ไม่พบผลสอบที่ตรงกับคำค้นหาหรือตัวกรอง</strong>
+                    <small>โปรดลองเปลี่ยนชื่อหรือเลขประจำตัวสอบ หรือเลือก “ทุกรายการสอบ” ในตัวกรอง</small>
+                    <button type="button" className="pc-results-reset-btn" onClick={resetSearchFilters}>
+                      ล้างคำค้นหาและตัวกรอง
+                    </button>
+                  </div>
+                )}
+
+                <section className="pc-results-final-cta" aria-labelledby="pc-results-final-cta-title">
+                  <h3 id="pc-results-final-cta-title">พร้อมก้าวสู่รอบ Final?</h3>
+                  <p>
+                    ตรวจสอบสิทธิ์และสมัครภายในช่วงที่เปิดรับ
+                    {openFinalRound?.closeDate ? (
+                      <>
+                        <br />
+                        {getCompetitionDisplayMeta(openFinalRound, competitionCatalog.find((c) => c.id === openFinalRound.competitionId)).short} Final ปิดรับ {formatThaiDate(openFinalRound.closeDate)}
+                      </>
+                    ) : null}
+                  </p>
+                  <button
+                    type="button"
+                    className="pc-results-submit-btn"
+                    onClick={() => navigate?.("final-confirm")}
+                  >
+                    <span>ยืนยันสิทธิ์รอบถัดไป</span>
+                    <span aria-hidden="true">→</span>
+                  </button>
+                </section>
+              </div>
+            ) : (
+              <div className="pc-results-panel" role="tabpanel" ref={resultsListRef}>
+                <form className="pc-results-card pc-results-all-form" onSubmit={handleAllSubmit}>
+                  <div className="pc-results-all-grid">
+                    <label className="pc-results-field">
+                      <span>รายการสอบ</span>
+                      <div className="pc-results-select-wrap">
+                        <select
+                          value={allCompetitionId}
+                          onChange={(event) => {
+                            const nextComp = event.target.value;
+                            setAllCompetitionId(nextComp);
+                            const validYears = [...new Set(publishedTargets
+                              .filter((target) => nextComp === "all" || target.competitionId === nextComp)
+                              .map((target) => String(target.year)))];
+                            if (allYear !== "all" && validYears.length && !validYears.includes(String(allYear))) {
+                              setAllYear(validYears[0]);
+                            }
+                            setAllGrade("all");
+                            setAllFetchedRows(null);
+                            setPage(1);
+                          }}
+                        >
+                          <option value="all">ทุกรายการสอบ</option>
+                          {competitionOptions.map((option) => (
+                            <option key={option.id} value={option.id}>{option.label}</option>
+                          ))}
+                        </select>
+                        <span className="pc-results-caret" aria-hidden="true">▾</span>
+                      </div>
+                    </label>
+
+                    <label className="pc-results-field">
+                      <span>ปี</span>
+                      <div className="pc-results-select-wrap">
+                        <select
+                          value={allYear}
+                          onChange={(event) => {
+                            setAllYear(event.target.value);
+                            setAllGrade("all");
+                            setAllFetchedRows(null);
+                            setPage(1);
+                          }}
+                        >
+                          <option value="all">ทุกปีการศึกษา</option>
+                          {yearOptions.map((year) => (
+                            <option key={year} value={year}>{toThaiYear(year)}</option>
+                          ))}
+                        </select>
+                        <span className="pc-results-caret" aria-hidden="true">▾</span>
+                      </div>
+                    </label>
+
+                    <button type="submit" className="pc-results-submit-btn pc-results-all-submit" disabled={allLoading}>
+                      {allLoading ? "กำลังโหลด..." : "ค้นหา"}
+                    </button>
+                  </div>
+                  {allError ? <p className="pc-results-error" role="alert">{allError}</p> : null}
+                </form>
+
+                <div className="pc-results-list-head">
+                  <h2>{allSummaryTitle}</h2>
+                  <span className="pc-results-list-count">ทั้งหมด {filteredAllResults.length.toLocaleString()} รายชื่อ</span>
+                </div>
+
+                <div className="pc-results-inline-controls">
+                  <label className="pc-results-inline-search">
+                    <span className="sr-only">ค้นหาชื่อ หรือเลขประจำตัวสอบ</span>
+                    <Icon name="search" size={16} />
+                    <input
+                      type="text"
+                      value={allInlineQuery}
+                      onChange={(event) => {
+                        setAllInlineQuery(event.target.value);
+                        setPage(1);
+                      }}
+                      placeholder="ค้นหาชื่อ หรือเลขประจำตัวสอบ..."
+                    />
+                  </label>
+                  <label className="pc-results-inline-grade">
+                    <span className="pc-results-inline-grade-label">ระดับชั้น:</span>
+                    <select
+                      value={allGrade}
+                      onChange={(event) => {
+                        setAllGrade(event.target.value);
+                        setPage(1);
+                      }}
+                    >
+                      <option value="all">ทุกระดับชั้น</option>
+                      {allGradeOptions.map((grade) => (
+                        <option key={grade} value={grade}>{grade}</option>
+                      ))}
+                    </select>
+                    <span className="pc-results-caret" aria-hidden="true">▾</span>
+                  </label>
+                </div>
+
+                {pagedAllResults.length ? (
+                  <div className="pc-results-table-shell">
+                    <table className="pc-results-table pc-results-table-clean">
+                      <thead>
+                        <tr>
+                          <th>เลขประจำตัว</th>
+                          <th>ชื่อ</th>
+                          <th className="pc-results-col-school">โรงเรียน</th>
+                          <th>ระดับชั้น</th>
+                          <th>รางวัล</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pagedAllResults.map((item) => (
+                          <tr key={`${item.applicationItemId || item.applicationId}-${item.targetId}`}>
+                            <td className="pc-results-mono">{item.candidateNo || item.examNumber || "—"}</td>
+                            <td className="pc-results-name">
+                              <span>{item.candidateNameTh || item.candidateName || item.candidate}</span>
+                              {item.candidateNameTh && item.candidateName ? (
+                                <small>{item.candidateName}</small>
+                              ) : null}
+                            </td>
+                            <td className="pc-results-col-school">{item.schoolName || item.school}</td>
+                            <td>{item.grade}</td>
+                            <td>
+                              <span className={`pc-award-pill is-${getAwardTone(item.award)}`}>
+                                {item.award}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {totalPages > 1 ? (
+                      <div className="pc-results-pagination">
+                        <span>หน้า {currentPage.toLocaleString()} จาก {totalPages.toLocaleString()}</span>
+                        <nav aria-label="แบ่งหน้าผลสอบ">
+                          <button type="button" disabled={currentPage <= 1} onClick={() => changePage(currentPage - 1)}>ก่อนหน้า</button>
+                          {pageItems.map((item, index) => item === "ellipsis" ? (
+                            <span key={`ellipsis-${index}`} aria-hidden="true">…</span>
+                          ) : (
+                            <button
+                              key={item}
+                              type="button"
+                              className={currentPage === item ? "is-active" : ""}
+                              aria-current={currentPage === item ? "page" : undefined}
+                              onClick={() => changePage(item)}
+                            >
+                              {item}
+                            </button>
+                          ))}
+                          <button type="button" disabled={currentPage >= totalPages} onClick={() => changePage(currentPage + 1)}>ถัดไป</button>
+                        </nav>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className="pc-results-empty-card results-empty-state">
+                    <span className="pc-results-empty-icon"><Icon name="search" size={20} /></span>
+                    <strong>ไม่พบผลสอบที่ตรงกับคำค้นหาหรือตัวกรอง</strong>
+                    <small>โปรดลองเปลี่ยนคำค้นหา หรือเลือกรายการสอบ/ระดับชั้นอื่น</small>
+                    <button type="button" className="pc-results-reset-btn" onClick={resetAllFilters}>
+                      ล้างคำค้นหาและตัวกรอง
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <p className="pc-results-footnote">
+              หากยังไม่พบผลสอบ กรุณาตรวจรายการ ปี และรอบสอบ<br />
+              ผลจะแสดงเมื่อมีประกาศอย่างเป็นทางการ
+            </p>
+          </>
+        )}
+      </div>
     </div>
   );
 }

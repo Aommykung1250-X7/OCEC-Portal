@@ -206,21 +206,143 @@ export async function publishResultBatch(examRoundId, adminId) {
   });
 }
 
-export async function listPublishedResults() {
+function yearFilterValues(year) {
+  const cleaned = clean(year, 16);
+  if (!cleaned || cleaned.toLowerCase() === 'all') return null;
+  const num = Number(cleaned);
+  if (!Number.isInteger(num) || num <= 0) return [cleaned];
+  const counterpart = num >= 2400 ? String(num - 543) : String(num + 543);
+  return [...new Set([String(num), counterpart])];
+}
+
+export async function listPublishedResults(filters = {}) {
+  const conditions = ['res.published_at IS NOT NULL'];
+  const params = [];
+
+  const competitionId = clean(filters.competitionId, 80).toLowerCase();
+  if (competitionId && competitionId !== 'all') {
+    params.push(competitionId);
+    conditions.push(`r.competition_id=$${params.length}`);
+  }
+
+  const years = yearFilterValues(filters.year);
+  if (years) {
+    params.push(years);
+    conditions.push(`r.year=ANY($${params.length}::text[])`);
+  }
+
+  const roundType = clean(filters.roundType, 32).toUpperCase();
+  if (roundType && roundType !== 'ALL') {
+    params.push(roundType);
+    conditions.push(`r.round_type=$${params.length}`);
+  }
+
+  const grade = clean(filters.grade, 120);
+  if (grade && grade.toLowerCase() !== 'all') {
+    params.push(grade);
+    conditions.push(`g.label=$${params.length}`);
+  }
+
+  const q = clean(filters.q, 255);
+  if (q) {
+    params.push(`%${q}%`);
+    const idx = params.length;
+    conditions.push(`(
+      coalesce(ai.exam_number, '') ILIKE $${idx}
+      OR concat_ws(' ', ap.first_name_en, nullif(ap.middle_name_en, ''), ap.last_name_en) ILIKE $${idx}
+      OR concat_ws(' ', nullif(ap.first_name_th, ''), nullif(ap.last_name_th, '')) ILIKE $${idx}
+      OR coalesce(ap.school_name, '') ILIKE $${idx}
+    )`);
+  }
+
+  let limitClause = '';
+  const limit = Number.parseInt(filters.limit, 10);
+  if (Number.isInteger(limit) && limit > 0) {
+    params.push(Math.min(limit, 5000));
+    limitClause += ` LIMIT $${params.length}`;
+  }
+  const offset = Number.parseInt(filters.offset, 10);
+  if (Number.isInteger(offset) && offset > 0) {
+    params.push(offset);
+    limitClause += ` OFFSET $${params.length}`;
+  }
+
   const result = await getPool().query(`SELECT a.id AS application_id,ai.id AS application_item_id,ai.exam_number AS candidate_no,
-      g.label AS grade,ap.school_name,concat_ws(' ',ap.first_name_en,nullif(ap.middle_name_en,''),ap.last_name_en) AS candidate_name,
+      g.label AS grade,g.sort_order AS grade_sort_order,ap.school_name,
+      concat_ws(' ',ap.first_name_en,nullif(ap.middle_name_en,''),ap.last_name_en) AS candidate_name,
+      concat_ws(' ',nullif(ap.first_name_th,''),nullif(ap.last_name_th,'')) AS candidate_name_th,
       res.award,res.eligible_for_final,res.published_at,r.id AS target_id,r.year,r.round_type,r.title AS competition_title,
-      r.competition_id,c.short_name
+      r.competition_id,c.short_name,c.name AS competition_name
     FROM results res JOIN application_items ai ON ai.id=res.application_item_id JOIN applications a ON a.id=ai.application_id
     JOIN applicants ap ON ap.id=a.applicant_id JOIN grade_catalog g ON g.id=ai.grade_id JOIN exam_rounds r ON r.id=ai.exam_round_id
-    JOIN competitions c ON c.id=r.competition_id WHERE res.published_at IS NOT NULL ORDER BY res.published_at DESC,ap.last_name_en,ap.first_name_en`);
-  return result.rows.map((row) => ({ applicationId: row.application_id, applicationItemId: row.application_item_id,
-    targetId: row.target_id, competitionId: row.competition_id, competitionTitle: row.competition_title,
-    roundType: row.round_type, round: row.round_type === 'HEAT' ? 'HEAT ROUND' : row.round_type === 'FINAL_X' ? 'FINAL X' : 'FINAL ROUND', year: row.year,
-    publishedAt: row.published_at, examNumber: row.candidate_no || '', candidateNo: row.candidate_no || '',
-    grade: row.grade, school: row.school_name, schoolName: row.school_name, candidate: row.candidate_name,
-    candidateName: row.candidate_name, award: row.award, eligibleForFinal: row.eligible_for_final,
-    result: row.eligible_for_final ? 'pass' : 'not-passed' }));
+    JOIN competitions c ON c.id=r.competition_id
+    WHERE ${conditions.join(' AND ')}
+    ORDER BY res.published_at DESC,g.sort_order,ap.last_name_en,ap.first_name_en${limitClause}`, params);
+
+  return result.rows.map((row) => ({
+    applicationId: row.application_id,
+    applicationItemId: row.application_item_id,
+    targetId: row.target_id,
+    competitionId: row.competition_id,
+    competitionTitle: row.competition_title,
+    shortName: row.short_name || row.competition_title,
+    competitionName: row.competition_name || row.competition_title,
+    roundType: row.round_type,
+    round: row.round_type === 'HEAT' ? 'HEAT ROUND' : row.round_type === 'FINAL_X' ? 'FINAL X' : 'FINAL ROUND',
+    year: row.year,
+    publishedAt: row.published_at,
+    examNumber: row.candidate_no || '',
+    candidateNo: row.candidate_no || '',
+    grade: row.grade,
+    school: row.school_name,
+    schoolName: row.school_name,
+    candidate: row.candidate_name,
+    candidateName: row.candidate_name,
+    candidateNameTh: row.candidate_name_th || '',
+    award: row.award,
+    eligibleForFinal: row.eligible_for_final,
+    result: row.eligible_for_final ? 'pass' : 'not-passed',
+  }));
+}
+
+export async function listPublishedResultFilters() {
+  const [targetsRes, gradesRes] = await Promise.all([
+    getPool().query(`SELECT r.id AS target_id,r.competition_id,c.short_name,c.name AS competition_name,
+        r.title AS competition_title,r.year,r.round_type,MAX(res.published_at) AS published_at,COUNT(*)::int AS result_count
+      FROM results res JOIN application_items ai ON ai.id=res.application_item_id
+      JOIN exam_rounds r ON r.id=ai.exam_round_id JOIN competitions c ON c.id=r.competition_id
+      WHERE res.published_at IS NOT NULL
+      GROUP BY r.id,r.competition_id,c.short_name,c.name,r.title,r.year,r.round_type
+      ORDER BY MAX(res.published_at) DESC,r.year DESC,c.short_name`),
+    getPool().query(`SELECT DISTINCT g.label,g.sort_order
+      FROM results res JOIN application_items ai ON ai.id=res.application_item_id
+      JOIN grade_catalog g ON g.id=ai.grade_id
+      WHERE res.published_at IS NOT NULL
+      ORDER BY g.sort_order,g.label`),
+  ]);
+
+  const targets = targetsRes.rows.map((row) => ({
+    targetId: row.target_id,
+    competitionId: row.competition_id,
+    shortName: row.short_name || row.competition_title,
+    competitionName: row.competition_name || row.competition_title,
+    competitionTitle: row.competition_title,
+    year: row.year,
+    roundType: row.round_type,
+    publishedAt: row.published_at,
+    count: row.result_count,
+  }));
+
+  const competitions = [...new Map(targets.map((t) => [t.competitionId, {
+    id: t.competitionId,
+    short: t.shortName,
+    name: t.competitionName,
+  }])).values()];
+  const years = [...new Set(targets.map((t) => String(t.year)))].sort((a, b) => Number(b) - Number(a));
+  const rounds = [...new Set(targets.map((t) => t.roundType))];
+  const grades = gradesRes.rows.map((row) => row.label);
+
+  return { targets, competitions, years, rounds, grades };
 }
 
 export async function generateExamNumbers(examRoundId, adminId) {

@@ -1813,7 +1813,15 @@ function App() {
           ? <ApiFinalConfirmationPage authProfile={authProfile} onContinue={continueVerifiedFinal} onSignIn={signInWithGoogleDemo} navigate={navigate} resultPublished={resultPublished} examCatalog={effectiveExamCatalog} demoProfile={demoGoogleProfile} />
           : <FinalConfirmationPage key={activeApplicationId} applications={applications} applicationHint={activeApplication} onContinue={() => notify("โหมดตัวอย่างอ่านอย่างเดียว · ไม่ได้ยืนยันสิทธิ์สมัครรอบ Final")} navigate={navigate} publishedHeatResults={publishedHeatResults} examCatalog={effectiveExamCatalog} authProfile={authProfile} onSignIn={signInWithGoogleDemo} demoProfile={demoGoogleProfile} />;
       case "results":
-        return <PublicResultsPage resultRows={publishedResultRows} />;
+        return (
+          <PublicResultsPage
+            resultRows={publishedResultRows}
+            navigate={navigate}
+            examCatalog={effectiveExamCatalog}
+            competitionCatalog={competitionCatalog}
+            backendEnabled={BACKEND_ENABLED}
+          />
+        );
       case "admin-home":
         return <AdminHomePage applications={applications} examCatalog={effectiveExamCatalog} resultWorkflows={resultWorkflows} navigate={navigate} resultPublished={resultPublished} backendEnabled={BACKEND_ENABLED} />;
       case "admin-review":

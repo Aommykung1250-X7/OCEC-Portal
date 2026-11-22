@@ -1,10 +1,14 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Icon } from "../../components/ui/index.jsx";
 import { formatThaiDate, getExamRoundType } from "../../examUtils.js";
 import { getBangkokTodayISO } from "../applications/applicationUtils.js";
 import { formatShortThaiDate, getCompetitionDisplayMeta, splitThaiDate, toThaiYear } from "./homeUtils.js";
 
-const HERO_WAVE_PATH = "M0,26 C120,44 240,8 360,26 C480,44 600,8 720,26 C840,44 960,8 1080,26 C1200,44 1320,8 1440,26 L1440,48 L0,48 Z";
+const HERO_DIVIDER_WAVES = 12;
+const HERO_WAVE_PATH = "M0 24 " + Array.from({ length: HERO_DIVIDER_WAVES }, (_, index) => {
+  const x = index * 120;
+  return `Q${x + 30} 6 ${x + 60} 24 Q${x + 90} 42 ${x + 120} 24`;
+}).join(" ") + " L1440 48 L0 48 Z";
 const COMPETITION_ORDER = ["timo", "bbb", "hkimo", "hkiso", "hkico"];
 const ROUND_SHORT_LABELS = { HEAT: "รอบ Heat", FINAL: "รอบ Final", FINAL_X: "รอบ Final X" };
 const FACEBOOK_PAGES = [
@@ -75,7 +79,8 @@ export function HomeHero({ featuredExam, featuredCompetition, onStartApplication
           <p className="home-kicker">เปิดโลกการเรียนรู้ • ปีการศึกษา {displayThaiYear}</p>
           <h1 id="homepage-title">ก้าวแรกของคุณ<br />สู่เวทีนานาชาติ</h1>
           <p className="home-hero-lead">
-            สมัครสอบ ติดตามสถานะ และต่อยอดความสำเร็จ<br className="home-lead-break" />
+            สมัครสอบ ติดตามสถานะ และต่อยอดความสำเร็จ{" "}
+            <br className="home-lead-break" />
             ทุกโอกาสของน้อง ๆ เริ่มต้นได้ที่นี่
           </p>
           <div className="home-hero-actions">
@@ -98,7 +103,7 @@ export function HomeHero({ featuredExam, featuredCompetition, onStartApplication
           />
         </div>
       </div>
-      <svg className="home-section-wave" viewBox="0 0 1440 48" preserveAspectRatio="none" aria-hidden="true">
+      <svg className="home-section-wave" viewBox="0 0 1440 48" preserveAspectRatio="none" aria-hidden="true" data-wave-count={HERO_DIVIDER_WAVES}>
         <path d={HERO_WAVE_PATH} />
       </svg>
     </section>
@@ -109,7 +114,7 @@ export function HomeQuickActions({ navigate, applicationsSummary }) {
   const items = [
     { icon: "file", title: "ใบสมัครของฉัน", desc: "ดูใบสมัครและความคืบหน้า", to: "applications" },
     { icon: "search", title: "ตรวจสอบสถานะ", desc: "ค้นหาได้โดยไม่ต้องเข้าสู่ระบบ", to: "lookup-choice" },
-    { icon: "award", title: "ประกาศผลสอบ", desc: "ดูผลและสิทธิ์สมัครรอบถัดไป", to: "results" },
+    { icon: "award", title: "ผลสอบ", desc: "ดูผลและสิทธิ์สมัครรอบถัดไป", to: "results" },
   ];
   return (
     <section className="home-quick-section" aria-label="ทางลัดบริการหลัก">
@@ -204,6 +209,8 @@ export function ExamRounds({
 
   const [selectedYear, setSelectedYear] = useState(latestYear);
   const [openOnly, setOpenOnly] = useState(false);
+  const carouselRef = useRef(null);
+  const [scrollState, setScrollState] = useState({ canPrev: false, canNext: false });
 
   const activeYear = years.includes(selectedYear) ? selectedYear : latestYear;
   const roundsForYear = sourceExams.filter((exam) => String(exam.year) === activeYear);
@@ -231,6 +238,37 @@ export function ExamRounds({
 
   const visibleCards = openOnly ? allCards.filter(({ exam }) => exam?.isOpen) : allCards;
 
+  useEffect(() => {
+    const track = carouselRef.current;
+    if (!track) {
+      setScrollState({ canPrev: false, canNext: false });
+      return undefined;
+    }
+    const updateScrollState = () => {
+      const maxScroll = Math.max(0, track.scrollWidth - track.clientWidth);
+      setScrollState({
+        canPrev: track.scrollLeft > 4,
+        canNext: track.scrollLeft < maxScroll - 4,
+      });
+    };
+    updateScrollState();
+    track.addEventListener("scroll", updateScrollState, { passive: true });
+    window.addEventListener("resize", updateScrollState);
+    return () => {
+      track.removeEventListener("scroll", updateScrollState);
+      window.removeEventListener("resize", updateScrollState);
+    };
+  }, [visibleCards.length, activeYear, openOnly]);
+
+  function scrollCarousel(direction) {
+    const track = carouselRef.current;
+    if (!track) return;
+    const firstCard = track.querySelector(".home-round-card");
+    const gap = parseFloat(getComputedStyle(track).columnGap || getComputedStyle(track).gap) || 20;
+    const step = firstCard ? firstCard.getBoundingClientRect().width + gap : track.clientWidth * 0.85;
+    track.scrollBy({ left: direction * step, behavior: "smooth" });
+  }
+
   return (
     <section className="home-rounds" id="open-exams" aria-labelledby="open-exams-title">
       <div className="home-container">
@@ -239,32 +277,56 @@ export function ExamRounds({
           <p>เลือกรายการสอบและรอบที่ต้องการสมัคร</p>
         </div>
 
-        <div className="home-rounds-filters">
-          <label className="home-year-select-wrap">
-            <span className="sr-only">เลือกปีการศึกษา</span>
-            <select
-              className="home-year-select"
-              value={activeYear}
-              onChange={(event) => setSelectedYear(event.target.value)}
+        <div className="home-rounds-toolbar">
+          <div className="home-rounds-filters">
+            <label className="home-year-select-wrap">
+              <span className="sr-only">เลือกปีการศึกษา</span>
+              <select
+                className="home-year-select"
+                value={activeYear}
+                onChange={(event) => setSelectedYear(event.target.value)}
+              >
+                {years.map((item) => (
+                  <option key={item} value={item}>ปีการศึกษา {toThaiYear(item)}</option>
+                ))}
+              </select>
+              <span className="home-year-caret" aria-hidden="true">▾</span>
+            </label>
+            <button
+              type="button"
+              className={`home-filter-pill${openOnly ? " is-active" : ""}`}
+              aria-pressed={openOnly}
+              onClick={() => setOpenOnly((current) => !current)}
             >
-              {years.map((item) => (
-                <option key={item} value={item}>ปีการศึกษา {toThaiYear(item)}</option>
-              ))}
-            </select>
-            <span className="home-year-caret" aria-hidden="true">▾</span>
-          </label>
-          <button
-            type="button"
-            className={`home-filter-pill${openOnly ? " is-active" : ""}`}
-            aria-pressed={openOnly}
-            onClick={() => setOpenOnly((current) => !current)}
-          >
-            เฉพาะรอบที่เปิดรับ
-          </button>
+              เฉพาะรอบที่เปิดรับ
+            </button>
+          </div>
+          {visibleCards.length > 1 ? (
+            <div className="home-rounds-nav" aria-label="เลื่อนรายการสอบ">
+              <button
+                type="button"
+                className="home-rounds-nav-btn"
+                aria-label="เลื่อนไปทางซ้าย"
+                disabled={!scrollState.canPrev}
+                onClick={() => scrollCarousel(-1)}
+              >
+                <Icon name="chevron" size={16} className="home-rounds-nav-prev" />
+              </button>
+              <button
+                type="button"
+                className="home-rounds-nav-btn"
+                aria-label="เลื่อนไปทางขวา"
+                disabled={!scrollState.canNext}
+                onClick={() => scrollCarousel(1)}
+              >
+                <Icon name="chevron" size={16} />
+              </button>
+            </div>
+          ) : null}
         </div>
 
         {visibleCards.length ? (
-          <div className="home-rounds-grid" aria-label="รายการสอบที่เปิดรับ">
+          <div className="home-rounds-track" ref={carouselRef} aria-label="รายการสอบที่เปิดรับ">
             {visibleCards.map(({ key, exam, competition }) => (
               <RoundCard
                 key={key}

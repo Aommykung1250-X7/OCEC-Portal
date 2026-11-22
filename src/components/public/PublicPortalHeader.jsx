@@ -2,25 +2,16 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Icon, ProfileAvatar } from "../ui/index.jsx";
 import { AuthDialog } from "./AuthDialog.jsx";
 
-function goToLandingSection(page, navigate, sectionId) {
-  if (page === "home") {
-    document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth" });
-    return;
-  }
-  navigate("home");
-  window.setTimeout(() => document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth" }), 80);
-}
-
 // Persist last active mobile tab index across route transitions so the floating cobalt bubble glides smoothly even if the header remounts.
 let lastMobileTabIndex = 0;
 
-function resolveMobileTabIndex(page, isAccountActive) {
-  if (isAccountActive) return 4;
+function resolveNavTabIndex(page) {
   if (page === "home") return 0;
-  if (page === "apply-heat" || page === "apply-final") return 1;
-  if (["applications", "application-detail", "edit-application", "school-application-group", "lookup-choice", "check-status", "edit-verify", "slip-upload", "slip-replacement"].includes(page)) return 2;
-  if (page === "results" || page === "final-confirm") return 3;
-  return 0;
+  if (page === "results") return 1;
+  if (["applications", "application-detail", "school-application-group"].includes(page)) return 2;
+  if (["final-confirm", "apply-final"].includes(page)) return 3;
+  if (["lookup-choice", "check-status", "edit-verify", "edit-application", "slip-upload", "slip-replacement"].includes(page)) return 4;
+  return -1;
 }
 
 export function PublicPortalHeader({
@@ -30,7 +21,6 @@ export function PublicPortalHeader({
   authProfile,
   onSignIn,
   onSignOut,
-  onStartApplication,
   demoProfile,
   backendEnabled,
   demoSignIn = false,
@@ -46,19 +36,18 @@ export function PublicPortalHeader({
   const [desktopIndicator, setDesktopIndicator] = useState({ left: 0, width: 0, visible: false });
 
   const requiresRegistrationLogin = !authProfile && page === "apply-heat";
-  const isStatusPage = ["lookup-choice", "check-status", "edit-verify", "edit-application"].includes(page);
-  const isAccountActive = loginDialogOpen || accountMenuOpen;
-
-  const targetMobileTabIndex = resolveMobileTabIndex(page, isAccountActive);
+  const activeTabIndex = resolveNavTabIndex(page);
   const [visualMobileTab, setVisualMobileTab] = useState(lastMobileTabIndex);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
-      setVisualMobileTab(targetMobileTabIndex);
-      lastMobileTabIndex = targetMobileTabIndex;
+      if (activeTabIndex >= 0) {
+        setVisualMobileTab(activeTabIndex);
+        lastMobileTabIndex = activeTabIndex;
+      }
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [targetMobileTabIndex]);
+  }, [activeTabIndex]);
 
   useEffect(() => {
     setLoginDialogOpen(requiresRegistrationLogin);
@@ -68,12 +57,10 @@ export function PublicPortalHeader({
     setTabletMenuOpen(false);
   }, [page]);
 
-  const activeDesktopIndex = page === "home" ? 0 : isStatusPage ? 1 : page === "final-confirm" ? 2 : page === "results" ? 3 : -1;
-
   useLayoutEffect(() => {
     const updateIndicator = () => {
       const navEl = desktopNavRef.current;
-      const itemEl = activeDesktopIndex >= 0 ? desktopNavRefs.current[activeDesktopIndex] : null;
+      const itemEl = activeTabIndex >= 0 ? desktopNavRefs.current[activeTabIndex] : null;
       if (!navEl || !itemEl) {
         setDesktopIndicator((prev) => (prev.visible ? { ...prev, visible: false } : prev));
         return;
@@ -89,7 +76,7 @@ export function PublicPortalHeader({
     updateIndicator();
     window.addEventListener("resize", updateIndicator);
     return () => window.removeEventListener("resize", updateIndicator);
-  }, [activeDesktopIndex, page]);
+  }, [activeTabIndex, page]);
 
   useEffect(() => {
     if (!accountMenuOpen && !tabletMenuOpen) return undefined;
@@ -143,57 +130,7 @@ export function PublicPortalHeader({
     if (requiresRegistrationLogin) navigate("home");
   }
 
-  function handleAccountTrigger() {
-    if (authProfile) {
-      setAccountMenuOpen((open) => !open);
-      setTabletMenuOpen(false);
-    } else {
-      setLoginDialogOpen(true);
-      setTabletMenuOpen(false);
-    }
-  }
-
-  function handleStartApply() {
-    if (onStartApplication) {
-      onStartApplication();
-      return;
-    }
-    setPersona?.("candidate");
-    navigate("apply-heat");
-  }
-
-  const desktopNavItems = [
-    {
-      key: "exams",
-      label: "รายการสอบ",
-      href: "#open-exams",
-      current: page === "home",
-      onClick: (event) => {
-        event.preventDefault();
-        goToLandingSection(page, navigate, "open-exams");
-      },
-    },
-    {
-      key: "status",
-      label: "ตรวจสอบสถานะ",
-      current: isStatusPage,
-      onClick: () => navigate("lookup-choice"),
-    },
-    {
-      key: "final",
-      label: "ยืนยันสิทธิ์",
-      current: page === "final-confirm",
-      onClick: () => navigate("final-confirm"),
-    },
-    {
-      key: "results",
-      label: "ประกาศผล",
-      current: page === "results",
-      onClick: () => navigate("results"),
-    },
-  ];
-
-  const mobileTabs = [
+  const navItems = [
     {
       key: "home",
       label: "หน้าแรก",
@@ -211,21 +148,21 @@ export function PublicPortalHeader({
       },
     },
     {
-      key: "apply",
-      label: "สมัครสอบ",
-      icon: "file",
+      key: "results",
+      label: "ผลสอบ",
+      icon: "award",
       onClick: () => {
         setLoginDialogOpen(false);
         setAccountMenuOpen(false);
         setVisualMobileTab(1);
         lastMobileTabIndex = 1;
-        handleStartApply();
+        navigate("results");
       },
     },
     {
       key: "applications",
       label: "ใบสมัคร",
-      icon: "check",
+      icon: "file",
       onClick: () => {
         setLoginDialogOpen(false);
         setAccountMenuOpen(false);
@@ -235,28 +172,32 @@ export function PublicPortalHeader({
       },
     },
     {
-      key: "results",
-      label: "ผลสอบ",
-      icon: "award",
+      key: "final",
+      label: "ยืนยันสิทธิ์",
+      icon: "shield",
       onClick: () => {
         setLoginDialogOpen(false);
         setAccountMenuOpen(false);
         setVisualMobileTab(3);
         lastMobileTabIndex = 3;
-        navigate("results");
+        navigate("final-confirm");
       },
     },
     {
-      key: "account",
-      label: "บัญชี",
-      icon: "user",
+      key: "lookup",
+      label: "ตรวจสอบ/แก้ไข",
+      icon: "search",
       onClick: () => {
+        setLoginDialogOpen(false);
+        setAccountMenuOpen(false);
         setVisualMobileTab(4);
         lastMobileTabIndex = 4;
-        handleAccountTrigger();
+        navigate("lookup-choice");
       },
     },
   ];
+
+  const hasActiveMobileTab = activeTabIndex >= 0;
 
   return (
     <>
@@ -268,7 +209,7 @@ export function PublicPortalHeader({
             aria-label="OCEC Portal หน้าแรก"
             onClick={(event) => {
               event.preventDefault();
-              navigate("home");
+              navItems[0].onClick();
             }}
           >
             <strong className="pc-brand-primary">OCEC</strong>
@@ -276,30 +217,17 @@ export function PublicPortalHeader({
           </a>
 
           <nav className="pc-desktop-nav" aria-label="เมนูหน้าเว็บ" ref={desktopNavRef}>
-            {desktopNavItems.map((item, index) => (
-              item.href ? (
-                <a
-                  key={item.key}
-                  ref={(el) => { desktopNavRefs.current[index] = el; }}
-                  className="pc-nav-item"
-                  href={item.href}
-                  aria-current={item.current ? "page" : undefined}
-                  onClick={item.onClick}
-                >
-                  {item.label}
-                </a>
-              ) : (
-                <button
-                  key={item.key}
-                  ref={(el) => { desktopNavRefs.current[index] = el; }}
-                  className="pc-nav-item"
-                  type="button"
-                  aria-current={item.current ? "page" : undefined}
-                  onClick={item.onClick}
-                >
-                  {item.label}
-                </button>
-              )
+            {navItems.map((item, index) => (
+              <button
+                key={item.key}
+                ref={(el) => { desktopNavRefs.current[index] = el; }}
+                className="pc-nav-item"
+                type="button"
+                aria-current={activeTabIndex === index ? "page" : undefined}
+                onClick={item.onClick}
+              >
+                {item.label}
+              </button>
             ))}
             <span
               className="pc-desktop-nav-indicator"
@@ -410,33 +338,25 @@ export function PublicPortalHeader({
         >
           <div className="pc-tablet-drawer-inner">
             <nav className="pc-tablet-nav" aria-label="เมนูแท็บเล็ต">
-              {desktopNavItems.map((item) => (
+              {navItems.map((item, index) => (
                 <button
                   key={item.key}
                   type="button"
-                  className={`pc-tablet-nav-link${item.current ? " is-active" : ""}`}
+                  className={`pc-tablet-nav-link${activeTabIndex === index ? " is-active" : ""}`}
+                  aria-current={activeTabIndex === index ? "page" : undefined}
                   tabIndex={tabletMenuOpen ? 0 : -1}
-                  onClick={(event) => {
+                  onClick={() => {
                     setTabletMenuOpen(false);
-                    item.onClick(event);
+                    item.onClick();
                   }}
                 >
-                  <span>{item.label}</span>
+                  <span className="pc-tablet-nav-link-main">
+                    <Icon name={item.icon} size={17} />
+                    <span>{item.label}</span>
+                  </span>
                   <Icon name="chevron" size={14} />
                 </button>
               ))}
-              <button
-                type="button"
-                className={`pc-tablet-nav-link${page === "applications" ? " is-active" : ""}`}
-                tabIndex={tabletMenuOpen ? 0 : -1}
-                onClick={() => {
-                  setTabletMenuOpen(false);
-                  navigate("applications");
-                }}
-              >
-                <span>ใบสมัครของฉัน</span>
-                <Icon name="chevron" size={14} />
-              </button>
             </nav>
           </div>
         </div>
@@ -444,8 +364,8 @@ export function PublicPortalHeader({
 
       <nav className="pc-mobile-bottom-nav" aria-label="เมนูหลักมือถือ">
         <div
-          className="pc-mobile-nav-track"
-          style={{ "--active-tab": visualMobileTab, "--tab-count": mobileTabs.length }}
+          className={`pc-mobile-nav-track${hasActiveMobileTab ? "" : " is-inactive"}`}
+          style={{ "--active-tab": visualMobileTab, "--tab-count": navItems.length }}
         >
           <div className="pc-mobile-nav-bubble-slot" aria-hidden="true">
             <span className="pc-mobile-nav-bubble" />
@@ -453,8 +373,8 @@ export function PublicPortalHeader({
           <div className="pc-mobile-nav-pill-slot" aria-hidden="true">
             <span className="pc-mobile-nav-pill" />
           </div>
-          {mobileTabs.map((tab, index) => {
-            const isActive = visualMobileTab === index;
+          {navItems.map((tab, index) => {
+            const isActive = hasActiveMobileTab && visualMobileTab === index;
             return (
               <button
                 key={tab.key}
@@ -464,7 +384,7 @@ export function PublicPortalHeader({
                 onClick={tab.onClick}
               >
                 <span className="pc-mobile-nav-icon">
-                  <Icon name={tab.icon} size={19} />
+                  <Icon name={tab.icon} size={18} />
                 </span>
                 <span className="pc-mobile-nav-label">{tab.label}</span>
               </button>

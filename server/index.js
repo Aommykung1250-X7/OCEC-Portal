@@ -11,7 +11,7 @@ import { registerAuthRoutes, requireAdmin, requireUser } from './auth.js';
 import { createApplicationAdminNote, createIndividualDraft, createSchoolDraft, deleteApplicationAdminNote, downloadCertificatePhoto, getPublicApplicationForEdit, getSlipReplacementStatus, listAllApplications, listApplicationAdminNotes, listMyApplications, removeCertificatePhoto, replacePaymentSlip, reviewApplication, searchPublicApplicationStatuses, submitIndividualApplication, submitSchoolBatch, updateAdminApplication, updateApplicationAdminNote, updateOwnedApplicationProfile, updatePublicApplicationProfile, uploadCertificatePhoto } from './applications.js';
 import { addFilteredApplicationsToMockSheet, completeGoogleWorkspaceAuthorization, createGoogleWorkspaceAuthorizationUrl, downloadGoogleDriveFile, googleWorkspaceStatus, initializeGoogleDriveFolders, organizeExistingGoogleDrivePaymentSlips } from './googleWorkspace.js';
 import { enqueueIntegrationJob, integrationQueueStatus, retryIntegrationJob } from './integrationQueue.js';
-import { applyFinalIds, generateExamNumbers, getFinalIdImport, importFinalIds, importResultRows, listAdminResultWorkflows, listPublishedResults, publishResultBatch, resolveFinalIdImportRow, resolveResultImportRow } from './results.js';
+import { applyFinalIds, generateExamNumbers, getFinalIdImport, importFinalIds, importResultRows, listAdminResultWorkflows, listPublishedResultFilters, listPublishedResults, publishResultBatch, resolveFinalIdImportRow, resolveResultImportRow } from './results.js';
 import { createFinalVerificationGrant, finalGrantCookie, finalGrantTokenFromRequest, listFinalEligibilityForUser, searchSchoolFinalEligibility } from './finalEligibility.js';
 import { isKnownSpaLocation } from '../src/routes.js';
 import { getCenterPosterOverride, resetCenterPoster, saveCenterPoster } from './centerPoster.js';
@@ -152,7 +152,26 @@ app.get('/api/catalog', async () => loadCatalog());
 app.put('/api/admin/catalog', { preHandler: requireAdmin }, async (request) => ({ catalog: await saveCatalogSnapshot(request.body, request.user.id) }));
 app.put('/api/admin/payment-accounts', { preHandler: requireAdmin }, async (request) => ({ paymentAccounts: await savePaymentAccountsSnapshot(request.body?.paymentAccounts, request.user.id) }));
 
-app.get('/api/results', async () => ({ results: await listPublishedResults() }));
+const publicResultsQuerySchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    competitionId: { type: 'string', maxLength: 80 },
+    year: { type: 'string', maxLength: 16 },
+    roundType: { type: 'string', maxLength: 32 },
+    grade: { type: 'string', maxLength: 120 },
+    q: { type: 'string', maxLength: 255 },
+    limit: { type: 'integer', minimum: 1, maximum: 5000 },
+    offset: { type: 'integer', minimum: 0, maximum: 100000 },
+  },
+};
+app.get('/api/results', { schema: { querystring: publicResultsQuerySchema } }, async (request) => {
+  const [results, filters] = await Promise.all([
+    listPublishedResults(request.query || {}),
+    listPublishedResultFilters(),
+  ]);
+  return { results, total: results.length, filters };
+});
 app.get('/api/admin/results', { preHandler: requireAdmin }, async () => ({ workflows: await listAdminResultWorkflows() }));
 app.post('/api/admin/exams/:id/exam-numbers', { preHandler: requireAdmin, schema: {
   params: { type: 'object', required: ['id'], properties: { id: { type: 'string', minLength: 1, maxLength: 120 } } },
