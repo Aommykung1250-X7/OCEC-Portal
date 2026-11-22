@@ -4,6 +4,8 @@ import { finalGrantHash, ensureFinalXInvitations } from './finalEligibility.js';
 import { deleteGoogleDriveFile, downloadGoogleDriveFile, uploadGoogleDriveFile } from './googleWorkspace.js';
 import { encryptQueuedEmailText, enqueueIntegrationJob } from './integrationQueue.js';
 import { paymentSlipDisplayName, paymentSlipFileName, paymentSlipFileNameBase, paymentSlipYear } from './paymentSlipFiles.js';
+import { FINAL_ONSITE_CENTER } from '../shared/finalPackages.js';
+import { finalPackageCatalogFields,resolveStoredFinalSelection } from './finalPackages.js';
 
 const normalize = (value) => String(value || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase();
 const duplicateKey = (applicant, roundId) => createHash('sha256').update([
@@ -69,6 +71,7 @@ export function registrationEmail(summary, { schoolBatchName = '', testMode = fa
     `${index + 1}. ${item.competition}${item.short ? ` (${item.short})` : ''}${item.subject ? ` · ${item.subject}` : ''}`,
     `   ${item.round}${item.year ? ` ${item.year}` : ''} · ${item.grade}`,
     `   ${item.format}${item.center ? ` · ${item.center}` : ''}${item.format === 'Online Exam' && item.examEmail ? ` · ${item.examEmail}` : ''}`,
+    ...(item.packageName ? [`   แพ็กเกจ: ${item.packageName} · ไซซ์เสื้อ ${item.shirtSize || '—'}`,`   Guest ${item.guests?.length || 0} คน${approved ? '' : ` · ${formatBaht(Math.round(Number(item.guestsTotal || 0)*100))}`}`] : []),
     ...(approved ? [] : [`   ค่าสมัคร ${formatBaht(item.feeSatang)}`]),
   ].join('\n'));
   const paperLines = summary.papers.map((paper) => `- ${paper.title}${paper.detail ? ` · ${paper.detail}` : ''} · ${formatBaht(paper.priceSatang)}`);
@@ -101,7 +104,7 @@ export function registrationEmail(summary, { schoolBatchName = '', testMode = fa
   ].join('\n');
 
   const detailRow = (label, value) => `<tr><td style="padding:7px 12px 7px 0;color:#737d9a;font-size:13px;vertical-align:top;width:150px">${escapeHtml(label)}</td><td style="padding:7px 0;color:#29345f;font-size:14px;font-weight:600;vertical-align:top;word-break:break-word">${escapeHtml(value || '—')}</td></tr>`;
-  const examCards = summary.items.map((item, index) => `<tr><td style="padding:0 0 10px"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #e4e7f2;border-left:4px solid #6358bd;border-radius:10px;background:#fafaff"><tr><td style="padding:14px 16px"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td style="color:#29345f;font-size:16px;font-weight:700">${index + 1}. ${escapeHtml(item.competition)}${item.short ? ` <span style="color:#6158b4">(${escapeHtml(item.short)})</span>` : ''}</td>${approved ? '' : `<td align="right" style="white-space:nowrap;color:#29345f;font-size:15px;font-weight:700">${formatBaht(item.feeSatang)}</td>`}</tr>${item.subject ? `<tr><td colspan="2" style="padding-top:5px;color:#687594;font-size:13px">${escapeHtml(item.subject)}</td></tr>` : ''}<tr><td colspan="2" style="padding-top:9px;color:#424e73;font-size:13px;line-height:1.7">${escapeHtml(item.round)}${item.year ? ` · ${escapeHtml(item.year)}` : ''}<br>ระดับชั้น: ${escapeHtml(item.grade)}<br>รูปแบบ: ${escapeHtml(item.format)}${item.center ? ` · ${escapeHtml(item.center)}` : ''}${item.format === 'Online Exam' && item.examEmail ? `<br>อีเมลเข้าสอบ: ${escapeHtml(item.examEmail)}` : ''}</td></tr></table></td></tr></table></td></tr>`).join('');
+  const examCards = summary.items.map((item, index) => `<tr><td style="padding:0 0 10px"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #e4e7f2;border-left:4px solid #6358bd;border-radius:10px;background:#fafaff"><tr><td style="padding:14px 16px"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td style="color:#29345f;font-size:16px;font-weight:700">${index + 1}. ${escapeHtml(item.competition)}${item.short ? ` <span style="color:#6158b4">(${escapeHtml(item.short)})</span>` : ''}</td>${approved ? '' : `<td align="right" style="white-space:nowrap;color:#29345f;font-size:15px;font-weight:700">${formatBaht(item.feeSatang)}</td>`}</tr>${item.subject ? `<tr><td colspan="2" style="padding-top:5px;color:#687594;font-size:13px">${escapeHtml(item.subject)}</td></tr>` : ''}<tr><td colspan="2" style="padding-top:9px;color:#424e73;font-size:13px;line-height:1.7">${escapeHtml(item.round)}${item.year ? ` · ${escapeHtml(item.year)}` : ''}<br>ระดับชั้น: ${escapeHtml(item.grade)}<br>รูปแบบ: ${escapeHtml(item.format)}${item.center ? ` · ${escapeHtml(item.center)}` : ''}${item.format === 'Online Exam' && item.examEmail ? `<br>อีเมลเข้าสอบ: ${escapeHtml(item.examEmail)}` : ''}</td></tr></table>${item.packageName ? `<br>แพ็กเกจ: ${escapeHtml(item.packageName)} · ไซซ์เสื้อ ${escapeHtml(item.shirtSize || '—')}<br>Guest ${item.guests?.length || 0} คน${approved ? '' : ` · ${formatBaht(Math.round(Number(item.guestsTotal || 0)*100))}`}` : ''}</td></tr></table></td></tr>`).join('');
   const paperCards = summary.papers.map((paper) => `<tr><td style="padding:10px 12px;border-bottom:1px solid #d9eaf1;color:#344568;font-size:13px">${escapeHtml(paper.title)}${paper.detail ? `<br><span style="color:#74829c;font-size:12px">${escapeHtml(paper.detail)}</span>` : ''}</td><td align="right" style="padding:10px 12px;border-bottom:1px solid #d9eaf1;color:#344568;font-size:13px;font-weight:700;white-space:nowrap">${formatBaht(paper.priceSatang)}</td></tr>`).join('');
   const statusLabel = rejected ? `ไม่อนุมัติใบสมัคร${rejectedReason ? ` · ${rejectedReason}` : ''}` : testMode ? approved ? 'TEST · อนุมัติการสมัครสอบแล้ว (ข้อมูลตัวอย่าง)' : 'อีเมลทดสอบ · ข้อมูลตัวอย่าง ไม่ใช่ใบสมัครจริง' : approved ? 'อนุมัติการสมัครสอบแล้ว' : schoolBatchName ? `สมัครผ่านโรงเรียน ${schoolBatchName} · รอตรวจสอบการชำระเงิน` : 'ได้รับใบสมัครแล้ว · รอเจ้าหน้าที่ตรวจสอบสลิป';
   const emailTypeLabel = rejected ? 'APPLICATION REJECTED' : approved ? `APPLICATION APPROVED${testMode ? ' · TEST' : ''}` : 'REGISTRATION SUMMARY';
@@ -260,11 +263,15 @@ function invalid(message, statusCode = 400, extra = {}) {
   return error;
 }
 
-async function resolveDraft(client, candidate, ownerId, finalGrantToken = null) {
-  const itemIds = candidate.items.map((item) => item.roundId);
+async function resolveDraft(client, candidate, ownerId, finalGrantToken = null, requireFinalDetails = false) {
+  const roundTypes = await client.query('SELECT id,round_type FROM exam_rounds WHERE id=ANY($1::text[])', [candidate.items.map(item => item.roundId)]);
+  const overseasRoundIds = new Set(roundTypes.rows.filter(round => ['FINAL','FINAL_X'].includes(round.round_type)).map(round => round.id));
+  const bookingItems = candidate.items.map(item => overseasRoundIds.has(item.roundId) && item.format === 'paper'
+    ? { ...item, centerId: FINAL_ONSITE_CENTER.id } : item);
+  const itemIds = bookingItems.map((item) => item.roundId);
   if (new Set(itemIds).size !== itemIds.length) throw invalid('An exam round can only appear once per application');
-  const centerIds = [...new Set(candidate.items.map((item) => item.centerId))];
-  const paperCenterIds = new Set(candidate.items.filter((item) => item.format === 'paper').map((item) => item.centerId));
+  const centerIds = [...new Set(bookingItems.map((item) => item.centerId))];
+  const paperCenterIds = new Set(bookingItems.filter((item) => item.format === 'paper').map((item) => item.centerId));
   if (paperCenterIds.size > 1) throw invalid('All paper-based exams for one applicant must use the same exam center');
   const result = await client.query(`SELECT r.*, c.short_name, c.name AS competition_name, c.subject AS competition_subject, g.id AS grade_id, g.label AS grade_label,
     ec.id AS center_id, ec.code AS center_code, ec.name AS center_name
@@ -272,13 +279,13 @@ async function resolveDraft(client, candidate, ownerId, finalGrantToken = null) 
     JOIN competitions c ON c.id=r.competition_id
     JOIN exam_round_grades rg ON rg.exam_round_id=r.id
     JOIN grade_catalog g ON g.id=rg.grade_id AND g.active=true
-    JOIN exam_centers ec ON ec.id=ANY($2::text[]) AND ec.active=true
-    WHERE r.id=ANY($1::text[]) AND g.id=ANY($3::text[])`, [itemIds, centerIds, candidate.items.map((item) => item.gradeId)]);
+    JOIN exam_centers ec ON ec.id=ANY($2::text[]) AND (ec.active=true OR (ec.id='center-final-overseas' AND r.round_type IN ('FINAL','FINAL_X')))
+    WHERE r.id=ANY($1::text[]) AND g.id=ANY($3::text[])`, [itemIds, centerIds, bookingItems.map((item) => item.gradeId)]);
   const resolved = [];
   let roundKey = '';
   const todayResult = await client.query("SELECT (now() AT TIME ZONE 'Asia/Bangkok')::date AS today");
   const today = dateOnly(todayResult.rows[0].today);
-  for (const item of candidate.items) {
+  for (const item of bookingItems) {
     const round = result.rows.find((row) => row.id === item.roundId && row.grade_id === item.gradeId && row.center_id === item.centerId);
     if (!round) throw invalid(`Exam round or grade unavailable: ${item.roundId}`);
     const nextRoundKey = `${round.year}::${round.round_type}`;
@@ -290,7 +297,7 @@ async function resolveDraft(client, candidate, ownerId, finalGrantToken = null) 
     if (!openDate || !closeDate || today < openDate || today > closeDate) throw invalid(`Exam round is outside registration dates: ${item.roundId}`);
     if (item.format === 'online') {
       if (round.center_code !== '500' || !item.examEmail) throw invalid('Online exams require center 500 and an exam email');
-    } else {
+    } else if (!overseasRoundIds.has(round.id)) {
       if (round.center_code === '500') throw invalid('Paper exams require an onsite center');
       const enabled = await client.query('SELECT 1 FROM exam_round_centers WHERE exam_round_id=$1 AND center_id=$2', [item.roundId, item.centerId]);
       if (!enabled.rowCount) throw invalid(`Exam center is not open for ${item.roundId}`);
@@ -326,8 +333,11 @@ async function resolveDraft(client, candidate, ownerId, finalGrantToken = null) 
     const duplicate = await client.query(`SELECT ai.application_id, a.owner_user_id FROM application_items ai
       JOIN applications a ON a.id=ai.application_id WHERE ai.duplicate_key=$1`, [key]);
     if (duplicate.rowCount) throw invalid('Duplicate application', 409, { existingApplicationId: duplicate.rows[0].owner_user_id === ownerId ? duplicate.rows[0].application_id : null });
-    const fee = item.format === 'online' ? round.online_price_satang : round.paper_price_satang;
-    resolved.push({ input: item, round, fee, key, finalInvitationId, finalGrantId });
+    const isFinal = ['FINAL','FINAL_X'].includes(round.round_type);
+    if (!isFinal && (item.packageCode || item.shirtSize || item.guests?.length)) throw invalid('แพ็กเกจและ Guest ใช้เฉพาะรอบ Final');
+    const finalSelection = isFinal && (requireFinalDetails || item.packageCode !== undefined) ? resolveStoredFinalSelection(round,item) : null;
+    const fee = finalSelection ? Math.round(finalSelection.total*100) : item.format === 'online' ? round.online_price_satang : round.paper_price_satang;
+    resolved.push({ input: item, round, fee, key, finalInvitationId, finalGrantId, finalSelection });
   }
   const paperIds = candidate.pastPaperIds || [];
   if (new Set(paperIds).size !== paperIds.length) throw invalid('Past paper selected twice');
@@ -337,8 +347,10 @@ async function resolveDraft(client, candidate, ownerId, finalGrantToken = null) 
 }
 
 async function insertDraft(client, candidate, ownerId, source, batchId = null, status = 'draft', finalGrantToken = null) {
-  const { items, papers } = await resolveDraft(client, candidate, ownerId, finalGrantToken);
-  if (status !== 'draft' && items.some(({ round }) => round.round_type === 'FINAL') && source !== 'final') throw invalid('Final registration requires the Final flow', 403);
+  const { items, papers } = await resolveDraft(client, candidate, ownerId, finalGrantToken, status !== 'draft');
+  const hasFinal=items.some(({round})=>['FINAL','FINAL_X'].includes(round.round_type));
+  if (status !== 'draft' && hasFinal && source !== 'final') throw invalid('Final registration requires the Final flow', 403);
+  if (status !== 'draft' && hasFinal && !candidate.certificatePhoto) throw invalid('กรุณาแนบรูปสำหรับเกียรติบัตรก่อนส่งใบสมัคร Final');
   if (items.some(({ finalGrantId }) => finalGrantId) && items.length !== 1) throw invalid('Verify each school Final exam separately', 403);
   const p = candidate.applicant;
   const applicant = await client.query(`INSERT INTO applicants(first_name_en,middle_name_en,last_name_en,first_name_th,last_name_th,date_of_birth,school_name,contact_email,contact_phone,address,gender,certificate_school_name)
@@ -347,10 +359,11 @@ async function insertDraft(client, candidate, ownerId, source, batchId = null, s
   const paperTotal = papers.reduce((sum, paper) => sum + paper.price_satang, 0);
   const application = await client.query(`INSERT INTO applications(applicant_id,owner_user_id,school_batch_id,source,status,registration_total_satang,paper_total_satang,source_heat_application_id,marketing_consent)
     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`, [applicant.rows[0].id, ownerId, batchId, source, status, registration, paperTotal, candidate.sourceHeatApplicationId || null, Boolean(candidate.marketingConsent)]);
-  for (const { input, round, fee, key, finalInvitationId, finalGrantId } of items) {
-    const snapshot = { competitionId: round.competition_id, competition: round.competition_name, short: round.short_name, roundId: round.id, roundTitle: round.title, year: round.year, grade: round.grade_label, center: { id: round.center_id, code: round.center_code, name: round.center_name }, format: input.format, fee: money(fee) };
-    await client.query(`INSERT INTO application_items(application_id,exam_round_id,grade_id,format,center_id,online_exam_email,fee_satang,snapshot,duplicate_key)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`, [application.rows[0].id, input.roundId, input.gradeId, input.format, input.centerId, input.format === 'online' ? input.examEmail : null, fee, snapshot, key]);
+  for (const { input, round, fee, key, finalInvitationId, finalGrantId,finalSelection } of items) {
+    const snapshot = { competitionId: round.competition_id, competition: round.competition_name, short: round.short_name, roundId: round.id, roundTitle: round.title, year: round.year, grade: round.grade_label, center: { id: round.center_id, code: round.center_code, name: round.center_name }, format: input.format, fee: money(fee), ...(finalSelection ? {package:{code:finalSelection.code,label:finalSelection.label,basePrice:finalSelection.basePrice,guestPrice:finalSelection.guestPrice}} : {}) };
+    await client.query(`INSERT INTO application_items(application_id,exam_round_id,grade_id,format,center_id,online_exam_email,fee_satang,snapshot,duplicate_key,shirt_size,final_package_code,final_package_price_satang,final_guest_price_satang,final_guests)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`, [application.rows[0].id, input.roundId, input.gradeId, input.format, input.centerId, input.format === 'online' ? input.examEmail : null, fee, snapshot, key,
+        finalSelection?.shirtSize || null,finalSelection?.code || null,finalSelection ? Math.round(finalSelection.basePrice*100) : null,finalSelection ? Math.round(finalSelection.guestPrice*100) : null,JSON.stringify(finalSelection?.guests || [])]);
     if (finalInvitationId && status !== 'draft') {
       const claimed = await client.query('UPDATE final_invitations SET claimed_application_id=$1 WHERE id=$2 AND claimed_application_id IS NULL', [application.rows[0].id, finalInvitationId]);
       if (!claimed.rowCount) throw invalid('Final eligibility was already used by another application', 409);
@@ -375,11 +388,12 @@ async function insertDraft(client, candidate, ownerId, source, batchId = null, s
         firstNameTh: p.firstNameTh || '', lastNameTh: p.lastNameTh || '', gender: p.gender || '', dateOfBirth: p.dateOfBirth,
         schoolName: p.schoolName.trim(), email: p.contactEmail.trim(), phone: p.contactPhone.trim(), address: p.address || {},
       },
-      items: items.map(({ input, round, fee }) => ({
+      items: items.map(({ input, round, fee,finalSelection }) => ({
         competition: round.competition_name, short: round.short_name, subject: round.competition_subject,
         round: round.title, year: round.year, grade: round.grade_label,
         format: input.format === 'online' ? 'Online Exam' : 'Paper-Based', center: round.center_name,
         examEmail: input.format === 'online' ? input.examEmail : '', feeSatang: fee,
+        ...(finalSelection ? {packageName:finalSelection.label,packageFee:finalSelection.basePrice,guests:finalSelection.guests,guestUnitPrice:finalSelection.guestPrice,guestsTotal:finalSelection.guestTotal,shirtSize:finalSelection.shirtSize} : {}),
       })),
       papers: papers.map((paper) => ({ title: paper.title, detail: paper.detail, priceSatang: paper.price_satang })),
       registrationTotalSatang: registration,
@@ -495,7 +509,9 @@ async function createAndUploadPaymentSlip(client, { paymentId, slip, owner, uplo
 
 export async function submitIndividualApplication(candidate, ownerId, finalGrantToken = null) {
   const slip = parsePaymentSlip(candidate.slip);
+  const photo = candidate.certificatePhoto ? parseCertificatePhoto(candidate.certificatePhoto) : null;
   let uploadedFileId = '';
+  const uploadedPhotoIds=[];
   try {
     return await transaction(async (client) => {
       const source = candidate.source === 'final' ? 'final' : candidate.source === 'guest' ? 'guest' : 'self';
@@ -503,6 +519,7 @@ export async function submitIndividualApplication(candidate, ownerId, finalGrant
       const totalSatang = Math.round(application.total * 100);
       const payment = await createPaymentWithSlip(client, { applicationId: application.id, expectedSatang: totalSatang, slip, ownerId, owner: candidate.applicant });
       uploadedFileId = payment.driveFileId;
+      if(photo)await uploadInitialCertificatePhoto(client,application.id,photo,ownerId,uploadedPhotoIds);
       const email = registrationEmail(application.emailSummary);
       await queueEmail(client, {
         to: candidate.applicant.contactEmail,
@@ -513,6 +530,7 @@ export async function submitIndividualApplication(candidate, ownerId, finalGrant
     });
   } catch (error) {
     if (uploadedFileId) await deleteGoogleDriveFile(uploadedFileId).catch(() => {});
+    await Promise.all(uploadedPhotoIds.map(id=>deleteGoogleDriveFile(id).catch(()=>{})));
     throw await clarifyDuplicate(error, [candidate], ownerId);
   }
 }
@@ -558,7 +576,7 @@ async function loadReviewEmailApplications(client, applicationId, schoolBatchId 
     WHERE ($2::uuid IS NOT NULL AND a.school_batch_id=$2 AND a.status='slip_issue') OR a.id=$1
     ORDER BY a.submitted_at,a.id`, [applicationId, schoolBatchId]);
   if (!applications.rowCount) return [];
-  const itemRows = await client.query(`SELECT ai.application_id,ai.format,ai.online_exam_email,ai.fee_satang,
+  const itemRows = await client.query(`SELECT ai.application_id,ai.format,ai.online_exam_email,ai.fee_satang,ai.snapshot,ai.shirt_size,ai.final_guests,ai.final_guest_price_satang,
       r.title AS round_title,r.year,c.name AS competition_name,c.short_name,c.subject,g.label AS grade_label,ec.name AS center_name
     FROM application_items ai JOIN exam_rounds r ON r.id=ai.exam_round_id
     JOIN competitions c ON c.id=r.competition_id JOIN grade_catalog g ON g.id=ai.grade_id
@@ -577,6 +595,7 @@ async function loadReviewEmailApplications(client, applicationId, schoolBatchId 
       format: item.format === 'online' ? 'Online Exam' : 'Paper-Based',
       center: item.center_name, examEmail: item.format === 'online' ? item.online_exam_email : '',
       feeSatang: item.fee_satang,
+      packageName:item.snapshot?.package?.label || null,shirtSize:item.shirt_size,guests:item.final_guests || [],guestsTotal:Number(item.final_guest_price_satang || 0)*(item.final_guests || []).length/100,
     })),
   }));
 }
@@ -808,8 +827,11 @@ export async function updateAdminApplication(applicationId, input, adminUserId) 
       if (itemIds.some((id) => !currentById.has(id))) throw invalid('พบรายการสอบที่ไม่อยู่ในใบสมัครนี้', 403);
 
       const prepared = [];
-      for (const itemInput of input.items) {
-        const prior = itemInput.applicationItemId ? currentById.get(itemInput.applicationItemId) : null;
+      for (const submittedItem of input.items) {
+        const prior = submittedItem.applicationItemId ? currentById.get(submittedItem.applicationItemId) : null;
+        const overseas = ['FINAL','FINAL_X'].includes(primaryRoundType) && submittedItem.format === 'paper';
+        const retainedOnsite = prior?.exam_round_id === submittedItem.roundId && prior.format === 'paper';
+        const itemInput = overseas ? { ...submittedItem, centerId: retainedOnsite ? prior.center_id : FINAL_ONSITE_CENTER.id } : submittedItem;
         const roundResult = await client.query(`SELECT r.*,c.short_name,c.name AS competition_name,c.subject,
             g.id AS selected_grade_id,g.label AS selected_grade_label,g.active AS selected_grade_active,
             ec.id AS selected_center_id,ec.code AS selected_center_code,ec.name AS selected_center_name,ec.active AS selected_center_active,
@@ -826,7 +848,7 @@ export async function updateAdminApplication(applicationId, input, adminUserId) 
         const registrationOpen = Boolean(round.open_date && round.close_date && !round.final_manually_closed
           && dateOnly(round.open_date) <= today && today <= dateOnly(round.close_date));
         if (!retained && !registrationOpen) throw invalid(`รอบสอบ ${round.title} ปิดรับสมัครแล้ว จึงเพิ่มในใบสมัครไม่ได้`, 409);
-        if (!retained && (!round.selected_grade_active || !round.selected_center_active)) throw invalid('ระดับชั้นหรือศูนย์สอบที่เลือกไม่ได้เปิดใช้งาน');
+        if (!retained && (!round.selected_grade_active || (!overseas && !round.selected_center_active))) throw invalid('ระดับชั้นหรือศูนย์สอบที่เลือกไม่ได้เปิดใช้งาน');
         const todayDate = round.exam_date ? dateOnly(round.exam_date) : '';
         const isPastSelectionLock = Boolean(todayDate && today >= todayDate);
         const isPastFormatLock = Boolean(todayDate && today > todayDate);
@@ -836,7 +858,7 @@ export async function updateAdminApplication(applicationId, input, adminUserId) 
         if (format === 'online') {
           if (round.selected_center_code !== '500') throw invalid('การสอบรูปแบบ Online Exam ต้องเลือกศูนย์สอบ Online : Home Base');
           if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(itemInput.examEmail || '').trim())) throw invalid(`กรอกอีเมลเข้าสอบให้ถูกต้องสำหรับ ${round.short_name}`);
-        } else {
+        } else if (!overseas) {
           if (round.selected_center_code === '500') throw invalid('การสอบรูปแบบ Paper-Based ต้องเลือกศูนย์สอบที่กำหนด');
           const sameCenter = retained && prior.center_id === itemInput.centerId;
           if (!round.center_available && !sameCenter) throw invalid(`ศูนย์สอบนี้ไม่เปิดใน ${round.title}`);
@@ -873,15 +895,30 @@ export async function updateAdminApplication(applicationId, input, adminUserId) 
           finalInvitationId = invitation.rows[0].id;
         }
 
-        const feeSatang = retained && prior.format === format
+        let finalSelection=null;
+        if(['FINAL','FINAL_X'].includes(round.round_type) && (!retained || prior.final_package_code || itemInput.packageCode || formatChanged)){
+          const packageCode=itemInput.packageCode ?? prior?.final_package_code;
+          let selectedRound=round;
+          if(retained && packageCode===prior.final_package_code){
+            const currentPrices=finalPackageCatalogFields(round).packagePrices;
+            selectedRound={...round,final_package_prices:{...Object.fromEntries(Object.entries(currentPrices).map(([code,amount])=>[code,Math.round(amount*100)])),[packageCode]:prior.final_package_price_satang},final_guest_price_satang:prior.final_guest_price_satang};
+          }
+          finalSelection=resolveStoredFinalSelection(selectedRound,{...itemInput,packageCode,shirtSize:itemInput.shirtSize ?? prior?.shirt_size,guests:itemInput.guests ?? prior?.final_guests ?? []});
+        } else if(itemInput.guests?.length || itemInput.packageCode)throw invalid('ข้อมูล Guest ต้องใช้แพ็กเกจรอบ Final ที่ถูกต้อง');
+        const feeSatang = finalSelection ? Math.round(finalSelection.total*100) : retained && prior.format === format
           ? Number(prior.fee_satang)
           : Number(format === 'online' ? round.online_price_satang : round.paper_price_satang);
+        const priorGuests=Array.isArray(prior?.final_guests)?prior.final_guests:[];
+        const guestsChanged=Boolean(finalSelection && (priorGuests.length!==finalSelection.guests.length || priorGuests.some((guest,index)=>
+          guest.firstNameEn!==finalSelection.guests[index].firstNameEn || guest.lastNameEn!==finalSelection.guests[index].lastNameEn || guest.shirtSize!==finalSelection.guests[index].shirtSize)));
+        const finalChanged=Boolean(finalSelection && (!retained || prior.final_package_code!==finalSelection.code || prior.shirt_size!==finalSelection.shirtSize || guestsChanged));
         const center = { id: round.selected_center_id, code: round.selected_center_code, name: round.selected_center_name };
         const snapshot = {
           ...(retained && prior.snapshot && typeof prior.snapshot === 'object' ? prior.snapshot : {}),
           competitionId: round.competition_id, competition: round.competition_name, short: round.short_name,
           roundId: round.id, roundTitle: round.title, year: round.year, grade: round.selected_grade_label,
           center, format, fee: money(feeSatang),
+          ...(finalSelection ? {package:{code:finalSelection.code,label:finalSelection.label,basePrice:finalSelection.basePrice,guestPrice:finalSelection.guestPrice}} : {}),
         };
         const identity = {
           firstNameEn: nextProfile.firstName, middleNameEn: nextProfile.middleName, lastNameEn: nextProfile.lastName,
@@ -890,7 +927,7 @@ export async function updateAdminApplication(applicationId, input, adminUserId) 
         prepared.push({ input: itemInput, prior, retained, round, center, gradeId: itemInput.gradeId, gradeLabel: round.selected_grade_label,
           format, examEmail: format === 'online' ? String(itemInput.examEmail || '').trim() : null,
           feeSatang, snapshot, finalInvitationId, key: duplicateKey(identity, round.id), todayDate, isPastSelectionLock, isPastFormatLock,
-          formatChanged, centerChanged, gradeChanged, emailChanged });
+          formatChanged, centerChanged, gradeChanged, emailChanged,finalSelection,finalChanged });
       }
 
       const retainedIds = new Set(prepared.filter((item) => item.retained).map((item) => item.prior.id));
@@ -900,7 +937,7 @@ export async function updateAdminApplication(applicationId, input, adminUserId) 
         if (examDate && today >= examDate) throw invalid(`ถึงวันสอบแล้ว จึงลบหรือเปลี่ยนรายการ ${item.short_name} ไม่ได้`, 409);
       }
 
-      const editedItemIds = prepared.filter((item) => item.retained && (item.gradeChanged || item.formatChanged || item.centerChanged || item.emailChanged || item.feeSatang !== Number(item.prior.fee_satang))).map((item) => item.prior.id);
+      const editedItemIds = prepared.filter((item) => item.retained && (item.finalChanged || item.gradeChanged || item.formatChanged || item.centerChanged || item.emailChanged || item.feeSatang !== Number(item.prior.fee_satang))).map((item) => item.prior.id);
       const protectedItemIds = [...new Set([...removedItems.map((item) => item.id), ...editedItemIds])];
       const results = protectedItemIds.length ? await client.query('SELECT application_item_id FROM results WHERE application_item_id=ANY($1::uuid[]) LIMIT 1', [protectedItemIds]) : { rowCount: 0 };
       if (results.rowCount) throw invalid('ไม่สามารถเปลี่ยนแปลงรายการสอบที่ประกาศผลแล้วได้', 409);
@@ -995,6 +1032,8 @@ export async function updateAdminApplication(applicationId, input, adminUserId) 
       const itemsToReassign = [];
       const priorHeatNumbered = currentItems.some((item) => item.round_type === 'HEAT' && item.exam_number);
       for (const item of prepared) {
+        const selection=item.finalSelection;
+        const finalColumns=selection ? [selection.shirtSize,selection.code,Math.round(selection.basePrice*100),Math.round(selection.guestPrice*100),JSON.stringify(selection.guests)] : [item.prior?.shirt_size || null,item.prior?.final_package_code || null,item.prior?.final_package_price_satang ?? null,item.prior?.final_guest_price_satang ?? null,JSON.stringify(item.prior?.final_guests || [])];
         if (item.retained) {
           const oldFee = Number(item.prior.fee_satang);
           if (item.feeSatang < oldFee) adjustmentIncrease += oldFee - item.feeSatang;
@@ -1006,15 +1045,15 @@ export async function updateAdminApplication(applicationId, input, adminUserId) 
             if (item.round.round_type === 'HEAT') itemsToReassign.push({ id: item.prior.id, roundId: item.round.id, centerId: item.center.id });
           }
           await client.query(`UPDATE application_items SET grade_id=$1,format=$2,center_id=$3,online_exam_email=$4,
-              fee_satang=$5,snapshot=$6,duplicate_key=$7 WHERE id=$8`, [item.gradeId,item.format,item.center.id,item.examEmail,
-            item.feeSatang,item.snapshot,item.key,item.prior.id]);
-          if (item.gradeChanged || item.formatChanged || item.centerChanged || item.emailChanged || item.feeSatang !== oldFee) itemChanges.push({
+              fee_satang=$5,snapshot=$6,duplicate_key=$7,shirt_size=$8,final_package_code=$9,final_package_price_satang=$10,final_guest_price_satang=$11,final_guests=$12 WHERE id=$13`, [item.gradeId,item.format,item.center.id,item.examEmail,
+            item.feeSatang,item.snapshot,item.key,...finalColumns,item.prior.id]);
+          if (item.finalChanged || item.gradeChanged || item.formatChanged || item.centerChanged || item.emailChanged || item.feeSatang !== oldFee) itemChanges.push({
             label: `${item.round.short_name} · รายละเอียดสอบ`, oldValue: `${item.prior.grade_label} · ${item.prior.format === 'online' ? 'Online Exam' : 'Paper-Based'} · ${item.prior.center_name}${item.prior.online_exam_email ? ` · อีเมล ${item.prior.online_exam_email}` : ''} · ${money(oldFee)} บาท`,
             newValue: `${item.gradeLabel} · ${item.format === 'online' ? 'Online Exam' : 'Paper-Based'} · ${item.center.name}${item.examEmail ? ` · อีเมล ${item.examEmail}` : ''} · ${money(item.feeSatang)} บาท`,
           });
         } else {
-          const inserted = await client.query(`INSERT INTO application_items(application_id,exam_round_id,grade_id,format,center_id,online_exam_email,fee_satang,snapshot,duplicate_key)
-            VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`, [applicationId,item.round.id,item.gradeId,item.format,item.center.id,item.examEmail,item.feeSatang,item.snapshot,item.key]);
+          const inserted = await client.query(`INSERT INTO application_items(application_id,exam_round_id,grade_id,format,center_id,online_exam_email,fee_satang,snapshot,duplicate_key,shirt_size,final_package_code,final_package_price_satang,final_guest_price_satang,final_guests)
+            VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`, [applicationId,item.round.id,item.gradeId,item.format,item.center.id,item.examEmail,item.feeSatang,item.snapshot,item.key,...finalColumns]);
           item.applicationItemId = inserted.rows[0].id;
           if (item.round.round_type === 'HEAT' && priorHeatNumbered) itemsToReassign.push({ id: item.applicationItemId, roundId: item.round.id, centerId: item.center.id });
           itemChanges.push({ label: `${item.round.short_name} · เพิ่มรายการสอบ`, oldValue: 'ไม่มี', newValue: `${item.gradeLabel} · ${item.format === 'online' ? 'Online Exam' : 'Paper-Based'} · ${item.center.name}${item.examEmail ? ` · อีเมล ${item.examEmail}` : ''} · ${money(item.feeSatang)} บาท` });
@@ -1213,12 +1252,11 @@ async function getPhotoUploadContext(applicationId, userId, userEmail, isAdmin) 
   const application = result.rows[0];
   const isApplicant = Boolean(userEmail) && application.contact_email.toLowerCase() === String(userEmail).toLowerCase();
   if (!isAdmin && application.owner_user_id !== userId && !isApplicant) throw invalid('ไม่มีสิทธิ์จัดการภาพของใบสมัครนี้',403);
-  if (application.status !== 'approved') throw invalid('สามารถอัปโหลดภาพได้หลังผู้ดูแลระบบอนุมัติใบสมัครแล้วเท่านั้น',409);
   const items = await getPool().query(`SELECT ai.id AS application_item_id,ai.exam_number,r.id AS round_id,r.year,r.round_type,
       c.short_name,c.name AS competition_name
     FROM application_items ai JOIN exam_rounds r ON r.id=ai.exam_round_id JOIN competitions c ON c.id=r.competition_id
     WHERE ai.application_id=$1 ORDER BY ai.id`, [applicationId]);
-  assertCertificatePhotoEligibility(await getCertificatePhotoEligibility(getPool(), applicationId));
+  assertCertificatePhotoState(application.status,await getCertificatePhotoEligibility(getPool(), applicationId));
   return { application, items: items.rows };
 }
 
@@ -1226,6 +1264,7 @@ async function getCertificatePhotoEligibility(db, applicationId) {
   const result = await db.query(`SELECT count(ai.id)::int AS item_count,
       bool_and(r.close_date IS NOT NULL AND (now() AT TIME ZONE 'Asia/Bangkok')::date > r.close_date) AS registration_closed,
       bool_and(ai.exam_number IS NOT NULL AND btrim(ai.exam_number) <> '') AS exam_numbers_assigned
+      ,bool_and(r.round_type IN ('FINAL','FINAL_X')) AS final_only
     FROM application_items ai JOIN exam_rounds r ON r.id=ai.exam_round_id WHERE ai.application_id=$1`, [applicationId]);
   return result.rows[0] || {};
 }
@@ -1236,28 +1275,56 @@ function assertCertificatePhotoEligibility(eligibility) {
   if (!eligibility.exam_numbers_assigned) throw invalid('ปิดรับสมัครแล้ว แต่ยังรอเลขประจำตัวสอบครบ กรุณาลองใหม่ภายหลัง',409);
 }
 
+function assertCertificatePhotoState(status,eligibility) {
+  if(eligibility.final_only){
+    if(!['pending','slip_issue','approved'].includes(status))throw invalid('ใบสมัครอยู่นอกช่วงเวลาที่อนุญาตให้อัปโหลดภาพ',409);
+    return;
+  }
+  if(status!=='approved')throw invalid('สามารถอัปโหลดภาพได้หลังผู้ดูแลระบบอนุมัติใบสมัครแล้วเท่านั้น',409);
+  assertCertificatePhotoEligibility(eligibility);
+}
+
 async function assertCertificatePhotoPermission(db, applicationId, userId, userEmail, isAdmin) {
   const checked = await db.query(`SELECT a.id,a.owner_user_id,a.status,ap.contact_email
     FROM applications a JOIN applicants ap ON ap.id=a.applicant_id WHERE a.id=$1 FOR UPDATE OF a`, [applicationId]);
-  if (!checked.rowCount || checked.rows[0].status !== 'approved') throw invalid('ใบสมัครอยู่นอกช่วงเวลาที่อนุญาตให้อัปโหลดภาพ',409);
+  if (!checked.rowCount) throw invalid('ไม่พบใบสมัคร',404);
   const contactEmail = String(checked.rows[0].contact_email || '').toLowerCase();
   const applicantEmailMatches = Boolean(userEmail) && contactEmail === String(userEmail).toLowerCase();
   if (!isAdmin && checked.rows[0].owner_user_id !== userId && !applicantEmailMatches) throw invalid('ไม่มีสิทธิ์จัดการภาพของใบสมัครนี้',403);
-  assertCertificatePhotoEligibility(await getCertificatePhotoEligibility(db, applicationId));
+  assertCertificatePhotoState(checked.rows[0].status,await getCertificatePhotoEligibility(db, applicationId));
 }
 
 const safeFilePart = (value) => String(value || '').normalize('NFKC').trim().replace(/[^\p{L}\p{N}-]+/gu, '_').replace(/^_+|_+$/g, '').slice(0, 80);
 
+function certificatePhotoFileName(application,item,extension) {
+  const final=['FINAL','FINAL_X'].includes(item.round_type);
+  const parts=final ? [application.first_name_en,application.last_name_en] : [item.exam_number,application.first_name_en,application.middle_name_en,application.last_name_en];
+  return `${parts.map(safeFilePart).filter(Boolean).join('_').slice(0,175-extension.length)}.${extension}`;
+}
+
+async function uploadInitialCertificatePhoto(client,applicationId,photo,userId,uploadedIds) {
+  const context=await client.query(`SELECT ai.id AS application_item_id,r.year,r.round_type,c.short_name,
+    ap.first_name_en,ap.last_name_en FROM application_items ai JOIN exam_rounds r ON r.id=ai.exam_round_id
+    JOIN competitions c ON c.id=r.competition_id JOIN applications a ON a.id=ai.application_id
+    JOIN applicants ap ON ap.id=a.applicant_id WHERE ai.application_id=$1`,[applicationId]);
+  if(context.rows.some(row=>!['FINAL','FINAL_X'].includes(row.round_type)))throw invalid('รูปในฟอร์มสมัครใช้เฉพาะรอบ Final');
+  for(const item of context.rows){
+    const fileName=certificatePhotoFileName(item,item,photo.extension);
+    const file=await uploadGoogleDriveFile({category:'photos',folders:[String(item.year),item.short_name,item.round_type==='FINAL_X'?'Final X':'Final'],name:fileName,mimeType:photo.mimeType,buffer:photo.buffer,appProperties:{ocecApplicationItemId:item.application_item_id}});
+    uploadedIds.push(file.id);
+    await client.query(`INSERT INTO certificate_photos(application_item_id,drive_file_id,file_name,uploaded_by,mime_type,sha256,file_size,uploaded_at,updated_at)
+      VALUES($1,$2,$3,$4,$5,$6,$7,now(),now())`,[item.application_item_id,file.id,fileName,userId,photo.mimeType,photo.sha256,photo.buffer.length]);
+  }
+}
+
 export async function uploadCertificatePhoto(applicationId, photoInput, userId, userEmail, isAdmin = false) {
   const photo = parseCertificatePhoto(photoInput);
   const { application, items } = await getPhotoUploadContext(applicationId, userId, userEmail, isAdmin);
-  const candidateName = [application.first_name_en,application.middle_name_en,application.last_name_en].filter(Boolean).map(safeFilePart).filter(Boolean).join('_');
   const uploads = [];
   try {
     for (const item of items) {
       const roundFolder = item.round_type === 'HEAT' ? 'Heat' : item.round_type === 'FINAL' ? 'Final' : 'Final X';
-      const fileStem = `${safeFilePart(item.exam_number)}_${candidateName}`.slice(0, 175 - photo.extension.length);
-      const fileName = `${fileStem}.${photo.extension}`;
+      const fileName = certificatePhotoFileName(application,item,photo.extension);
       const driveFile = await uploadGoogleDriveFile({ category:'photos', folders:[String(item.year), item.short_name, roundFolder], name:fileName, mimeType:photo.mimeType, buffer:photo.buffer });
       uploads.push({ ...item, driveFileId: driveFile.id, fileName });
     }
@@ -1283,6 +1350,7 @@ export async function uploadCertificatePhoto(applicationId, photoInput, userId, 
 
 export async function removeCertificatePhoto(applicationId, userId, userEmail, isAdmin = false) {
   const { items } = await getPhotoUploadContext(applicationId,userId,userEmail,isAdmin);
+  if(items.some(item=>['FINAL','FINAL_X'].includes(item.round_type)))throw invalid('รูปเกียรติบัตรรอบ Final เป็นข้อมูลบังคับ กรุณาเปลี่ยนรูปแทนการลบ',409);
   const removed = await transaction(async (client) => {
     await assertCertificatePhotoPermission(client, applicationId, userId, userEmail, isAdmin);
     const existing = await client.query('SELECT cp.application_item_id,cp.drive_file_id FROM certificate_photos cp JOIN application_items ai ON ai.id=cp.application_item_id WHERE ai.application_id=$1 FOR UPDATE OF cp', [applicationId]);
@@ -1323,7 +1391,8 @@ async function queryApplications({ userId = null, userEmail = null, excludeDraft
       ap.contact_phone, ap.address,
       sb.total_satang AS batch_total_satang, sb.coordinator_email, sb.source AS batch_source,
       ai.id AS application_item_id, ai.exam_round_id, ai.grade_id, ai.format, ai.center_id,
-      ai.online_exam_email, ai.fee_satang, ai.snapshot, ai.exam_number,
+      ai.online_exam_email, ai.fee_satang, ai.snapshot, ai.exam_number, ai.shirt_size,
+      ai.final_package_code,ai.final_package_price_satang,ai.final_guest_price_satang,ai.final_guests,
       cp.file_name AS certificate_photo_file_name,cp.mime_type AS certificate_photo_mime_type,cp.uploaded_at AS certificate_photo_uploaded_at,
       r.year AS academic_year, r.round_type, r.title AS round_title, r.exam_date, r.close_date::text AS registration_close_date,
       c.id AS competition_id, c.short_name, c.name AS competition_name, c.subject,
@@ -1426,6 +1495,11 @@ async function queryApplications({ userId = null, userEmail = null, excludeDraft
       id: row.competition_id, applicationItemId: row.application_item_id, gradeId: row.grade_id, short: row.short_name, name: row.competition_name, subject: row.subject,
       grade: row.grade_label, format: row.format === 'online' ? 'Online Exam' : 'Paper-Based',
       examEmail: row.online_exam_email || '', fee: money(row.fee_satang), chargedFee: money(row.fee_satang),
+      shirtSize: row.shirt_size || null,
+      packageCode:row.final_package_code || null,packageName:row.snapshot?.package?.label || null,
+      packageFee:row.final_package_price_satang == null ? null : money(row.final_package_price_satang),
+      guestUnitPrice:row.final_guest_price_satang == null ? null : money(row.final_guest_price_satang),
+      guests:row.final_guests || [],guestsTotal:money(Number(row.final_guest_price_satang || 0)*(row.final_guests || []).length),
       center: row.center_name, centerId: row.center_id, centerCode: row.center_code, centerSnapshot,
       roundId: row.exam_round_id, roundType: row.round_type, examDate: row.exam_date?.toISOString?.().slice(0, 10) || row.exam_date || '', closeDate: row.registration_close_date || '', examNumber: row.exam_number || '',
       certificatePhoto: row.certificate_photo_file_name ? { name: row.certificate_photo_file_name, type: row.certificate_photo_mime_type, uploadedAt: row.certificate_photo_uploaded_at?.toISOString?.() || row.certificate_photo_uploaded_at, url: `/api/certificate-photos/${row.application_item_id}` } : null,

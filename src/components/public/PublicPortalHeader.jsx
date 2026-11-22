@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { BrandMark, GoogleMark, Icon, ProfileAvatar } from "../ui/index.jsx";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Icon, ProfileAvatar } from "../ui/index.jsx";
 import { AuthDialog } from "./AuthDialog.jsx";
 
 function goToLandingSection(page, navigate, sectionId) {
@@ -11,74 +11,99 @@ function goToLandingSection(page, navigate, sectionId) {
   window.setTimeout(() => document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth" }), 80);
 }
 
-export function PublicPortalHeader({ page, navigate, setPersona, authProfile, onSignIn, onSignOut, demoProfile, backendEnabled }) {
+// Persist last active mobile tab index across route transitions so the floating cobalt bubble glides smoothly even if the header remounts.
+let lastMobileTabIndex = 0;
+
+function resolveMobileTabIndex(page, isAccountActive) {
+  if (isAccountActive) return 4;
+  if (page === "home") return 0;
+  if (page === "apply-heat" || page === "apply-final") return 1;
+  if (["applications", "application-detail", "edit-application", "school-application-group", "lookup-choice", "check-status", "edit-verify", "slip-upload", "slip-replacement"].includes(page)) return 2;
+  if (page === "results" || page === "final-confirm") return 3;
+  return 0;
+}
+
+export function PublicPortalHeader({
+  page,
+  navigate,
+  setPersona,
+  authProfile,
+  onSignIn,
+  onSignOut,
+  onStartApplication,
+  demoProfile,
+  backendEnabled,
+  demoSignIn = false,
+}) {
   const [loginDialogOpen, setLoginDialogOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
-  const headerRef = useRef(null);
-  const headerOffsetRef = useRef(0);
+  const [tabletMenuOpen, setTabletMenuOpen] = useState(false);
+
   const accountRootRef = useRef(null);
   const dialogRef = useRef(null);
-  const loginTriggerRef = useRef(null);
+  const desktopNavRef = useRef(null);
+  const desktopNavRefs = useRef([]);
+  const [desktopIndicator, setDesktopIndicator] = useState({ left: 0, width: 0, visible: false });
+
   const requiresRegistrationLogin = !authProfile && page === "apply-heat";
-  const homeHeader = page === "home";
-  const headerPositionClasses = homeHeader
-    ? "fixed top-[22px] right-[max(28px,calc((100vw-1340px)/2))] left-[max(28px,calc((100vw-1340px)/2))] mx-0 mt-0 w-auto"
-    : "sticky top-[14px] mx-auto mt-[22px] w-[calc(100%-56px)]";
-  const headerMobileColumns = authProfile
-    ? "max-[701px]:grid-cols-[minmax(0,1fr)_44px]"
-    : "max-[701px]:grid-cols-[minmax(0,1fr)_auto]";
-  const headerMobilePosition = homeHeader
-    ? "max-[701px]:top-3 max-[701px]:right-[14px] max-[701px]:left-[14px] max-[701px]:mx-0 max-[701px]:mt-0 max-[701px]:w-auto"
-    : "max-[701px]:top-3 max-[701px]:mt-3 max-[701px]:w-[calc(100%-28px)]";
-  const navItemClasses = "inline-flex min-h-11 items-center border-0 bg-transparent px-0 text-[13px] font-medium whitespace-nowrap text-ocec-brand no-underline transition-colors hover:text-ocec-brand-dark max-[701px]:min-h-11 max-[701px]:min-w-0 max-[701px]:justify-center max-[701px]:rounded-lg max-[701px]:border max-[701px]:border-ocec-border max-[701px]:bg-[#fff8fa] max-[701px]:px-2 max-[701px]:py-1.5 max-[701px]:text-center max-[701px]:text-xs max-[701px]:whitespace-normal max-[701px]:leading-snug max-[701px]:after:hidden max-[701px]:aria-[current=page]:bg-ocec-brand-soft max-[390px]:text-[10.5px]";
   const isStatusPage = ["lookup-choice", "check-status", "edit-verify", "edit-application"].includes(page);
-  const focusRingClasses = "focus-visible:outline-[3px] focus-visible:outline-offset-[3px] focus-visible:outline-ocec-accent";
+  const isAccountActive = loginDialogOpen || accountMenuOpen;
+
+  const targetMobileTabIndex = resolveMobileTabIndex(page, isAccountActive);
+  const [visualMobileTab, setVisualMobileTab] = useState(lastMobileTabIndex);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      setVisualMobileTab(targetMobileTabIndex);
+      lastMobileTabIndex = targetMobileTabIndex;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [targetMobileTabIndex]);
 
   useEffect(() => {
     setLoginDialogOpen(requiresRegistrationLogin);
   }, [requiresRegistrationLogin]);
 
   useEffect(() => {
-    const header = headerRef.current;
-    if (!header) return undefined;
-    headerOffsetRef.current = 0;
-    header.style.setProperty("--header-hide-offset", "0px");
-    if (loginDialogOpen || accountMenuOpen) return undefined;
+    setTabletMenuOpen(false);
+  }, [page]);
 
-    let lastY = window.scrollY;
-    let frame = 0;
-    const update = () => {
-      frame = 0;
-      const currentY = Math.max(0, window.scrollY);
-      const delta = currentY - lastY;
-      lastY = currentY;
-      const maxOffset = header.offsetHeight + 40;
-      const focusedInside = header.contains(document.activeElement) && document.activeElement?.matches(":focus-visible");
-      const nextOffset = focusedInside || currentY === 0
-        ? 0
-        : Math.max(0, Math.min(maxOffset, headerOffsetRef.current + delta));
-      if (nextOffset === headerOffsetRef.current) return;
-      headerOffsetRef.current = nextOffset;
-      header.style.setProperty("--header-hide-offset", `${nextOffset}px`);
+  const activeDesktopIndex = page === "home" ? 0 : isStatusPage ? 1 : page === "final-confirm" ? 2 : page === "results" ? 3 : -1;
+
+  useLayoutEffect(() => {
+    const updateIndicator = () => {
+      const navEl = desktopNavRef.current;
+      const itemEl = activeDesktopIndex >= 0 ? desktopNavRefs.current[activeDesktopIndex] : null;
+      if (!navEl || !itemEl) {
+        setDesktopIndicator((prev) => (prev.visible ? { ...prev, visible: false } : prev));
+        return;
+      }
+      const navRect = navEl.getBoundingClientRect();
+      const itemRect = itemEl.getBoundingClientRect();
+      setDesktopIndicator({
+        left: itemRect.left - navRect.left,
+        width: itemRect.width,
+        visible: itemRect.width > 0,
+      });
     };
-    const onScroll = () => {
-      if (!frame) frame = window.requestAnimationFrame(update);
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      if (frame) window.cancelAnimationFrame(frame);
-    };
-  }, [page, loginDialogOpen, accountMenuOpen]);
+    updateIndicator();
+    window.addEventListener("resize", updateIndicator);
+    return () => window.removeEventListener("resize", updateIndicator);
+  }, [activeDesktopIndex, page]);
 
   useEffect(() => {
-    if (!accountMenuOpen) return undefined;
+    if (!accountMenuOpen && !tabletMenuOpen) return undefined;
     const closeOnOutsidePress = (event) => {
-      if (!accountRootRef.current?.contains(event.target)) setAccountMenuOpen(false);
+      if (accountMenuOpen && !accountRootRef.current?.contains(event.target)) {
+        setAccountMenuOpen(false);
+      }
+      if (tabletMenuOpen && !event.target.closest?.(".pc-header")) {
+        setTabletMenuOpen(false);
+      }
     };
     document.addEventListener("pointerdown", closeOnOutsidePress);
     return () => document.removeEventListener("pointerdown", closeOnOutsidePress);
-  }, [accountMenuOpen]);
+  }, [accountMenuOpen, tabletMenuOpen]);
 
   useEffect(() => {
     if (!loginDialogOpen) return undefined;
@@ -118,69 +143,351 @@ export function PublicPortalHeader({ page, navigate, setPersona, authProfile, on
     if (requiresRegistrationLogin) navigate("home");
   }
 
+  function handleAccountTrigger() {
+    if (authProfile) {
+      setAccountMenuOpen((open) => !open);
+      setTabletMenuOpen(false);
+    } else {
+      setLoginDialogOpen(true);
+      setTabletMenuOpen(false);
+    }
+  }
+
+  function handleStartApply() {
+    if (onStartApplication) {
+      onStartApplication();
+      return;
+    }
+    setPersona?.("candidate");
+    navigate("apply-heat");
+  }
+
+  const desktopNavItems = [
+    {
+      key: "exams",
+      label: "รายการสอบ",
+      href: "#open-exams",
+      current: page === "home",
+      onClick: (event) => {
+        event.preventDefault();
+        goToLandingSection(page, navigate, "open-exams");
+      },
+    },
+    {
+      key: "status",
+      label: "ตรวจสอบสถานะ",
+      current: isStatusPage,
+      onClick: () => navigate("lookup-choice"),
+    },
+    {
+      key: "final",
+      label: "ยืนยันสิทธิ์",
+      current: page === "final-confirm",
+      onClick: () => navigate("final-confirm"),
+    },
+    {
+      key: "results",
+      label: "ประกาศผล",
+      current: page === "results",
+      onClick: () => navigate("results"),
+    },
+  ];
+
+  const mobileTabs = [
+    {
+      key: "home",
+      label: "หน้าแรก",
+      icon: "home",
+      onClick: () => {
+        setLoginDialogOpen(false);
+        setAccountMenuOpen(false);
+        setVisualMobileTab(0);
+        lastMobileTabIndex = 0;
+        if (page === "home") {
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        } else {
+          navigate("home");
+        }
+      },
+    },
+    {
+      key: "apply",
+      label: "สมัครสอบ",
+      icon: "file",
+      onClick: () => {
+        setLoginDialogOpen(false);
+        setAccountMenuOpen(false);
+        setVisualMobileTab(1);
+        lastMobileTabIndex = 1;
+        handleStartApply();
+      },
+    },
+    {
+      key: "applications",
+      label: "ใบสมัคร",
+      icon: "check",
+      onClick: () => {
+        setLoginDialogOpen(false);
+        setAccountMenuOpen(false);
+        setVisualMobileTab(2);
+        lastMobileTabIndex = 2;
+        navigate("applications");
+      },
+    },
+    {
+      key: "results",
+      label: "ผลสอบ",
+      icon: "award",
+      onClick: () => {
+        setLoginDialogOpen(false);
+        setAccountMenuOpen(false);
+        setVisualMobileTab(3);
+        lastMobileTabIndex = 3;
+        navigate("results");
+      },
+    },
+    {
+      key: "account",
+      label: "บัญชี",
+      icon: "user",
+      onClick: () => {
+        setVisualMobileTab(4);
+        lastMobileTabIndex = 4;
+        handleAccountTrigger();
+      },
+    },
+  ];
+
   return (
     <>
-      <header ref={headerRef} className={`landing-header z-30 flex min-h-[72px] max-w-[1340px] items-center justify-between gap-[25px] min-[701px]:max-[1024px]:grid min-[701px]:max-[1024px]:grid-cols-[minmax(0,1fr)_228px] min-[701px]:max-[1024px]:gap-y-2 min-[701px]:max-[1024px]:rounded-[28px] rounded-full border border-ocec-border bg-white py-[9px] pr-[17px] pl-[25px] ${headerPositionClasses} max-[701px]:grid max-[701px]:min-h-0 ${headerMobileColumns} max-[701px]:gap-x-2 max-[701px]:gap-y-[9px] max-[701px]:rounded-[28px] max-[701px]:p-[10px_14px_8px] ${headerMobilePosition}${authProfile ? " landing-header-authenticated" : ""}`} onFocusCapture={() => {
-        headerOffsetRef.current = 0;
-        headerRef.current?.style.setProperty("--header-hide-offset", "0px");
-      }}>
-        <a className="landing-brand flex flex-none items-center gap-[10px] overflow-hidden no-underline max-[701px]:min-w-0 max-[701px]:gap-2" href="/" aria-label="OCEC Portal หน้าแรก">
-          <BrandMark />
-          <span className="flex min-w-0 flex-col gap-[2px] leading-[1.25]"><strong className="overflow-hidden text-ellipsis whitespace-nowrap text-[15px] font-[750] tracking-[0.025em] text-ocec-brand max-[701px]:text-[13px]">OCEC Portal</strong><small className="overflow-hidden text-ellipsis whitespace-nowrap text-xs text-ocec-muted">ระบบสมัครสอบ</small></span>
-        </a>
-        <nav className="landing-nav flex flex-1 items-center justify-center gap-[clamp(16px,2.6vw,35px)] min-[701px]:max-[1024px]:col-span-full min-[701px]:max-[1024px]:row-start-2 min-[701px]:max-[1024px]:w-full min-[701px]:max-[1024px]:flex-none min-[701px]:max-[1024px]:justify-center min-[701px]:max-[1024px]:gap-6 min-[701px]:max-[1024px]:border-t min-[701px]:max-[1024px]:border-ocec-border min-[701px]:max-[1024px]:pt-1.5 max-[701px]:col-span-full max-[701px]:row-start-2 max-[701px]:w-full max-[701px]:grid max-[701px]:grid-cols-2 max-[701px]:gap-1.5 max-[701px]:border-t max-[701px]:border-ocec-border max-[701px]:pt-[5px] max-[701px]:[scrollbar-width:none]" aria-label="เมนูหน้าเว็บ">
-          <a className={navItemClasses} href="#open-exams" aria-current={page === "home" ? "page" : undefined} onClick={(event) => { event.preventDefault(); goToLandingSection(page, navigate, "open-exams"); }}>รายการสอบ</a>
-          <button className={navItemClasses} type="button" aria-current={isStatusPage ? "page" : undefined} onClick={() => navigate("lookup-choice")}>ตรวจสอบสถานะใบสมัคร</button>
-          <button className={navItemClasses} type="button" aria-current={page === "final-confirm" ? "page" : undefined} onClick={() => navigate("final-confirm")}>ยืนยันสิทธิ์</button>
-          <button className={navItemClasses} type="button" aria-current={page === "results" ? "page" : undefined} onClick={() => navigate("results")}>ประกาศผล</button>
-        </nav>
-        <div className="header-account relative flex-none min-[701px]:max-[1024px]:col-start-2 min-[701px]:max-[1024px]:row-start-1 min-[701px]:max-[1024px]:min-w-0 min-[701px]:max-[1024px]:justify-self-end max-[701px]:col-start-2 max-[701px]:row-start-1 max-[701px]:justify-self-end" ref={accountRootRef}>
-          {authProfile ? (
-            <>
-              <button
-                className={`account-menu-trigger flex min-h-[52px] max-w-[252px] items-center gap-[10px] rounded-[15px] border border-[#e4e6ed] bg-white p-[5px_10px_5px_6px] text-left text-[#303752] shadow-[0_3px_10px_rgba(34,50,77,0.04)] hover:border-[#c9c5ea] hover:bg-[#fdfcff] ${focusRingClasses} max-[920px]:max-w-[215px] max-[920px]:gap-2 max-[701px]:h-11 max-[701px]:w-11 max-[701px]:min-h-11 max-[701px]:max-w-none max-[701px]:justify-center max-[701px]:rounded-full max-[701px]:p-[3px]`}
-                type="button"
-                aria-haspopup="true"
-                aria-expanded={accountMenuOpen}
-                aria-controls="account-menu-panel"
-                aria-label={`บัญชีผู้ใช้ ${authProfile.name} ${authProfile.email}`}
-                onClick={() => setAccountMenuOpen((open) => !open)}
-              >
-                <ProfileAvatar className="account-avatar block h-[39px] w-[39px] flex-none rounded-full bg-[#eeeaf8] object-cover max-[701px]:h-9 max-[701px]:w-9" src={authProfile.picture} alt={`รูปโปรไฟล์ ${authProfile.name}`} />
-                <span className="account-profile-copy flex min-w-0 max-w-[135px] flex-col gap-[3px] leading-[1.15] max-[920px]:max-w-[135px] max-[701px]:hidden"><strong className="overflow-hidden text-ellipsis whitespace-nowrap text-[12px] font-[750] text-[#303752]">{authProfile.name}</strong><small className="overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-[#7b879a]">{authProfile.email}</small></span>
-                <Icon name="chevron" size={16} className="account-chevron flex-none rotate-90 text-[#8993a5] max-[701px]:hidden" />
-              </button>
-              {accountMenuOpen ? (
-              <div className="account-menu-panel absolute top-[calc(100%+9px)] right-0 z-30 w-[275px] rounded-2xl border border-[#e9eaf0] bg-white p-2 shadow-[0_16px_36px_rgba(38,45,73,0.16)] max-[701px]:w-[min(275px,calc(100vw-32px))]" id="account-menu-panel" aria-label="เมนูบัญชีผู้ใช้">
-                <div className="account-menu-identity mb-[6px] flex items-center gap-[11px] border-b border-[#f0f1f5] p-[10px]">
-                  <ProfileAvatar className="account-avatar block h-[39px] w-[39px] flex-none rounded-full bg-[#eeeaf8] object-cover" src={authProfile.picture} alt="" />
-                  <span className="flex min-w-0 flex-col gap-[3px]"><strong className="overflow-hidden text-ellipsis whitespace-nowrap text-[12px] text-[#303752]">{authProfile.name}</strong><small className="overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-[#7b879a]">{authProfile.email}</small></span>
+      <header className="pc-header">
+        <div className="pc-header-inner">
+          <a
+            className="pc-brand"
+            href="/"
+            aria-label="OCEC Portal หน้าแรก"
+            onClick={(event) => {
+              event.preventDefault();
+              navigate("home");
+            }}
+          >
+            <strong className="pc-brand-primary">OCEC</strong>
+            <span className="pc-brand-secondary">Portal</span>
+          </a>
+
+          <nav className="pc-desktop-nav" aria-label="เมนูหน้าเว็บ" ref={desktopNavRef}>
+            {desktopNavItems.map((item, index) => (
+              item.href ? (
+                <a
+                  key={item.key}
+                  ref={(el) => { desktopNavRefs.current[index] = el; }}
+                  className="pc-nav-item"
+                  href={item.href}
+                  aria-current={item.current ? "page" : undefined}
+                  onClick={item.onClick}
+                >
+                  {item.label}
+                </a>
+              ) : (
+                <button
+                  key={item.key}
+                  ref={(el) => { desktopNavRefs.current[index] = el; }}
+                  className="pc-nav-item"
+                  type="button"
+                  aria-current={item.current ? "page" : undefined}
+                  onClick={item.onClick}
+                >
+                  {item.label}
+                </button>
+              )
+            ))}
+            <span
+              className="pc-desktop-nav-indicator"
+              aria-hidden="true"
+              style={{
+                opacity: desktopIndicator.visible ? 1 : 0,
+                transform: `translate3d(${desktopIndicator.left}px, 0, 0)`,
+                width: `${desktopIndicator.width}px`,
+              }}
+            />
+          </nav>
+
+          <div className="pc-header-actions" ref={accountRootRef}>
+            {authProfile ? (
+              <>
+                <button
+                  className="pc-account-trigger"
+                  type="button"
+                  aria-haspopup="true"
+                  aria-expanded={accountMenuOpen}
+                  aria-controls="account-menu-panel"
+                  aria-label={`บัญชีผู้ใช้ ${authProfile.name} ${authProfile.email}`}
+                  onClick={() => setAccountMenuOpen((open) => !open)}
+                >
+                  <ProfileAvatar className="pc-account-avatar" src={authProfile.picture} alt={`รูปโปรไฟล์ ${authProfile.name}`} />
+                  <span className="pc-account-copy">
+                    <strong>{authProfile.name}</strong>
+                    <small>{authProfile.email}</small>
+                  </span>
+                  <Icon name="chevron" size={14} className="pc-account-chevron" />
+                </button>
+                {accountMenuOpen ? (
+                  <div className="pc-account-menu" id="account-menu-panel" aria-label="เมนูบัญชีผู้ใช้">
+                    <div className="pc-account-menu-head">
+                      <ProfileAvatar className="pc-account-avatar" src={authProfile.picture} alt="" />
+                      <span className="pc-account-menu-identity">
+                        <strong>{authProfile.name}</strong>
+                        <small>{authProfile.email}</small>
+                      </span>
+                    </div>
+                    <button
+                      className="pc-account-menu-item"
+                      type="button"
+                      onClick={() => {
+                        setPersona?.("candidate");
+                        navigate("applications");
+                        setAccountMenuOpen(false);
+                      }}
+                    >
+                      <Icon name="file" size={15} />
+                      <span>ใบสมัครของฉัน</span>
+                    </button>
+                    <button
+                      className="pc-account-menu-item pc-account-menu-danger"
+                      type="button"
+                      onClick={() => {
+                        setAccountMenuOpen(false);
+                        onSignOut();
+                      }}
+                    >
+                      <Icon name="close" size={15} />
+                      <span>ออกจากระบบ</span>
+                    </button>
                   </div>
-                <button className={`flex min-h-[42px] w-full items-center gap-[9px] rounded-[10px] border-0 bg-white px-[10px] text-left text-xs font-[650] text-[#536177] hover:bg-[#f5f4fc] hover:text-[#403c9e] ${focusRingClasses}`} type="button" onClick={() => { setPersona("candidate"); navigate("applications"); setAccountMenuOpen(false); }}><Icon name="file" size={16} />ใบสมัครของฉัน</button>
-                <button className={`flex min-h-[42px] w-full items-center gap-[9px] rounded-[10px] border-0 bg-white px-[10px] text-left text-xs font-[650] text-[#536177] hover:bg-[#f5f4fc] hover:text-[#403c9e] ${focusRingClasses}`} type="button" onClick={() => { setAccountMenuOpen(false); onSignOut(); }}><Icon name="close" size={16} />ออกจากระบบ</button>
-                </div>
-              ) : null}
-            </>
-          ) : (
-            <button className={`google-signin-button inline-flex min-h-[42px] min-w-[156px] items-center justify-center gap-2 rounded-full border border-[#E9DDEA] bg-[#F8F9FB] px-4 text-[15px] font-[750] text-ocec-brand shadow-none transition-[transform,background,box-shadow] duration-[180ms] hover:-translate-y-px hover:bg-[#E9DDEA] hover:shadow-[0_10px_20px_rgba(60,55,159,0.24)] ${focusRingClasses} max-[920px]:min-h-10 max-[920px]:min-w-[142px] max-[920px]:gap-[7px] max-[920px]:px-[13px] max-[920px]:text-[14px] max-[701px]:min-h-10 max-[701px]:min-w-[112px] max-[701px]:gap-[5px] max-[701px]:px-[10px] max-[701px]:text-xs max-[380px]:min-w-[108px] max-[380px]:px-2`}
-              type="button" ref={loginTriggerRef} onClick={() => setLoginDialogOpen(true)}
+                ) : null}
+              </>
+            ) : (
+              <>
+                <button
+                  className="pc-login-btn"
+                  type="button"
+                  onClick={() => setLoginDialogOpen(true)}
+                >
+                  <Icon name="user" size={15} />
+                  <span>เข้าสู่ระบบ</span>
+                </button>
+                <button
+                  className="pc-icon-btn pc-compact-user-btn"
+                  type="button"
+                  aria-label="เข้าสู่ระบบ"
+                  onClick={() => setLoginDialogOpen(true)}
+                >
+                  <Icon name="user" size={19} />
+                </button>
+              </>
+            )}
+
+            <button
+              className="pc-icon-btn pc-tablet-menu-btn"
+              type="button"
+              aria-label={tabletMenuOpen ? "ปิดเมนู" : "เปิดเมนู"}
+              aria-expanded={tabletMenuOpen}
+              aria-controls="pc-tablet-drawer"
+              onClick={() => {
+                setTabletMenuOpen((open) => !open);
+                setAccountMenuOpen(false);
+              }}
             >
-              <GoogleMark className="max-[701px]:h-[18px] max-[701px]:w-[18px] max-[701px]:text-[19px]" /><span>เข้าสู่ระบบ</span>
+              <Icon name={tabletMenuOpen ? "close" : "menu"} size={20} />
             </button>
-          )}
+          </div>
+        </div>
+
+        <div
+          id="pc-tablet-drawer"
+          className={`pc-tablet-drawer${tabletMenuOpen ? " is-open" : ""}`}
+          aria-hidden={!tabletMenuOpen}
+        >
+          <div className="pc-tablet-drawer-inner">
+            <nav className="pc-tablet-nav" aria-label="เมนูแท็บเล็ต">
+              {desktopNavItems.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  className={`pc-tablet-nav-link${item.current ? " is-active" : ""}`}
+                  tabIndex={tabletMenuOpen ? 0 : -1}
+                  onClick={(event) => {
+                    setTabletMenuOpen(false);
+                    item.onClick(event);
+                  }}
+                >
+                  <span>{item.label}</span>
+                  <Icon name="chevron" size={14} />
+                </button>
+              ))}
+              <button
+                type="button"
+                className={`pc-tablet-nav-link${page === "applications" ? " is-active" : ""}`}
+                tabIndex={tabletMenuOpen ? 0 : -1}
+                onClick={() => {
+                  setTabletMenuOpen(false);
+                  navigate("applications");
+                }}
+              >
+                <span>ใบสมัครของฉัน</span>
+                <Icon name="chevron" size={14} />
+              </button>
+            </nav>
+          </div>
         </div>
       </header>
+
+      <nav className="pc-mobile-bottom-nav" aria-label="เมนูหลักมือถือ">
+        <div
+          className="pc-mobile-nav-track"
+          style={{ "--active-tab": visualMobileTab, "--tab-count": mobileTabs.length }}
+        >
+          <div className="pc-mobile-nav-bubble-slot" aria-hidden="true">
+            <span className="pc-mobile-nav-bubble" />
+          </div>
+          <div className="pc-mobile-nav-pill-slot" aria-hidden="true">
+            <span className="pc-mobile-nav-pill" />
+          </div>
+          {mobileTabs.map((tab, index) => {
+            const isActive = visualMobileTab === index;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                className={`pc-mobile-nav-tab${isActive ? " is-active" : ""}`}
+                aria-current={isActive ? "page" : undefined}
+                onClick={tab.onClick}
+              >
+                <span className="pc-mobile-nav-icon">
+                  <Icon name={tab.icon} size={19} />
+                </span>
+                <span className="pc-mobile-nav-label">{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+
       {loginDialogOpen ? (
         <AuthDialog
           requiresRegistrationLogin={requiresRegistrationLogin}
           backendEnabled={backendEnabled}
+          demoSignIn={demoSignIn}
           dialogRef={dialogRef}
           onKeyDown={keepFocusInsideDialog}
           onDismiss={dismissLoginDialog}
           onBackdropMouseDown={(event) => {
             if (!requiresRegistrationLogin && event.target === event.currentTarget) setLoginDialogOpen(false);
           }}
-          onGoogleSignIn={() => { onSignIn(demoProfile); setLoginDialogOpen(false); }}
+          onGoogleSignIn={() => {
+            onSignIn(demoProfile);
+            setLoginDialogOpen(false);
+          }}
         />
       ) : null}
     </>

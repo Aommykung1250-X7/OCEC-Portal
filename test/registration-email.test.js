@@ -5,6 +5,13 @@ import { registrationEmailSample } from '../scripts/registration-email-sample.js
 
 const emailOrigin = process.env.APP_ORIGIN || 'http://localhost:3001';
 
+test('Final email summarizes the package, applicant size and Guest charges without a public roster',()=>{
+  const sample=structuredClone(registrationEmailSample);
+  sample.items[0]={...sample.items[0],packageName:'Onsite + เข้าร่วมรับรางวัล',shirtSize:'SS',guests:[{firstNameEn:'PrivateParent',lastNameEn:'Smith',shirtSize:'XL'}],guestsTotal:4500};
+  const {text,html}=registrationEmail(sample);
+  for(const output of [text,html]){assert.match(output,/Onsite \+ เข้าร่วมรับรางวัล/);assert.match(output,/SS/);assert.match(output,/Guest 1/);assert.match(output,/4,500/);assert.doesNotMatch(output,/PrivateParent/);}
+});
+
 test('registration email includes applicant, exam, past-paper, and separated payment details', () => {
   const { text, html } = registrationEmail(registrationEmailSample);
 

@@ -15,6 +15,8 @@ import { applyFinalIds, generateExamNumbers, getFinalIdImport, importFinalIds, i
 import { createFinalVerificationGrant, finalGrantCookie, finalGrantTokenFromRequest, listFinalEligibilityForUser, searchSchoolFinalEligibility } from './finalEligibility.js';
 import { isKnownSpaLocation } from '../src/routes.js';
 import { getCenterPosterOverride, resetCenterPoster, saveCenterPoster } from './centerPoster.js';
+import { FINAL_SHIRT_SIZES } from '../shared/finalShirts.js';
+import { getFinalShirtImage, removeFinalShirtImage, saveFinalShirtImage, saveFinalShirtSizes } from './finalShirts.js';
 
 export const app = Fastify({ logger: true, bodyLimit: 16 * 1024 * 1024, trustProxy: true });
 
@@ -97,6 +99,24 @@ app.delete('/api/admin/center-poster', { preHandler: requireAdmin }, async (requ
   await resetCenterPoster(request.user.id);
   return { version: null };
 });
+const shirtImageParams = { type: 'object', required: ['kind'], properties: { kind: { type: 'string', enum: ['chart','sample'] } } };
+app.get('/api/final-shirt-images/:kind', { schema: { params: shirtImageParams } }, async (request, reply) => {
+  const image = await getFinalShirtImage(request.params.kind);
+  const etag = `"${createHash('sha256').update(image.content).digest('hex')}"`;
+  reply.header('ETag',etag).header('Cache-Control','public, max-age=0, must-revalidate')
+    .header('X-Content-Type-Options','nosniff').type(image.mimeType);
+  if (String(request.headers['if-none-match'] || '').split(',').map(value => value.trim()).some(value => value === etag || value === '*')) return reply.code(304).send();
+  return reply.send(image.content);
+});
+app.put('/api/admin/final-shirt-images/:kind', { preHandler: requireAdmin, schema: { params: shirtImageParams, body: centerPosterUploadSchema } }, async (request) => saveFinalShirtImage(request.params.kind,request.body,request.user.id));
+app.delete('/api/admin/final-shirt-images/:kind', { preHandler: requireAdmin, schema: { params: shirtImageParams } }, async (request) => removeFinalShirtImage(request.params.kind,request.user.id));
+app.put('/api/applications/:id/shirt-sizes', { preHandler: requireUser, schema: {
+  params: { type: 'object', required: ['id'], properties: { id: { type: 'string', format: 'uuid' } } },
+  body: { type: 'object', additionalProperties: false, required: ['items'], properties: { items: {
+    type: 'array', minItems: 1, maxItems: 20, items: { type: 'object', additionalProperties: false, required: ['applicationItemId','shirtSize'],
+      properties: { applicationItemId: { type: 'string', format: 'uuid' },shirtSize: { type: 'string', enum: [...FINAL_SHIRT_SIZES] } } },
+  } } },
+} }, async (request) => saveFinalShirtSizes(request.params.id,request.body.items,request.user));
 app.post('/api/public/final-eligibility/search', { onRequest: noStore, preHandler: publicLookupRateLimit('final-search', 60, 15), schema: { body: {
   type: 'object', additionalProperties: false, required: ['candidateName'], properties: { candidateName: { type: 'string', minLength: 3, maxLength: 255 } },
 } } }, async (request) => ({ choices: await searchSchoolFinalEligibility(request.body.candidateName) }));
@@ -217,6 +237,11 @@ app.post('/api/admin/integration-jobs/:id/retry', { preHandler: requireAdmin, sc
   return { job: retried };
 });
 
+const finalBookingItemProperties = {
+      packageCode: {type:'string',enum:['onsite','onsite_ceremony','online']},shirtSize:{type:'string',enum:[...FINAL_SHIRT_SIZES]},
+      guests:{type:'array',maxItems:4,items:{type:'object',additionalProperties:false,required:['firstNameEn','lastNameEn','shirtSize'],properties:{firstNameEn:{type:'string',minLength:1,maxLength:120},lastNameEn:{type:'string',minLength:1,maxLength:120},shirtSize:{type:'string',enum:[...FINAL_SHIRT_SIZES]}}}},
+};
+const finalPackagePriceSchema={type:"object",additionalProperties:false,properties:{onsite:{type:"number",minimum:0},onsite_ceremony:{type:"number",minimum:0},online:{type:"number",minimum:0}}};
 const candidateSchema = {
   type: 'object', additionalProperties: false, required: ['applicant', 'items'], properties: {
     applicant: { type: 'object', additionalProperties: false, required: ['firstNameEn', 'lastNameEn', 'dateOfBirth', 'schoolName', 'contactEmail', 'contactPhone'], properties: {
@@ -225,8 +250,9 @@ const candidateSchema = {
       schoolName: { type: 'string', minLength: 1, maxLength: 255 }, contactEmail: { type: 'string', format: 'email' }, contactPhone: { type: 'string', minLength: 8, maxLength: 30 },
       address: { type: 'object', additionalProperties: { type: 'string' }, maxProperties: 20 },
     } },
-    items: { type: 'array', minItems: 1, maxItems: 20, items: { type: 'object', additionalProperties: false, required: ['roundId', 'gradeId', 'format', 'centerId'], properties: {
+    items: { type: 'array', minItems: 1, maxItems: 20, items: { type: 'object', additionalProperties: false, required: ['roundId', 'gradeId', 'format'], properties: {
       roundId: { type: 'string', minLength: 1 }, gradeId: { type: 'string', minLength: 1 }, format: { type: 'string', enum: ['paper', 'online'] }, centerId: { type: 'string', minLength: 1 }, examEmail: { type: 'string', format: 'email' },
+      ...finalBookingItemProperties,
     } } },
     pastPaperIds: { type: 'array', maxItems: 50, uniqueItems: true, items: { type: 'string' } },
     marketingConsent: { type: 'boolean' }, sourceHeatApplicationId: { type: 'string', format: 'uuid' },
@@ -237,7 +263,7 @@ const slipSchema = { type: 'object', additionalProperties: false, required: ['fi
   fileName: { type: 'string', minLength: 1, maxLength: 255 }, mimeType: { type: 'string', enum: ['application/pdf', 'image/jpeg', 'image/png'] }, dataBase64: { type: 'string', minLength: 1, maxLength: 14_000_000 },
 } };
 const individualSubmissionSchema = { ...candidateSchema, required: [...candidateSchema.required, 'slip'], properties: {
-  ...candidateSchema.properties, source: { type: 'string', enum: ['self', 'guest', 'final'] }, slip: slipSchema,
+  ...candidateSchema.properties, source: { type: 'string', enum: ['self', 'guest', 'final'] }, slip: slipSchema,certificatePhoto:certificatePhotoSchema,
 } };
 const schoolSubmissionSchema = { type: 'object', additionalProperties: false, required: ['schoolName', 'source', 'applicants', 'slip'], properties: {
   schoolName: { type: 'string', minLength: 1, maxLength: 255 }, source: { type: 'string', enum: ['manual', 'excel'] },
@@ -251,7 +277,7 @@ app.post('/api/school-batch-drafts', { preHandler: requireUser, schema: { body: 
   applicants: { type: 'array', minItems: 1, maxItems: 100, items: candidateSchema },
 } } } }, async (request, reply) => reply.code(201).send({ batch: await createSchoolDraft(request.body, request.user.id, request.user.email) }));
 
-app.post('/api/applications/submit', { preHandler: requireUser, schema: { body: individualSubmissionSchema } }, async (request, reply) => reply.code(201).send({ application: await submitIndividualApplication(request.body, request.user.id, finalGrantTokenFromRequest(request)) }));
+app.post('/api/applications/submit', { bodyLimit:32*1024*1024,preHandler: requireUser, schema: { body: individualSubmissionSchema } }, async (request, reply) => reply.code(201).send({ application: await submitIndividualApplication(request.body, request.user.id, finalGrantTokenFromRequest(request)) }));
 app.post('/api/school-batches/submit', { preHandler: requireUser, schema: { body: schoolSubmissionSchema } }, async (request, reply) => reply.code(201).send({ batch: await submitSchoolBatch(request.body, request.user.id, request.user.email) }));
 app.patch('/api/applications/:id/profile', { preHandler: requireUser, schema: {
   params: { type: 'object', required: ['id'], properties: { id: { type: 'string', format: 'uuid' } } },
@@ -314,10 +340,11 @@ app.patch('/api/admin/applications/:id', { preHandler: requireAdmin, schema: {
       address: { type: 'object', additionalProperties: { type: 'string', maxLength: 255 }, maxProperties: 20 },
     } },
     items: { type: 'array', minItems: 1, maxItems: 30, items: { type: 'object', additionalProperties: false,
-      required: ['roundId','gradeId','format','centerId'], properties: {
+      required: ['roundId','gradeId','format'], properties: {
         applicationItemId: { type: ['string','null'], format: 'uuid' }, roundId: { type: 'string', minLength: 1, maxLength: 180 },
         gradeId: { type: 'string', minLength: 1, maxLength: 180 }, format: { type: 'string', enum: ['paper','online'] },
         centerId: { type: 'string', minLength: 1, maxLength: 180 }, examEmail: { type: 'string', maxLength: 255 },
+        ...finalBookingItemProperties,
       } } },
     paymentSlip: slipSchema,
   } },
@@ -343,7 +370,7 @@ app.patch('/api/admin/applications/:id/review', { preHandler: requireAdmin, sche
   } },
 } }, async (request) => reviewApplication(request.params.id, request.body, request.user.id));
 
-app.patch('/api/admin/exams/:id', { preHandler: requireAdmin, schema: { params: { type: 'object', required: ['id'], properties: { id: { type: 'string', minLength: 1 } } }, body: { type: 'object', additionalProperties: false, minProperties: 1, properties: { title: { type: 'string', minLength: 1 }, openDate: { type: ['string','null'], format: 'date' }, closeDate: { type: ['string','null'], format: 'date' }, editCloseDate: { type: ['string','null'], format: 'date' }, examDate: { type: ['string','null'], format: 'date' }, finalConfirmCloseDate: { type: ['string','null'], format: 'date' }, examStartTime: { type: ['string','null'], pattern: '^([01]\\d|2[0-3]):[0-5]\\d$' }, examEndTime: { type: ['string','null'], pattern: '^([01]\\d|2[0-3]):[0-5]\\d$' }, manualClosed: { type: 'boolean' }, finalManuallyClosed: { type: 'boolean' }, isOpen: { type: 'boolean' }, accent: { type: ['string','null'] }, logoDataUrl: { type: 'string', maxLength: 7000000 }, description: { type: 'string' }, prices: { type: 'object', additionalProperties: false, properties: { paperBased: { type: 'number', minimum: 0 }, onlineExam: { type: 'number', minimum: 0 } } }, gradeOptions: { type: 'array', uniqueItems: true, items: { type: 'string' } }, centerIds: { type: 'array', uniqueItems: true, items: { type: 'string' } } } } } }, async (request, reply) => {
+app.patch('/api/admin/exams/:id', { preHandler: requireAdmin, schema: { params: { type: 'object', required: ['id'], properties: { id: { type: 'string', minLength: 1 } } }, body: { type: 'object', additionalProperties: false, minProperties: 1, properties: { title: { type: 'string', minLength: 1 }, openDate: { type: ['string','null'], format: 'date' }, closeDate: { type: ['string','null'], format: 'date' }, editCloseDate: { type: ['string','null'], format: 'date' }, examDate: { type: ['string','null'], format: 'date' }, finalConfirmCloseDate: { type: ['string','null'], format: 'date' }, examStartTime: { type: ['string','null'], pattern: '^([01]\\d|2[0-3]):[0-5]\\d$' }, examEndTime: { type: ['string','null'], pattern: '^([01]\\d|2[0-3]):[0-5]\\d$' }, manualClosed: { type: 'boolean' }, finalManuallyClosed: { type: 'boolean' }, isOpen: { type: 'boolean' }, accent: { type: ['string','null'] }, logoDataUrl: { type: 'string', maxLength: 7000000 }, description: { type: 'string' }, packagePrices:finalPackagePriceSchema,guestPrice:{type:'number',minimum:0}, prices: { type: 'object', additionalProperties: false, properties: { paperBased: { type: 'number', minimum: 0 }, onlineExam: { type: 'number', minimum: 0 } } }, gradeOptions: { type: 'array', uniqueItems: true, items: { type: 'string' } }, centerIds: { type: 'array', uniqueItems: true, items: { type: 'string' } } } } } }, async (request, reply) => {
   const updated = await updateExamRound(request.params.id, request.body, request.user.id);
   if (!updated) return reply.code(404).send({ error: 'Exam round not found' });
   return { exam: (await loadCatalog()).exams.find((exam) => exam.id === request.params.id) };

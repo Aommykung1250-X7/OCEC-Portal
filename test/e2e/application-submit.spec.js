@@ -11,9 +11,9 @@ test('applicant can complete and submit a Heat application from the migrated for
   await page.getByLabel('นามสกุล (ภาษาไทย)').fill('ทดสอบ');
   await page.getByRole('radio', { name: 'ชาย' }).check();
   await page.getByLabel('Date of Birth / วันเกิด').fill('2012-01-15');
-  await page.getByLabel('School Name / โรงเรียน').selectOption({ index: 1 });
+  await page.getByLabel('School Name / โรงเรียน').selectOption('Bangkok Patana School');
   await page.getByLabel('Email / อีเมล').fill('tailwind-applicant@example.test');
-  await page.getByLabel('Phone Number / เบอร์โทรศัพท์').fill('0812345678');
+  await page.getByLabel('Phone Number / หมายเลขโทรศัพท์').fill('0812345678');
   await page.getByLabel('Address Line 1 / ที่อยู่').fill('99 ถนนสุขุมวิท');
   await page.getByLabel('District / City / เขตหรืออำเภอ').fill('วัฒนา');
   await page.getByLabel('Province / จังหวัด').fill('กรุงเทพมหานคร');

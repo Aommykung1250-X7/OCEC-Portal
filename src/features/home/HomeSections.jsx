@@ -1,146 +1,384 @@
-import { registrationCountdown } from "./homeUtils.js";
-import { getBangkokTodayISO } from "../applications/applicationUtils.js";
-import { lazy, Suspense } from "react";
-import { BrandMark, Icon } from "../../components/ui/index.jsx";
+import { useState } from "react";
+import { Icon } from "../../components/ui/index.jsx";
 import { formatThaiDate, getExamRoundType } from "../../examUtils.js";
+import { getBangkokTodayISO } from "../applications/applicationUtils.js";
+import { formatShortThaiDate, getCompetitionDisplayMeta, splitThaiDate, toThaiYear } from "./homeUtils.js";
 
-const GraduationCapScene = lazy(() => import("./GraduationCapScene.jsx").then((module) => ({ default: module.GraduationCapScene })));
-const HERO_DIVIDER_WAVES = 12;
-const heroDividerPath = "M0 24 " + Array.from({ length: HERO_DIVIDER_WAVES }, (_, index) => {
-  const x = index * 120;
-  return "Q" + (x + 30) + " 0 " + (x + 60) + " 24 Q" + (x + 90) + " 48 " + (x + 120) + " 24";
-}).join(" ") + " L1440 48 L0 48 Z";
+const HERO_WAVE_PATH = "M0,26 C120,44 240,8 360,26 C480,44 600,8 720,26 C840,44 960,8 1080,26 C1200,44 1320,8 1440,26 L1440,48 L0,48 Z";
+const COMPETITION_ORDER = ["timo", "bbb", "hkimo", "hkiso", "hkico"];
+const ROUND_SHORT_LABELS = { HEAT: "รอบ Heat", FINAL: "รอบ Final", FINAL_X: "รอบ Final X" };
 const FACEBOOK_PAGES = [
   ["OCEC-TH", "https://www.facebook.com/OCECTH"],
   ["TIMO", "https://www.facebook.com/timo.thailand"],
   ["BBB", "https://www.facebook.com/profile.php?id=100076545241501"],
   ["HKIMO", "https://www.facebook.com/profile.php?id=100063468886052"],
 ];
+const HELP_URL = "https://lin.ee/3hzFg1z";
 
-function FacebookMark() {
-  return <svg className="home-facebook-mark" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="#1877f2" /><path d="M13.5 21v-7h2.4l.35-2.8H13.5V9.4c0-.8.22-1.35 1.36-1.35h1.45v-2.5c-.25-.03-1.11-.1-2.12-.1-2.1 0-3.54 1.3-3.54 3.68v2.07H8.3V14h2.35v7Z" fill="#fff" /></svg>;
-}
+function FeaturedExamCard({ featuredExam, featuredCompetition, onStartApplication, navigate }) {
+  const meta = getCompetitionDisplayMeta(featuredExam, featuredCompetition);
+  const isOpen = Boolean(featuredExam?.isOpen);
+  const roundType = featuredExam ? getExamRoundType(featuredExam) : "HEAT";
+  const roundText = ROUND_SHORT_LABELS[roundType] || "รอบ Heat";
+  const dateParts = splitThaiDate(featuredExam?.examDate);
+  const closeDateText = featuredExam?.closeDate ? `ปิดรับสมัคร ${formatThaiDate(featuredExam.closeDate)}` : "ติดตามกำหนดการเปิดรับสมัคร";
+  const displayYear = featuredExam?.year || String(new Date().getFullYear());
 
-export function HomeSocialLinks() {
+  const handleCardAction = () => {
+    if (isOpen) {
+      if (roundType === "HEAT") onStartApplication?.();
+      else navigate?.("final-confirm");
+      return;
+    }
+    document.getElementById("open-exams")?.scrollIntoView({ behavior: "smooth" });
+  };
+
   return (
-<div className="home-social" role="group" aria-label="ติดตามข่าวสารและประชาสัมพันธ์ทาง Facebook">
-            <FacebookMark />
-            <ul className="home-social-links">
-              {FACEBOOK_PAGES.map(([name, href]) => <li key={name}><a className="home-social-link" href={href} target="_blank" rel="noopener noreferrer" aria-label={"ติดตาม " + name + " บน Facebook (เปิดแท็บใหม่)"}>{name}</a></li>)}
-            </ul>
+    <div className="home-featured-card" role="button" tabIndex={0} onClick={handleCardAction} onKeyDown={(event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        handleCardAction();
+      }
+    }}>
+      <span className={`home-featured-pill${isOpen ? " is-open" : ""}`}>
+        {isOpen ? "กำลังเปิดรับสมัคร" : "รอบสอบล่าสุด"}
+      </span>
+      <h2 className="home-featured-title">{meta.short} {displayYear}</h2>
+      <p className="home-featured-subtitle">{meta.englishName || meta.thaiName}</p>
+      <div className="home-featured-date">
+        {dateParts ? (
+          <>
+            <strong className="home-featured-day">{dateParts.day}</strong>
+            <div className="home-featured-date-copy">
+              <span>{dateParts.monthYear}</span>
+              <small>{roundText} • Paper / Online</small>
+            </div>
+          </>
+        ) : (
+          <div className="home-featured-date-copy">
+            <span>รอประกาศวันสอบ</span>
+            <small>{roundText} • Paper / Online</small>
           </div>
-  );
-}
-
-export function HomeHero({ featuredExam, onStartApplication, onLookup, applicationsSummary }) {
-  return (
-    <section className="home-hero" aria-labelledby="homepage-title">
-      <div className="home-container home-hero-grid">
-        <div className="home-hero-copy">
-          <p className="home-kicker"><Icon name="sparkle" size={14} /> OCEC EXAM PORTAL • ปีการศึกษา {featuredExam?.year || "2569"}</p>
-          <h1 id="homepage-title">สมัครสอบกับ <span>OCEC.</span></h1>
-          <span className="home-title-rule" aria-hidden="true" />
-          <p className="home-hero-lead">เลือกรายการสอบที่สนใจ ตรวจสอบกำหนดการ และสมัครได้หลายรายการผ่านแบบฟอร์มเดียว</p>
-          <div className="home-hero-actions">
-            <button className="home-button home-button-primary" type="button" onClick={onStartApplication}>เข้าสู่การสมัครสอบ <Icon name="arrow" size={16} /></button>
-            <button className="home-button home-button-secondary" type="button" onClick={onLookup}><Icon name="file" size={16} /> ตรวจสอบสถานะใบสมัคร</button>
-          </div>
-          {applicationsSummary}
-        </div>
-        <div className="home-art">
-          <div className="home-art-stage">
-            <div className="home-art-panel" aria-hidden="true" />
-            <Suspense fallback={<div className="home-scene-loading" aria-hidden="true" />}>
-              <GraduationCapScene />
-            </Suspense>
-          </div>
-        </div>
+        )}
       </div>
-      <svg className="home-section-wave" viewBox="0 0 1440 48" preserveAspectRatio="none" aria-hidden="true" data-wave-count={HERO_DIVIDER_WAVES}><path d={heroDividerPath} /></svg>
-    </section>
-  );
-}
-
-function RoundCard({ exam, index, onStartApplication, today }) {
-  const countdown = registrationCountdown(exam.closeDate, today);
-  const roundType = getExamRoundType(exam);
-  const roundLabel = roundType === "HEAT" ? "HEAT ROUND · รอบคัดเลือก" : roundType === "FINAL" ? "FINAL ROUND · รอบชิงชนะเลิศ" : roundType === "FINAL_X" ? "FINAL X · รอบสอบ" : (exam.round || roundType) + " · รอบสอบ";
-  return (
-    <article className="home-round-card" style={{ "--exam-entrance-delay": Math.min(index, 8) * 70 + "ms" }}>
-      <div className="home-round-top">
-        <div className="home-round-labels"><span className="home-round-status"><i />เปิดรับสมัคร</span><span>{roundLabel}</span></div>
-        {countdown ? <span className="home-round-countdown"><Icon name="clock" size={15} />{countdown}</span> : null}
-      </div>
-      <h3>{exam.title}</h3>
-      <p className="home-round-description">{exam.description || "ตรวจสอบกำหนดการและรายละเอียดการสมัคร"}</p>
-      <div className="home-round-dates">
-        <div><i><Icon name="calendar" size={16} /></i><span><small>วันสอบ</small><strong>{exam.examDate ? formatThaiDate(exam.examDate) : "ยังไม่กำหนด"}</strong></span></div>
-        <div><i><Icon name="clock" size={16} /></i><span><small>ปิดรับสมัคร</small><strong>{exam.closeDate ? formatThaiDate(exam.closeDate) : "ยังไม่กำหนด"}</strong></span></div>
-      </div>
-      <div className="home-round-foot"><button className="home-button home-button-primary" type="button" onClick={onStartApplication}>สมัครสอบทันที <Icon name="arrow" size={15} /></button></div>
-    </article>
-  );
-}
-
-export function ExamRounds({ today = getBangkokTodayISO(), openExams, resultPublished, navigate, onStartApplication }) {
-  return (
-    <section className="home-rounds" id="open-exams" aria-labelledby="open-exams-title">
-      <div className="home-container">
-        <div className="home-rounds-layout">
-          <div className="home-rounds-intro">
-            <div className="home-rounds-logo"><BrandMark /></div>
-            <p className="home-section-kicker">EXAM ROUNDS · รอบสอบปัจจุบัน</p>
-            <h2 id="open-exams-title">รายการสอบที่เปิดรับสมัคร</h2>
-            <span className="home-title-rule" aria-hidden="true" />
-            <p>{openExams.length ? "โปรดตรวจสอบรายละเอียดก่อนสมัคร" : "เมื่อมีรายการเปิดรับสมัคร รายละเอียดและกำหนดการจะแสดงในส่วนนี้"}</p>
-            <span className="home-open-count"><i />{openExams.length} รายการเปิดรับสมัคร</span>
-          </div>
-          <div className="home-rounds-list" aria-label="รายการสอบที่เปิดรับ">
-            {openExams.length ? openExams.map((exam, index) => <RoundCard today={today} key={exam.id} exam={exam} index={index} onStartApplication={getExamRoundType(exam) === "HEAT" ? onStartApplication : () => navigate("final-confirm")} />) : (
-              <div className="home-rounds-empty">
-                <span className="home-empty-icon"><Icon name="calendar" size={28} /></span>
-                <h3>ขณะนี้ไม่มีรายการสอบที่เปิดรับสมัคร</h3>
-                <p>เมื่อมีรายการเปิดรับสมัคร ระบบจะแสดงรายละเอียดและกำหนดการในส่วนนี้ ระหว่างนี้สามารถศึกษาขั้นตอนการสมัครหรือตรวจสอบใบสมัครได้</p>
-                <div><a className="home-button home-button-secondary" href="#how-to-apply">ดูขั้นตอนการสมัคร <Icon name="arrow" size={15} /></a><button className="home-button home-button-primary" type="button" onClick={() => navigate("lookup-choice")}>ตรวจสอบสถานะใบสมัคร</button></div>
-              </div>
-            )}
-          </div>
-        </div>
-        <Journey navigate={navigate} />
-        {resultPublished ? <button className="home-final-link" onClick={() => navigate("final-confirm")}><Icon name="award" size={24} /><span><strong>ตรวจสอบสิทธิ์สมัครรอบ Final / Final X</strong><small>สำหรับผู้ผ่าน HEAT หรือผู้ได้เหรียญ BBB รอบ Final</small></span><Icon name="arrow" size={18} /></button> : null}
-      </div>
-    </section>
-  );
-}
-
-export function Journey({ navigate }) {
-  const steps = [
-    ["01", "file", "เลือกรอบสอบ", "โปรดตรวจสอบวันสอบและกำหนดปิดรับสมัครก่อนเลือกรายการสอบ"],
-    ["02", "user", "กรอกใบสมัคร", "เข้าสู่ระบบ กรอกข้อมูลให้ครบถ้วน และส่งใบสมัครผ่านแบบฟอร์ม"],
-    ["03", "check", "ตรวจสอบสถานะ", "ตรวจสอบสถานะใบสมัคร และแก้ไขข้อมูลตามสิทธิ์ที่กำหนด"],
-  ];
-  return (
-    <div className="home-journey" id="how-to-apply" aria-labelledby="how-to-apply-title">
-      <p className="home-guide-kicker">APPLICATION GUIDE · ขั้นตอนการสมัคร</p>
-      <h3 id="how-to-apply-title">ขั้นตอนการสมัคร 3 ขั้นตอน</h3>
-      <p className="home-guide-description">โปรดเตรียมข้อมูลให้พร้อมก่อนสมัคร และตรวจสอบสถานะใบสมัครได้ทุกเมื่อ</p>
-      <ol>{steps.map(([number, icon, title, description]) => <li key={number}><div className="home-step-top"><span>{number}</span><i><Icon name={icon} size={20} /></i></div><h4>{title}</h4><p>{description}</p>{number === "03" ? <button type="button" onClick={() => navigate("lookup-choice")}>ดูรายละเอียด <Icon name="arrow" size={13} /></button> : null}</li>)}</ol>
+      <p className="home-featured-close">{closeDateText}</p>
     </div>
   );
 }
 
-export function HomeFooter({ navigate }) {
-  const links = [["รายการสอบ", "home"], ["ตรวจสอบสถานะใบสมัคร", "lookup-choice"], ["ยืนยันสิทธิ์", "final-confirm"], ["ประกาศผล", "results"]];
-  const goTo = (page) => {
-    if (page === "home") document.getElementById("open-exams")?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
-    else navigate(page);
-  };
+export function HomeHero({ featuredExam, featuredCompetition, onStartApplication, onLookup, navigate }) {
+  const displayThaiYear = toThaiYear(featuredExam?.year || "2569");
+  return (
+    <section className="home-hero" aria-labelledby="homepage-title">
+      <div className="home-container home-hero-grid">
+        <div className="home-hero-copy">
+          <p className="home-kicker">เปิดโลกการเรียนรู้ • ปีการศึกษา {displayThaiYear}</p>
+          <h1 id="homepage-title">ก้าวแรกของคุณ<br />สู่เวทีนานาชาติ</h1>
+          <p className="home-hero-lead">
+            สมัครสอบ ติดตามสถานะ และต่อยอดความสำเร็จ<br className="home-lead-break" />
+            ทุกโอกาสของน้อง ๆ เริ่มต้นได้ที่นี่
+          </p>
+          <div className="home-hero-actions">
+            <button className="home-button home-button-primary" type="button" onClick={onStartApplication}>
+              <span>เข้าสู่การสมัครสอบ</span>
+              <span aria-hidden="true">→</span>
+            </button>
+            <button className="home-button home-button-secondary" type="button" onClick={onLookup}>
+              ตรวจสอบสถานะใบสมัคร
+            </button>
+          </div>
+          <p className="home-hero-note">สำหรับผู้สมัคร ผู้ปกครอง และโรงเรียน</p>
+        </div>
+        <div className="home-hero-aside">
+          <FeaturedExamCard
+            featuredExam={featuredExam}
+            featuredCompetition={featuredCompetition}
+            onStartApplication={onStartApplication}
+            navigate={navigate}
+          />
+        </div>
+      </div>
+      <svg className="home-section-wave" viewBox="0 0 1440 48" preserveAspectRatio="none" aria-hidden="true">
+        <path d={HERO_WAVE_PATH} />
+      </svg>
+    </section>
+  );
+}
+
+export function HomeQuickActions({ navigate, applicationsSummary }) {
+  const items = [
+    { icon: "file", title: "ใบสมัครของฉัน", desc: "ดูใบสมัครและความคืบหน้า", to: "applications" },
+    { icon: "search", title: "ตรวจสอบสถานะ", desc: "ค้นหาได้โดยไม่ต้องเข้าสู่ระบบ", to: "lookup-choice" },
+    { icon: "award", title: "ประกาศผลสอบ", desc: "ดูผลและสิทธิ์สมัครรอบถัดไป", to: "results" },
+  ];
+  return (
+    <section className="home-quick-section" aria-label="ทางลัดบริการหลัก">
+      <div className="home-container">
+        <div className="home-quick-grid">
+          {items.map((item) => (
+            <button
+              key={item.to}
+              type="button"
+              className="home-quick-card"
+              onClick={() => navigate(item.to)}
+            >
+              <span className="home-quick-icon"><Icon name={item.icon} size={18} /></span>
+              <span className="home-quick-copy">
+                <strong>{item.title}</strong>
+                <small>{item.desc}</small>
+              </span>
+            </button>
+          ))}
+        </div>
+        {applicationsSummary}
+      </div>
+    </section>
+  );
+}
+
+function RoundCard({ exam, competition, year, today, onStartApplication, navigate }) {
+  const isOpen = Boolean(exam?.isOpen);
+  const isClosed = !isOpen && Boolean(exam?.closeDate && today > exam.closeDate);
+  const roundType = exam ? getExamRoundType(exam) : "HEAT";
+  const roundLabel = ROUND_SHORT_LABELS[roundType] || "รอบ Heat";
+  const meta = getCompetitionDisplayMeta(exam, competition);
+  const thaiYear = toThaiYear(exam?.year || year);
+  const shortExamDate = formatShortThaiDate(exam?.examDate);
+  const shortCloseDate = formatShortThaiDate(exam?.closeDate);
+  const badgeText = isOpen ? "เปิดรับสมัคร" : isClosed ? "ปิดรับสมัคร" : "ยังไม่เปิด";
+  const isFinal = roundType === "FINAL" || roundType === "FINAL_X";
+
+  return (
+    <article className={`home-round-card${isOpen ? " is-open" : " is-closed"}`}>
+      <div className="home-round-top">
+        <strong className="home-round-code">{meta.short}</strong>
+        <span className={`home-round-badge${isOpen ? " is-open" : ""}`}>{badgeText}</span>
+      </div>
+      <h3 className="home-round-title">{meta.thaiName}</h3>
+      <p className="home-round-meta">ปี {thaiYear} / {roundLabel}</p>
+      <div className="home-round-date-row">
+        <Icon name="calendar" size={16} />
+        <strong>{shortExamDate || "รอประกาศกำหนดการ"}</strong>
+      </div>
+      {isOpen ? (
+        <>
+          <p className="home-round-close">
+            {shortCloseDate ? `ปิดรับ ${shortCloseDate}` : "เปิดรับสมัครแล้ว"}
+          </p>
+          <div className="home-round-foot">
+            <button
+              className="home-button home-button-primary home-round-cta"
+              type="button"
+              onClick={isFinal ? () => navigate("final-confirm") : onStartApplication}
+            >
+              <span>{isFinal ? "ยืนยันสิทธิ์และสมัคร" : "สมัครสอบทันที"}</span>
+              <span aria-hidden="true">→</span>
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className="home-round-closed-copy">
+          <p>{isClosed ? (shortCloseDate ? `ปิดรับเมื่อ ${shortCloseDate}` : "ปิดรับสมัครแล้ว") : "ยังไม่เปิดรับสมัคร"}</p>
+          <p>ติดตามประกาศจาก OCEC</p>
+        </div>
+      )}
+    </article>
+  );
+}
+
+export function ExamRounds({
+  today = getBangkokTodayISO(),
+  examCatalog = [],
+  competitionCatalog = [],
+  openExams: legacyOpenExams,
+  resultPublished,
+  navigate,
+  onStartApplication,
+}) {
+  const sourceExams = examCatalog.length ? examCatalog : (legacyOpenExams || []);
+  const catalogYears = [...new Set(sourceExams.map((exam) => String(exam.year)).filter(Boolean))]
+    .sort((a, b) => Number(b) - Number(a));
+  const fallbackYear = String(Number(today.slice(0, 4)));
+  const latestYear = catalogYears[0] || fallbackYear;
+  const years = catalogYears.length ? catalogYears : [latestYear];
+
+  const [selectedYear, setSelectedYear] = useState(latestYear);
+  const [openOnly, setOpenOnly] = useState(false);
+
+  const activeYear = years.includes(selectedYear) ? selectedYear : latestYear;
+  const roundsForYear = sourceExams.filter((exam) => String(exam.year) === activeYear);
+  const activeCompetitions = competitionCatalog.filter((comp) => comp.active !== false);
+
+  const scheduledCards = roundsForYear.map((exam) => ({
+    key: exam.id,
+    exam,
+    competition: activeCompetitions.find((comp) => comp.id === exam.competitionId) || { id: exam.competitionId, name: exam.title },
+  }));
+
+  const unscheduledCards = activeYear === latestYear
+    ? activeCompetitions
+      .filter((comp) => !roundsForYear.some((exam) => exam.competitionId === comp.id))
+      .map((competition) => ({ key: `unscheduled-${competition.id}`, exam: null, competition }))
+    : [];
+
+  const allCards = [...scheduledCards, ...unscheduledCards].sort((left, right) => {
+    const openDiff = Number(Boolean(right.exam?.isOpen)) - Number(Boolean(left.exam?.isOpen));
+    if (openDiff !== 0) return openDiff;
+    const leftIndex = COMPETITION_ORDER.indexOf(left.competition?.id);
+    const rightIndex = COMPETITION_ORDER.indexOf(right.competition?.id);
+    return (leftIndex < 0 ? 99 : leftIndex) - (rightIndex < 0 ? 99 : rightIndex);
+  });
+
+  const visibleCards = openOnly ? allCards.filter(({ exam }) => exam?.isOpen) : allCards;
+
+  return (
+    <section className="home-rounds" id="open-exams" aria-labelledby="open-exams-title">
+      <div className="home-container">
+        <div className="home-rounds-header">
+          <h2 id="open-exams-title">ค้นหาเวทีที่ใช่สำหรับคุณ</h2>
+          <p>เลือกรายการสอบและรอบที่ต้องการสมัคร</p>
+        </div>
+
+        <div className="home-rounds-filters">
+          <label className="home-year-select-wrap">
+            <span className="sr-only">เลือกปีการศึกษา</span>
+            <select
+              className="home-year-select"
+              value={activeYear}
+              onChange={(event) => setSelectedYear(event.target.value)}
+            >
+              {years.map((item) => (
+                <option key={item} value={item}>ปีการศึกษา {toThaiYear(item)}</option>
+              ))}
+            </select>
+            <span className="home-year-caret" aria-hidden="true">▾</span>
+          </label>
+          <button
+            type="button"
+            className={`home-filter-pill${openOnly ? " is-active" : ""}`}
+            aria-pressed={openOnly}
+            onClick={() => setOpenOnly((current) => !current)}
+          >
+            เฉพาะรอบที่เปิดรับ
+          </button>
+        </div>
+
+        {visibleCards.length ? (
+          <div className="home-rounds-grid" aria-label="รายการสอบที่เปิดรับ">
+            {visibleCards.map(({ key, exam, competition }) => (
+              <RoundCard
+                key={key}
+                exam={exam}
+                competition={competition}
+                year={activeYear}
+                today={today}
+                onStartApplication={onStartApplication}
+                navigate={navigate}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="home-rounds-empty">
+            <span className="home-empty-icon"><Icon name="calendar" size={24} /></span>
+            <h3>{openOnly ? "ขณะนี้ยังไม่มีรอบสอบที่เปิดรับสมัคร" : "ยังไม่มีรายการสอบในปีการศึกษานี้"}</h3>
+            <p>
+              {openOnly
+                ? "คุณสามารถดูรายการสอบทั้งหมดของปีการศึกษานี้ หรือตรวจสอบสถานะใบสมัครที่มีอยู่ได้"
+                : "เมื่อมีรายการเปิดรับสมัคร ระบบจะแสดงรายละเอียดและกำหนดการในส่วนนี้"}
+            </p>
+            <div className="home-empty-actions">
+              {openOnly ? (
+                <button className="home-button home-button-secondary" type="button" onClick={() => setOpenOnly(false)}>
+                  ดูรายการสอบทั้งหมด
+                </button>
+              ) : null}
+              <button className="home-button home-button-primary" type="button" onClick={() => navigate("lookup-choice")}>
+                ตรวจสอบสถานะใบสมัคร
+              </button>
+            </div>
+          </div>
+        )}
+
+        {resultPublished ? (
+          <button className="home-final-link" type="button" onClick={() => navigate("final-confirm")}>
+            <span className="home-final-link-icon"><Icon name="award" size={20} /></span>
+            <span className="home-final-link-copy">
+              <strong>ตรวจสอบสิทธิ์สมัครรอบ Final / Final X</strong>
+              <small>สำหรับผู้ผ่านรอบ Heat หรือผู้ได้รับเหรียญตามเกณฑ์ของรายการ</small>
+            </span>
+            <span className="home-final-link-arrow" aria-hidden="true">→</span>
+          </button>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+export function Journey() {
+  const steps = [
+    ["01", "เลือกเวทีของคุณ", "เข้าสู่ระบบ เลือกรายการสอบ สมัครเองหรือสมัครผ่านโรงเรียน"],
+    ["02", "กรอกข้อมูลและชำระเงิน", "ตรวจข้อมูล แนบหลักฐานการโอน และยืนยันการส่งใบสมัคร"],
+    ["03", "ติดตามและไปต่อ", "ตรวจสอบสถานะ ดูผลสอบ และยืนยันสิทธิ์รอบถัดไป"],
+  ];
+  return (
+    <section className="home-journey-section" id="how-to-apply" aria-labelledby="how-to-apply-title">
+      <div className="home-container">
+        <h2 id="how-to-apply-title">สมัครง่าย ใน 3 ขั้นตอน</h2>
+        <ol className="home-steps-grid">
+          {steps.map(([number, title, description]) => (
+            <li key={number} className="home-step-item">
+              <span className="home-step-number">{number}</span>
+              <div className="home-step-copy">
+                <h3>{title}</h3>
+                <p>{description}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </section>
+  );
+}
+
+export function HomeHelpCard() {
+  return (
+    <section className="home-help-section" aria-labelledby="home-help-title">
+      <div className="home-container">
+        <div className="home-help-card">
+          <h2 id="home-help-title">ให้เราช่วยดูแลการสมัครของคุณ</h2>
+          <p>
+            มีคำถามเรื่องการสมัคร ข้อมูล หรือการชำระเงิน<br />
+            ติดต่อทีม OCEC ได้ผ่าน LINE Official
+          </p>
+          <a className="home-help-link" href={HELP_URL} target="_blank" rel="noopener noreferrer">
+            <span>ติดต่อศูนย์ช่วยเหลือ</span>
+            <span aria-hidden="true">↗</span>
+          </a>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function HomeFooter() {
   return (
     <footer className="home-footer">
-      <div className="home-container">
-        <div className="home-help"><span className="home-help-icon"><Icon name="headset" size={25} /></span><div><h3>ต้องการความช่วยเหลือในการสมัครสอบ?</h3><p>ติดต่อศูนย์ช่วยเหลือของเรา</p></div><a className="home-button" href="https://lin.ee/3hzFg1z" target="_blank" rel="noopener noreferrer">ศูนย์ช่วยเหลือ <Icon name="arrow" size={16} /></a></div>
-        <div className="home-footer-bottom"><a className="home-footer-brand" href="/"><BrandMark /><span>OCEC Portal ระบบสมัครสอบ<small>© 2569 OCEC Portal. All rights reserved.</small></span></a><nav aria-label="เมนูส่วนท้าย">{links.map(([label, page]) => <button type="button" key={page} onClick={() => goTo(page)}>{label}</button>)}</nav></div>
-        <div className="home-footer-credit"><HomeSocialLinks /><a href="https://lin.ee/3hzFg1z" target="_blank" rel="noopener noreferrer">ศูนย์ช่วยเหลือ</a><a href="https://www.flaticon.com/uicons" target="_blank" rel="noreferrer">UIcons by Flaticon</a></div>
+      <div className="home-container home-footer-inner">
+        <a className="home-footer-brand" href="/">OCEC Portal</a>
+        <p className="home-footer-tagline">พื้นที่แห่งโอกาส สู่เวทีระดับนานาชาติ</p>
+        <ul className="home-footer-socials" aria-label="ติดตามข่าวสารทาง Facebook">
+          {FACEBOOK_PAGES.map(([name, href]) => (
+            <li key={name}>
+              <a href={href} target="_blank" rel="noopener noreferrer" aria-label={`ติดตาม ${name} บน Facebook (เปิดแท็บใหม่)`}>
+                {name}
+              </a>
+            </li>
+          ))}
+        </ul>
+        <a className="home-footer-line" href={HELP_URL} target="_blank" rel="noopener noreferrer">
+          ติดต่อศูนย์ช่วยเหลือผ่าน LINE Official
+        </a>
+        <p className="home-footer-copy">© 2026 OCEC • ความเป็นส่วนตัว</p>
       </div>
     </footer>
   );

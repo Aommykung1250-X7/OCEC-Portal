@@ -12,6 +12,7 @@ export function PublicPortalLayout({
   onSignOut,
   demoProfile,
   backendEnabled,
+  demoSignIn,
   toast,
   setToast,
   scheduleNotice,
@@ -31,6 +32,7 @@ export function PublicPortalLayout({
         onSignOut={onSignOut}
         demoProfile={demoProfile}
         backendEnabled={backendEnabled}
+        demoSignIn={demoSignIn}
       />
       <main id="landing-main" className="public-page-main" tabIndex="-1">{children}</main>
       <PublicPortalFooter />

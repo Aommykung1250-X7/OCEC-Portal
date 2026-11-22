@@ -17,8 +17,10 @@ test('Final X requires the same BBB Final item and year, medal, open dates and n
   }
 });
 
-test('Final X certificate photo availability uses its own close date and assigned number', () => {
-  const x = { ...application, roundType: 'FINAL_X', competitions: [{ id: 'bbb', roundId: exam.id, examNumber: '123' }] };
-  assert.equal(getCertificatePhotoAvailability(x, [exam], '2026-11-02').canUpload, true);
-  assert.equal(getCertificatePhotoAvailability(x, [exam], '2026-11-01').canUpload, false);
+test('Final X photos are available from submission without waiting for close or exam numbers', () => {
+  const x = { ...application, status:'pending', roundType:'FINAL_X', competitions:[{id:'bbb',roundId:exam.id}] };
+  assert.equal(getCertificatePhotoAvailability(x,[exam],'2026-10-20').canUpload,true);
+  assert.equal(getCertificatePhotoAvailability({...x,status:'confirmed'},[exam],'2026-11-02').canUpload,true);
+  assert.equal(getCertificatePhotoAvailability({...x,status:'rejected'},[exam],'2026-11-02').canUpload,false);
+  assert.equal(getCertificatePhotoAvailability(x,[exam]).canRemove,false);
 });

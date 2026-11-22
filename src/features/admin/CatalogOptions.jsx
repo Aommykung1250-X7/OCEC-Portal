@@ -1,6 +1,7 @@
 import { Button, Icon } from "../../components/ui/index.jsx";
 import { isOnlineCenter } from "../../centers.js";
 import { AdminFormOptionAccordion, CenterCatalogContent } from "./CatalogResources.jsx";
+import { FinalShirtSettings } from "./FinalShirtSettings.jsx";
 
 export function CompetitionCatalogManager({
   selectedCompetition,
@@ -40,6 +41,8 @@ export function CatalogOptions({
   onAddCenter,
   centerPosterVersion,
   onCenterPosterVersionChange,
+  finalShirtImages,
+  onFinalShirtImagesChange,
   paymentAccounts,
   selectedPaymentAccountId,
   onUpdatePaymentAccount,
@@ -60,6 +63,9 @@ export function CatalogOptions({
   onRemovePastPaper,
 }) {
   return <div className="admin-form-options-accordions grid min-w-0 gap-3">
+    <AdminFormOptionAccordion title="เสื้อรอบ Final" description="ไซซ์เสื้อที่กำหนด และรูปตารางไซซ์หรือรูปตัวอย่างเสื้อ (ไม่บังคับ)" count="9 ไซซ์">
+      <FinalShirtSettings images={finalShirtImages} onImagesChange={onFinalShirtImagesChange} />
+    </AdminFormOptionAccordion>
     <AdminFormOptionAccordion
       title="บัญชีรับชำระเงิน"
       description="เพิ่มหรือลบบัญชี และกำหนดบัญชีที่จะแสดงในแบบฟอร์มสมัคร"

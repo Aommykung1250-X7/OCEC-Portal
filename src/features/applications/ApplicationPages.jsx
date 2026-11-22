@@ -1,6 +1,8 @@
+import { FinalBookingSummary } from './FinalBookingSummary.jsx';
 import { useState } from "react";
 import { Button, Field, Icon, PageHeading, StatusBadge } from "../../components/ui/index.jsx";
 import { ApplicantProfileFields } from "./FormFields.jsx";
+import { FinalShirtSection } from "./FinalShirtSection.jsx";
 import { formatThaiDate } from "../../examUtils.js";
 import { getApplicationHeatResultState } from "../../application-results.js";
 import {
@@ -228,7 +230,7 @@ export function EditApplicationPage({ application, onSave, navigate, examCatalog
   );
 }
 
-export function ApplicationDetailPage({ application, navigate, resultRows = [], examCatalog, today, authProfile, hasFinalApplication = false, onConfirmFinal, onSaveCertificatePhoto }) {
+export function ApplicationDetailPage({ application, navigate, resultRows = [], examCatalog, today, authProfile, hasFinalApplication = false, onConfirmFinal, onSaveCertificatePhoto, finalShirtImages, onSaveShirtSizes }) {
   if (!application) return <div className="surface empty-state">ไม่พบใบสมัครที่เลือก</div>;
   const canEdit = isApplicationEditable(application, examCatalog);
   const applicationResults = resultRows.filter((result) => result.applicationId === application.id);
@@ -274,7 +276,8 @@ export function ApplicationDetailPage({ application, navigate, resultRows = [], 
             </div>
             <div className="detail-competition-list">{(application.competitions || []).map((competition) => { const online = getApplicationCompetitionFormat(application, competition) === "Online"; const examEmail = getApplicationCompetitionExamEmail(application, competition); return <div className="detail-competition-item" key={competition.id}><strong>{competition.short || competition.name}</strong><span>{competition.grade || "ไม่ระบุระดับชั้น"}</span><span>{online ? "Online Exam" : "Paper-Based"}</span><small>{getApplicationCompetitionCenter(application, competition) || "—"}</small>{online ? <small>อีเมลเข้าสอบ: {examEmail || "ยังไม่ได้ระบุ"}</small> : null}</div>; })}</div>
           </section>
-          {application.status === "confirmed" ? <CertificatePhotoSection application={application} availability={certificatePhotoAvailability} onSave={(certificatePhoto) => onSaveCertificatePhoto(application.id, certificatePhoto)} /> : null}
+          {(application.competitions || []).map(competition=><FinalBookingSummary key={competition.applicationItemId || competition.id} competition={competition}/>)}
+          {(application.status === "confirmed" || (["FINAL","FINAL_X"].includes(getApplicationRoundType(application)) && ["pending","slip_issue"].includes(application.status))) ? <CertificatePhotoSection application={application} availability={certificatePhotoAvailability} onSave={(certificatePhoto) => onSaveCertificatePhoto(application.id, certificatePhoto)}><FinalShirtSection key={application.id} application={application} availability={certificatePhotoAvailability} images={finalShirtImages} onSave={(items) => onSaveShirtSizes(application.id,items)} /></CertificatePhotoSection> : null}
         </div>
         <aside className="surface timeline-card p-[18px] max-[960px]:order-[-1]">
           <p className="eyebrow">ความคืบหน้า</p><h2>ขั้นตอนใบสมัคร</h2>
@@ -294,8 +297,9 @@ export function ApplicationDetailPage({ application, navigate, resultRows = [], 
   );
 }
 
-function CertificatePhotoSection({ application, availability, onSave }) {
+function CertificatePhotoSection({ application, availability, onSave, children }) {
   const photo = application.certificatePhoto;
+  const isFinal = ["FINAL","FINAL_X"].includes(getApplicationRoundType(application));
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const formattedCloseDate = availability.closeDate ? formatThaiDate(availability.closeDate) : "ยังไม่กำหนด";
@@ -335,12 +339,13 @@ function CertificatePhotoSection({ application, availability, onSave }) {
   }
   return (
     <section className="surface certificate-photo-section">
-      <div className="certificate-photo-copy"><span className="certificate-photo-icon"><Icon name="image" /></span><div><p className="eyebrow">หลังปิดรับสมัครและมีเลขประจำตัวสอบ</p><h2>รูปสำหรับจัดทำเกียรติบัตร</h2><p>ผู้สมัครหรือผู้ประสานงานโรงเรียนอัปโหลดรูปให้ OCEC ใช้จัดทำใบประกาศรางวัลได้ตามต้องการ</p><small>รองรับ JPG, PNG หรือ WebP · ไม่เกิน 10 MB · จัดเก็บใน Google Drive</small></div></div>
+      <div className="certificate-photo-copy"><span className="certificate-photo-icon"><Icon name="image" /></span><div><p className="eyebrow">{isFinal ? "รูปที่ส่งพร้อมใบสมัคร Final / Final X" : "หลังปิดรับสมัครและมีเลขประจำตัวสอบ"}</p><h2>รูปสำหรับจัดทำเกียรติบัตร</h2><p>{isFinal ? "รูปนี้เป็นข้อมูลบังคับของใบสมัคร สามารถเปลี่ยนรูปภาพได้" : "ผู้สมัครหรือผู้ประสานงานโรงเรียนอัปโหลดรูปให้ OCEC ใช้จัดทำใบประกาศรางวัลได้ตามต้องการ"}</p><small>รองรับ JPG, PNG หรือ WebP · ไม่เกิน 10 MB · จัดเก็บใน Google Drive</small></div></div>
       {photo?.url ? <>
-        <div className="certificate-photo-preview"><img src={photo.url} alt={`รูปภาพสำหรับเกียรติบัตรของ ${application.candidate}`} /><span><strong>{photo.name}</strong><small>อัปโหลดแล้ว{availability.canUpload ? " · เลือกเปลี่ยนหรือลบรูปได้" : ""}</small></span>{availability.canUpload ? <label className="button button-outline certificate-photo-change"><Icon name="upload" size={16} /><span>{busy ? "กำลังอัปโหลด…" : "เปลี่ยนรูปภาพ"}</span><input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={(event) => { choosePhoto(event.target.files?.[0]); event.target.value = ""; }} /></label> : null}{availability.canUpload ? <Button variant="text" icon="close" className="certificate-photo-remove" disabled={busy} onClick={() => onSave(null)}>ลบรูป</Button> : null}</div>
+        <div className="certificate-photo-preview"><img src={photo.url} alt={`รูปภาพสำหรับเกียรติบัตรของ ${application.candidate}`} /><span><strong>{photo.name}</strong><small>อัปโหลดแล้ว{availability.canUpload ? (isFinal ? " · เลือกเปลี่ยนรูปได้" : " · เลือกเปลี่ยนหรือลบรูปได้") : ""}</small></span>{availability.canUpload ? <label className="button button-outline certificate-photo-change"><Icon name="upload" size={16} /><span>{busy ? "กำลังอัปโหลด…" : "เปลี่ยนรูปภาพ"}</span><input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={(event) => { choosePhoto(event.target.files?.[0]); event.target.value = ""; }} /></label> : null}{availability.canUpload && !isFinal ? <Button variant="text" icon="close" className="certificate-photo-remove" disabled={busy} onClick={() => onSave(null)}>ลบรูป</Button> : null}</div>
         {!availability.canUpload ? <div className="notice notice-amber"><Icon name="lock" /><div><strong>ยังแก้ไขรูปไม่ได้</strong><p>{availabilityMessage}</p></div></div> : null}
-      </> : availability.canUpload ? <label className="file-drop file-drop-inline certificate-photo-upload"><input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={(event) => { choosePhoto(event.target.files?.[0]); event.target.value = ""; }} /><span className="file-drop-icon"><Icon name="upload" /></span><span className="file-drop-copy"><strong>{busy ? "กำลังอัปโหลดรูปภาพ…" : "เพิ่มรูปภาพสำหรับเกียรติบัตร (ไม่บังคับ)"}</strong><small>รูปจะถูกจัดเก็บในโฟลเดอร์ Google Drive ตามรายการสอบและรอบ</small></span><span className="file-select-label">เลือกไฟล์</span></label> : <div className="notice notice-amber"><Icon name="lock" /><div><strong>ยังไม่เปิดให้อัปโหลดรูป</strong><p>{availabilityMessage}</p></div></div>}
+      </> : availability.canUpload ? <label className="file-drop file-drop-inline certificate-photo-upload"><input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={(event) => { choosePhoto(event.target.files?.[0]); event.target.value = ""; }} /><span className="file-drop-icon"><Icon name="upload" /></span><span className="file-drop-copy"><strong>{busy ? "กำลังอัปโหลดรูปภาพ…" : (isFinal ? "เพิ่มรูปภาพสำหรับเกียรติบัตร" : "เพิ่มรูปภาพสำหรับเกียรติบัตร (ไม่บังคับ)")}</strong><small>รูปจะถูกจัดเก็บในโฟลเดอร์ Google Drive ตามรายการสอบและรอบ</small></span><span className="file-select-label">เลือกไฟล์</span></label> : <div className="notice notice-amber"><Icon name="lock" /><div><strong>ยังไม่เปิดให้อัปโหลดรูป</strong><p>{availabilityMessage}</p></div></div>}
       {error ? <p className="inline-error certificate-photo-error" role="alert"><Icon name="info" size={15} />{error}</p> : null}
+      {children}
     </section>
   );
 }

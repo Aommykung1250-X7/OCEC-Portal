@@ -92,7 +92,9 @@ if (!process.env.TEST_DATABASE_URL) {
     const folders = [];
     const uploads = [];
     try {
-      await assert.rejects(submitIndividualApplication({ ...candidate, source: 'final', slip: { fileName: 'slip.png', mimeType: 'image/png', dataBase64: Buffer.from([137,80,78,71,13,10,26,10,0,0,0,0]).toString('base64') } }, other, token), (error) => error.statusCode === 503 && error.message.includes('Google Workspace'));
+      const finalPhoto={fileName:'photo.jpg',mimeType:'image/jpeg',dataBase64:Buffer.from([255,216,255,0,1,2,3]).toString('base64')};
+      const finalCandidate={...candidate,items:candidate.items.map(item=>({...item,packageCode:'onsite_ceremony',shirtSize:'M',guests:[]})),certificatePhoto:finalPhoto};
+      await assert.rejects(submitIndividualApplication({ ...finalCandidate, source: 'final', slip: { fileName: 'slip.png', mimeType: 'image/png', dataBase64: Buffer.from([137,80,78,71,13,10,26,10,0,0,0,0]).toString('base64') } }, other, token), (error) => error.statusCode === 503 && error.message.includes('Google Workspace'));
       assert.equal((await db.query("SELECT claimed_application_id FROM final_invitations WHERE final_exam_round_id='test-bbb-x'")).rows[0].claimed_application_id, null);
       await installMockGoogleWorkspace();
       const mockFetch = globalThis.fetch;
@@ -102,7 +104,7 @@ if (!process.env.TEST_DATABASE_URL) {
         if (target.pathname === '/upload/drive/v3/files') uploads.push(options.body);
         return mockFetch(url, options);
       };
-      const submission = { ...candidate, source: 'final', slip: { fileName: 'slip.png', mimeType: 'image/png', dataBase64: Buffer.from([137,80,78,71,13,10,26,10,0,0,0,0]).toString('base64') } };
+      const submission = { ...finalCandidate, source: 'final', slip: { fileName: 'slip.png', mimeType: 'image/png', dataBase64: Buffer.from([137,80,78,71,13,10,26,10,0,0,0,0]).toString('base64') } };
       const submitted = await submitIndividualApplication(submission, other, token);
       assert.equal((await db.query("SELECT claimed_application_id FROM final_invitations WHERE final_exam_round_id='test-bbb-x'")).rows[0].claimed_application_id, submitted.id);
       await assert.rejects(submitIndividualApplication(submission, other, token), (error) => [403,409].includes(error.statusCode));
@@ -113,8 +115,8 @@ if (!process.env.TEST_DATABASE_URL) {
       assert.equal(uploaded.photo.itemCount, 2);
       assert.deepEqual([folders.slice(0, 3), folders.slice(3)].map(group => group.map(folder => folder.name)).sort((a, b) => a[1].localeCompare(b[1])), [['2569','BBB','Final'], ['2569','HKISO','Final']]);
       assert.equal(uploads.length, 2);
-      assert.ok(uploads.some(body => body.includes(Buffer.from('FINAL123_Finalx_Student.jpg'))));
-      assert.ok(uploads.some(body => body.includes(Buffer.from('ISO456_Finalx_Student.jpg'))));
+      assert.equal(uploads.filter(body => body.includes(Buffer.from('Finalx_Student.jpg'))).length,2);
+      assert.ok(uploads.every(body=>!body.includes(Buffer.from('FINAL123_Finalx')) && !body.includes(Buffer.from('ISO456_Finalx'))));
       assert.ok(uploads.every((body) => body.includes(image)));
       await importResultRows('test-hkiso-photo','hkiso-final.xlsx', [{ candidateNo: 'ISO456', grade: 'Primary 1', school: 'Test School', candidate: 'Finalx Student', award: 'GOLD AWARD' }], user);
       const terminal = await publishResultBatch('test-hkiso-photo', user);

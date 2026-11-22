@@ -14,6 +14,7 @@
 @import "tailwindcss/utilities.css" layer(utilities) source(none);
 @source "./components/ui";
 @source "./components/public";
+@source "./components/FinalShirtImages.jsx";
 @source "./features/home";
 @source "./features/applications";
 @source "./features/results";

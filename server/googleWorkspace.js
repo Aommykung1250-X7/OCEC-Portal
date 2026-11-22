@@ -1,3 +1,4 @@
+import { APPLICATION_HEADERS, APPLICATION_HEADERS_WITH_MIDDLE, LEGACY_APPLICATION_HEADERS, applicationValuesFromPrevious, applicationValuesFromLegacy, ensureApplicationSheetLayout, writeApplicationSheetRow, readApplicationSheetRows } from './applicationSheetLayout.js';
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 import { getPool } from './db.js';
 import { paymentSlipDisplayName, paymentSlipFileName, paymentSlipFileNameBase, paymentSlipFolderName, paymentSlipYear } from './paymentSlipFiles.js';
@@ -21,14 +22,7 @@ const FOLDER_NAMES = {
   photos: 'Certificate Photos',
   sheets: 'Exam Sheets',
 };
-const SHEET_HEADERS = [
-  'Application Item ID', 'Application ID', 'School Batch ID', 'Submitted At', 'Application Status', 'Source',
-  'Competition', 'Exam Round', 'Academic Year', 'Exam Date', 'Grade', 'Exam Mode', 'Exam Center', 'Online Exam Email',
-  'First Name (EN)', 'Middle Name (EN)', 'Last Name (EN)', 'First Name (TH)', 'Last Name (TH)', 'Date of Birth',
-  'School', 'Contact Email', 'Contact Phone', 'Address', 'Past Papers', 'Registration Fee (THB)', 'Past Papers Total (THB)',
-  'Invoice Total (THB)', 'Payment Status', 'Payment Account ID', 'Expected Amount (THB)', 'Confirmed Amount (THB)',
-  'Transfer Time', 'Confirmed Account Number', 'Slip Drive File ID', 'Exam Number', 'Certificate Photo Drive File ID',
-];
+const SHEET_HEADERS = APPLICATION_HEADERS;
 
 let cachedAccessToken = '';
 let cachedAccessTokenExpiresAt = 0;
@@ -541,12 +535,22 @@ async function ensureSpreadsheetAndTab(round) {
   const existingWorkbook = await getPool().query('SELECT * FROM google_workspace_spreadsheets WHERE academic_year=$1', [round.year]);
   let workbook = existingWorkbook.rows[0];
   if (!workbook) {
-    const created = await createSpreadsheet(`OCEC Applications ${round.year}`, title, initialized.sheets.id);
+    const name = `OCEC Applications ${round.year}`;
+    const query = new URLSearchParams({ q: `trashed=false and mimeType='application/vnd.google-apps.spreadsheet' and name='${driveQueryString(name)}'`, fields: 'files(id)', pageSize: '2' });
+    const found = await googleRequest(`${DRIVE_API}/files?${query}`);
+    if (found.files?.length > 1) throw new Error(`Multiple workbooks named ${name}; select the correct workbook before syncing`);
+    const priorId = found.files?.[0]?.id;
+    const created = priorId ? await googleRequest(`${SHEETS_API}/spreadsheets/${encodeURIComponent(priorId)}?fields=spreadsheetId,spreadsheetUrl,properties.title,sheets.properties`)
+      : await createSpreadsheet(name, title, initialized.sheets.id);
     const saved = await getPool().query(`INSERT INTO google_workspace_spreadsheets(academic_year,drive_file_id,title,spreadsheet_url)
       VALUES($1,$2,$3,$4) ON CONFLICT(academic_year) DO UPDATE SET academic_year=excluded.academic_year
       RETURNING *`, [round.year, created.spreadsheetId, created.properties?.title || `OCEC Applications ${round.year}`, created.spreadsheetUrl]);
     workbook = saved.rows[0];
-    const first = created.sheets?.[0]?.properties;
+    let first = created.sheets?.find((sheet) => sheet.properties.title === title)?.properties;
+    if (!first) {
+      const added = await googleRequest(`${SHEETS_API}/spreadsheets/${encodeURIComponent(workbook.drive_file_id)}:batchUpdate`, { method: 'POST', body: JSON.stringify({ requests: [{ addSheet: { properties: { title } } }] }) });
+      first = added.replies?.[0]?.addSheet?.properties;
+    }
     if (first) await getPool().query(`INSERT INTO google_workspace_sheet_tabs(exam_round_id,academic_year,sheet_id,title)
       VALUES($1,$2,$3,$4) ON CONFLICT(exam_round_id) DO UPDATE SET academic_year=excluded.academic_year,sheet_id=excluded.sheet_id,title=excluded.title`, [round.id, round.year, first.sheetId, first.title]);
     return { spreadsheetId: workbook.drive_file_id, spreadsheet_url: workbook.spreadsheet_url, sheet_id: first?.sheetId, title: first?.title };
@@ -571,15 +575,6 @@ function sheetRange(title, range) {
   return `${encodeURIComponent(`'${title.replaceAll("'", "''")}'!${range}`)}`;
 }
 
-async function initializeSheetHeaders(spreadsheetId, title) {
-  const range = sheetRange(title, `A1:${columnName(SHEET_HEADERS.length)}1`);
-  const result = await googleRequest(`${SHEETS_API}/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${range}`);
-  if (!result.values?.length) {
-    await googleRequest(`${SHEETS_API}/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${range}?valueInputOption=RAW`, {
-      method: 'PUT', body: JSON.stringify({ values: [SHEET_HEADERS] }),
-    });
-  }
-}
 
 function columnName(number) {
   let value = number;
@@ -638,8 +633,8 @@ async function applicationRowsForSheets(applicationItemId = null, filters = {}) 
 
 function rowValues(row) {
   const fullAddress = row.address && typeof row.address === 'object' ? Object.values(row.address).filter(Boolean).join(', ') : String(row.address || '');
-  const papers = (row.past_papers || []).map((paper) => [paper.title, paper.detail].filter(Boolean).join(' — ')).join(' | ');
-  return [
+  const papers = (row.past_papers || []).map((paper) => [paper.title, paper.detail].filter(Boolean).join(' — ')).join('\n');
+  return applicationValuesFromLegacy([
     row.application_item_id, row.application_id, row.school_batch_id || '', row.submitted_at?.toISOString?.() || row.submitted_at || '',
     row.application_status, row.source, row.short_name, row.round_title || row.round_type, row.academic_year,
     row.exam_date?.toISOString?.().slice(0, 10) || row.exam_date || '', row.grade_label,
@@ -651,40 +646,14 @@ function rowValues(row) {
     row.confirmed_satang == null ? '' : money(row.confirmed_satang),
     row.confirmed_transfer_at?.toISOString?.() || row.confirmed_transfer_at || '', row.confirmed_account_number || '',
     row.slip_drive_file_id || '', row.exam_number || '', row.certificate_photo_drive_file_id || '',
-  ];
-}
-
-async function findApplicationItemRow(spreadsheetId, title, applicationItemId) {
-  const range = sheetRange(title, 'A2:A');
-  const result = await googleRequest(`${SHEETS_API}/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${range}`);
-  const index = result.values?.findIndex((entry) => entry?.[0] === applicationItemId) ?? -1;
-  return index < 0 ? null : index + 2;
+  ]);
 }
 
 async function writeApplicationItem(spreadsheetId, title, row) {
-  await initializeSheetHeaders(spreadsheetId, title);
-  const existingRow = await findApplicationItemRow(spreadsheetId, title, row.application_item_id);
-  const endColumn = columnName(SHEET_HEADERS.length);
-  if (existingRow) {
-    const range = sheetRange(title, `A${existingRow}:${endColumn}${existingRow}`);
-    await googleRequest(`${SHEETS_API}/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${range}?valueInputOption=RAW`, {
-      method: 'PUT', body: JSON.stringify({ values: [rowValues(row)] }),
-    });
-    await getPool().query(`INSERT INTO google_workspace_sheet_rows(application_item_id,exam_round_id,spreadsheet_row)
-      VALUES($1,$2,$3) ON CONFLICT(application_item_id) DO UPDATE SET exam_round_id=excluded.exam_round_id,spreadsheet_row=excluded.spreadsheet_row,synced_at=now()`, [row.application_item_id, row.exam_round_id, existingRow]);
-    return 'updated';
-  }
-  const range = sheetRange(title, `A:${endColumn}`);
-  const result = await googleRequest(`${SHEETS_API}/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${range}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
-    method: 'POST', body: JSON.stringify({ values: [rowValues(row)] }),
-  });
-  const updatedRange = result.updates?.updatedRange || '';
-  const rowNumber = Number(updatedRange.match(/![A-Z]+(\d+):/i)?.[1] || updatedRange.match(/![A-Z]+(\d+)/i)?.[1]);
-  if (Number.isInteger(rowNumber) && rowNumber >= 2) {
-    await getPool().query(`INSERT INTO google_workspace_sheet_rows(application_item_id,exam_round_id,spreadsheet_row)
-      VALUES($1,$2,$3) ON CONFLICT(application_item_id) DO UPDATE SET exam_round_id=excluded.exam_round_id,spreadsheet_row=excluded.spreadsheet_row,synced_at=now()`, [row.application_item_id, row.exam_round_id, rowNumber]);
-  }
-  return 'inserted';
+  const result = await writeApplicationSheetRow(googleRequest, spreadsheetId, title, row.application_item_id, rowValues(row));
+  await getPool().query(`INSERT INTO google_workspace_sheet_rows(application_item_id,exam_round_id,spreadsheet_row)
+    VALUES($1,$2,$3) ON CONFLICT(application_item_id) DO UPDATE SET exam_round_id=excluded.exam_round_id,spreadsheet_row=excluded.spreadsheet_row,synced_at=now()`, [row.application_item_id, row.exam_round_id, result.rowNumber]);
+  return result.outcome;
 }
 
 async function withSheetYearLock(year, work) {
@@ -726,6 +695,7 @@ export async function clearGoogleWorkspaceSheetRow(examRoundId, spreadsheetRow) 
   if (!location.rowCount) return { skipped: true, reason: 'Exam round does not have a Google Sheets tab' };
   const tab = location.rows[0];
   return withSheetYearLock(tab.academic_year, async () => {
+    await ensureApplicationSheetLayout(googleRequest, tab.drive_file_id, tab.title);
     const range = sheetRange(tab.title, `A${rowNumber}:${columnName(SHEET_HEADERS.length)}${rowNumber}`);
     await googleRequest(`${SHEETS_API}/spreadsheets/${encodeURIComponent(tab.drive_file_id)}/values/${range}:clear`, {
       method: 'POST', body: JSON.stringify({}),
@@ -827,15 +797,8 @@ async function sourceSheetRowsForMock(rows) {
       JOIN google_workspace_spreadsheets s USING(academic_year) WHERE t.exam_round_id=$1`, [roundId]);
     if (!location.rowCount) throw new Error('Application source sheet is not available');
     const tab = location.rows[0];
-    const sourceUrl = `${SHEETS_API}/spreadsheets/${encodeURIComponent(tab.drive_file_id)}/values/${sheetRange(tab.title, 'A2:AK')}`;
-    let result = await googleRequest(sourceUrl);
-    for (const values of result.values || []) if (values[0]) sourceRows.set(values[0], values);
-    const missing = roundRows.filter((row) => !sourceRows.has(row.application_item_id));
-    if (missing.length) {
-      for (const row of missing) await syncSheetRow(row);
-      result = await googleRequest(sourceUrl);
-      for (const values of result.values || []) if (values[0]) sourceRows.set(values[0], values);
-    }
+    const result = await readApplicationSheetRows(googleRequest, tab.drive_file_id, tab.title);
+    for (const [itemId, values] of result) sourceRows.set(itemId, values);
   }
   return sourceRows;
 }
@@ -855,8 +818,8 @@ export async function addFilteredApplicationsToMockSheet({ year, competition, gr
     for (const row of selected) {
       const source = sourceRows.get(row.application_item_id);
       if (!source) throw new Error(`Application item ${row.application_item_id} is missing from its source sheet`);
-      const values = [bangkokDate(source[3]), [source[14], source[15], source[16]].filter(Boolean).join(' '), source[21] || '',
-        source[22] || '', `${row.short_name} ${row.round_type}`, source[10] || '', 'รอส่ง', row.application_item_id, ''];
+      const values = [bangkokDate(source[0]), [source[11], source[12]].filter(Boolean).join(' '), source[17] || '',
+        source[18] || '', `${row.short_name} ${row.round_type}`, source[7] || '', 'รอส่ง', row.application_item_id, ''];
       const existingRow = existingRows.get(row.application_item_id);
       if (existingRow) {
         updates.push({ range: decodeURIComponent(sheetRange(tab.title, `A${existingRow}:F${existingRow}`)), values: [values.slice(0, 6)] });
@@ -876,3 +839,41 @@ export async function addFilteredApplicationsToMockSheet({ year, competition, gr
 }
 
 export const GOOGLE_WORKSPACE_REQUIRED_SCOPES = GOOGLE_SCOPES;
+
+export async function updateGoogleWorkspaceApplicationLayouts({ dryRun = false } = {}) {
+  const files = new Map();
+  const registered = await getPool().query('SELECT drive_file_id,title FROM google_workspace_spreadsheets');
+  for (const row of registered.rows) files.set(row.drive_file_id, { id: row.drive_file_id, name: row.title });
+  let pageToken;
+  do {
+    const query = new URLSearchParams({ q: "trashed=false and mimeType='application/vnd.google-apps.spreadsheet' and name contains 'OCEC Applications'", fields: 'files(id,name,webViewLink),nextPageToken', pageSize: '100', ...(pageToken ? { pageToken } : {}) });
+    const result = await googleRequest(`${DRIVE_API}/files?${query}`);
+    for (const file of result.files || []) if (/^OCEC Applications(?: \d{4})?$/.test(file.name)) files.set(file.id, file);
+    pageToken = result.nextPageToken;
+  } while (pageToken);
+  const tabs = [];
+  for (const file of files.values()) {
+    const metadata = await googleRequest(`${SHEETS_API}/spreadsheets/${encodeURIComponent(file.id)}?fields=sheets.properties`);
+    for (const { properties: sheet } of metadata.sheets || []) {
+      const response = await googleRequest(`${SHEETS_API}/spreadsheets/${encodeURIComponent(file.id)}/values/${sheetRange(sheet.title, 'A1:AK1')}`);
+      const headers = response.values?.[0] || [];
+      const known = [APPLICATION_HEADERS, APPLICATION_HEADERS_WITH_MIDDLE, LEGACY_APPLICATION_HEADERS].some(expected => expected.length === headers.length && expected.every((value, index) => headers[index] === value));
+      if (!known && headers.length) throw new Error(`Unexpected headers in ${file.name} / ${sheet.title}; migration stopped`);
+      tabs.push({ spreadsheetId: file.id, workbook: file.name, title: sheet.title, previousColumns: headers.length, url: `https://docs.google.com/spreadsheets/d/${file.id}/edit#gid=${sheet.sheetId}` });
+    }
+  }
+  if (!dryRun) for (const tab of tabs) {
+    await withSheetYearLock(tab.workbook.match(/(\d{4})$/)?.[1] || `layout-${tab.spreadsheetId}`, async () => {
+      const url = `${SHEETS_API}/spreadsheets/${encodeURIComponent(tab.spreadsheetId)}`;
+      const before = await googleRequest(`${url}/values/${sheetRange(tab.title, 'A2:AK')}?valueRenderOption=UNFORMATTED_VALUE`);
+      await ensureApplicationSheetLayout(googleRequest, tab.spreadsheetId, tab.title);
+      const after = await googleRequest(`${url}/values/${sheetRange(tab.title, 'A2:Z')}?valueRenderOption=UNFORMATTED_VALUE`);
+      const normalize = values => Array.from({ length: APPLICATION_HEADERS.length }, (_, i) => values[i] ?? '');
+      const expected = (before.values || []).map(values => normalize(tab.previousColumns === LEGACY_APPLICATION_HEADERS.length ? applicationValuesFromLegacy(values) : tab.previousColumns === APPLICATION_HEADERS_WITH_MIDDLE.length ? applicationValuesFromPrevious(values) : values));
+      const actual = (after.values || []).map(normalize);
+      if (JSON.stringify(expected) !== JSON.stringify(actual)) throw new Error(`Data verification failed after updating ${tab.title}`);
+      tab.verifiedRows = actual.length;
+    });
+  }
+  return { dryRun, tabs, columns: APPLICATION_HEADERS };
+}

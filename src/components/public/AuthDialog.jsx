@@ -3,6 +3,7 @@ import { GoogleMark, Icon } from "../ui/index.jsx";
 export function AuthDialog({
   requiresRegistrationLogin,
   backendEnabled,
+  demoSignIn,
   dialogRef,
   onKeyDown,
   onDismiss,
@@ -17,10 +18,10 @@ export function AuthDialog({
         </button>
         <h2 className="m-0 pr-8 text-[22px] leading-[1.35] font-bold tracking-[0.01em] text-ocec-brand max-[700px]:text-[20px]" id="auth-dialog-title">{requiresRegistrationLogin ? "เข้าสู่ระบบเพื่อสมัครสอบ" : "เข้าสู่ระบบ OCEC Portal"}</h2>
         <p className="auth-dialog-description mt-[9px] mb-[22px] text-[14px] leading-[1.6] text-[#76849a]">
-          {requiresRegistrationLogin ? "ใช้บัญชี Google เพื่อสมัครสอบและติดตามสถานะใบสมัคร" : "ใช้บัญชี Google เพื่อดูและติดตามใบสมัคร"}
+          {demoSignIn ? "ดูหน้าแรกและทดลองติดตามใบสมัครด้วยข้อมูลสมมติ" : requiresRegistrationLogin ? "ใช้บัญชี Google เพื่อสมัครสอบและติดตามสถานะใบสมัคร" : "ใช้บัญชี Google เพื่อดูและติดตามใบสมัคร"}
         </p>
         <button className="demo-account-choice flex min-h-[50px] w-full items-center justify-center gap-2.5 rounded-[13px] border border-ocec-border bg-white px-[14px] py-[9px] text-[14px] font-bold whitespace-nowrap text-[#303752] hover:border-ocec-accent hover:bg-ocec-brand-soft focus-visible:outline-[3px] focus-visible:outline-offset-[3px] focus-visible:outline-ocec-accent" type="button" onClick={onGoogleSignIn}>
-          <GoogleMark className="h-5 w-5 text-[21px] text-[#4285f4]" /><span>เข้าสู่ระบบด้วย Google</span>
+          {demoSignIn ? <Icon name="user" size={20} /> : <GoogleMark className="h-5 w-5 text-[21px] text-[#4285f4]" />}<span>{demoSignIn ? "ใช้บัญชีตัวอย่าง" : "เข้าสู่ระบบด้วย Google"}</span>
         </button>
         {!backendEnabled ? <div className="auth-dialog-note mt-[14px] flex items-start gap-[7px] text-left text-[10px] leading-[1.5] text-[#8a93a3]"><Icon name="info" className="flex-none text-ocec-brand" size={15} /><span>ระบบตัวอย่างยังไม่เปิดใช้งานการเชื่อมต่อ Google OAuth</span></div> : null}
         <button className="auth-dialog-cancel mx-auto mt-3 block min-h-9 rounded-[10px] border-0 bg-transparent px-[14px] text-[13px] font-[650] text-[#78849a] hover:bg-[#f5f4fc] hover:text-[#403c9e] focus-visible:outline-[3px] focus-visible:outline-offset-[3px] focus-visible:outline-ocec-accent" type="button" onClick={onDismiss}>{requiresRegistrationLogin ? "กลับหน้าหลัก" : "ยกเลิก"}</button>

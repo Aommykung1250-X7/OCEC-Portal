@@ -95,10 +95,16 @@ export function getCertificatePhotoAvailability(application, examCatalog = [], t
   const registrationClosed = Boolean(closeDate && today > closeDate);
   const hasAllExamNumbers = hasRounds && examItems.every((item) => item.examNumber);
 
+  if (['FINAL','FINAL_X'].includes(roundType)) {
+    const submitted=['pending','slip_issue','confirmed'].includes(application?.status);
+    return {closeDate,hasAllExamNumbers,canUpload:submitted && hasRounds,canRemove:false,status:submitted && hasRounds ? 'ready' : 'not-submitted'};
+  }
+
   return {
     closeDate,
     hasAllExamNumbers,
     canUpload: registrationClosed && hasAllExamNumbers,
+    canRemove: true,
     status: !hasCloseDates ? "missing-close-date" : !registrationClosed ? "before-close" : !hasAllExamNumbers ? "waiting-for-exam-numbers" : "ready",
   };
 }

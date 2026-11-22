@@ -1,5 +1,6 @@
 import { getPool, transaction } from './db.js';
 import { DEFAULT_CENTER_CATALOG, isOnlineCenter, ONLINE_CENTER_CODE, ONLINE_CENTER_ID } from '../src/centers.js';
+import { finalPackageCatalogFields,finalPackagePriceColumns } from './finalPackages.js';
 
 const date = (value) => value ? (typeof value === 'string' ? value.slice(0, 10) : value.toISOString().slice(0, 10)) : '';
 const time = (value) => value ? String(value).slice(0, 5) : '';
@@ -12,7 +13,7 @@ const bangkokToday = () => {
 };
 
 export async function loadCatalog() {
-  const [rounds, grades, centers, links, pastPapers, accounts, competitions, centerPoster] = await Promise.all([
+  const [rounds, grades, centers, links, pastPapers, accounts, competitions, centerPoster, shirtImages] = await Promise.all([
     getPool().query('SELECT * FROM exam_rounds WHERE active=true ORDER BY year DESC, title'),
     getPool().query('SELECT * FROM grade_catalog WHERE active=true ORDER BY sort_order, label'),
     getPool().query('SELECT * FROM exam_centers ORDER BY code'),
@@ -24,6 +25,7 @@ export async function loadCatalog() {
     getPool().query('SELECT * FROM payment_accounts WHERE active=true ORDER BY id'),
     getPool().query('SELECT * FROM competitions ORDER BY id'),
     getPool().query("SELECT to_char(updated_at AT TIME ZONE 'UTC', 'YYYYMMDDHH24MISSUS') AS version FROM application_center_poster WHERE id=1"),
+    getPool().query("SELECT kind,to_char(updated_at AT TIME ZONE 'UTC', 'YYYYMMDDHH24MISSUS') AS version FROM final_shirt_images"),
   ]);
   const gradeById = new Map(grades.rows.map((grade) => [grade.id, grade.label]));
   const gradeOrder = new Map(grades.rows.map((grade, index) => [grade.label, index]));
@@ -31,7 +33,7 @@ export async function loadCatalog() {
   const competitionOrder = ['hkimo', 'hkiso', 'hkico', 'timo', 'bbb'];
   const onlineCenter = centers.rows.find((center) => center.code === ONLINE_CENTER_CODE || center.id === ONLINE_CENTER_ID);
   const catalogCenters = centers.rows
-    .filter((center) => !isOnlineCenter(center))
+    .filter((center) => !isOnlineCenter(center) && center.id !== "center-final-overseas")
     .map((row) => ({ id: row.id, code: row.code, name: row.name, active: row.active }));
   catalogCenters.unshift({ ...DEFAULT_CENTER_CATALOG[0], id: onlineCenter?.id || DEFAULT_CENTER_CATALOG[0].id });
   return {
@@ -45,13 +47,14 @@ export async function loadCatalog() {
       const openDate = date(row.open_date);
       const closeDate = date(row.close_date);
       const manuallyClosed = Boolean(row.final_manually_closed);
-      return { id: row.id, competitionId: row.competition_id, title: row.title, year: row.year, roundType: row.round_type, round: row.round_type === 'HEAT' ? 'HEAT ROUND' : row.round_type === 'FINAL' ? 'FINAL ROUND' : 'FINAL X', openDate, closeDate, editCloseDate: date(row.edit_close_date), examDate: date(row.exam_date), examStartTime: time(row.exam_start_time), examEndTime: time(row.exam_end_time), finalConfirmCloseDate: row.round_type === 'FINAL' ? closeDate : date(row.final_confirm_close_date), finalManuallyClosed: manuallyClosed, isOpen: Boolean(openDate && closeDate && openDate <= today && today <= closeDate && !manuallyClosed), accent: row.accent, logoDataUrl: row.logo_data_url || '', prices: { paperBased: row.paper_price_satang / 100, onlineExam: row.online_price_satang / 100 }, description: row.description, gradeOptions: links.rows.filter((item) => item.exam_round_id === row.id && item.grade_id).map((item) => gradeById.get(item.grade_id)).filter(Boolean).sort((left, right) => gradeOrder.get(left) - gradeOrder.get(right)), centerIds: links.rows.filter((item) => item.exam_round_id === row.id && item.center_id).map((item) => item.center_id) };
+      return { ...finalPackageCatalogFields(row), id: row.id, competitionId: row.competition_id, title: row.title, year: row.year, roundType: row.round_type, round: row.round_type === 'HEAT' ? 'HEAT ROUND' : row.round_type === 'FINAL' ? 'FINAL ROUND' : 'FINAL X', openDate, closeDate, editCloseDate: date(row.edit_close_date), examDate: date(row.exam_date), examStartTime: time(row.exam_start_time), examEndTime: time(row.exam_end_time), finalConfirmCloseDate: row.round_type === 'FINAL' ? closeDate : date(row.final_confirm_close_date), finalManuallyClosed: manuallyClosed, isOpen: Boolean(openDate && closeDate && openDate <= today && today <= closeDate && !manuallyClosed), accent: row.accent, logoDataUrl: row.logo_data_url || '', prices: { paperBased: row.paper_price_satang / 100, onlineExam: row.online_price_satang / 100 }, description: row.description, gradeOptions: links.rows.filter((item) => item.exam_round_id === row.id && item.grade_id).map((item) => gradeById.get(item.grade_id)).filter(Boolean).sort((left, right) => gradeOrder.get(left) - gradeOrder.get(right)), centerIds: links.rows.filter((item) => item.exam_round_id === row.id && item.center_id).map((item) => item.center_id) };
     }),
     grades: grades.rows.map((row) => ({ id: row.id, label: row.label, sortOrder: row.sort_order, active: row.active })),
     centers: catalogCenters,
     pastPapers: pastPapers.rows.map((row) => ({ id: row.id, competitionId: row.competition_id, group: row.group_name, title: row.title, detail: row.detail, name: `${row.title} — ${row.detail}`, price: row.price_satang / 100, active: row.active })),
     paymentAccounts: accounts.rows.map((row) => ({ id: row.id, bankName: row.bank_name, accountName: row.account_name, accountNumber: row.account_number, category: row.category, showInForm: row.show_in_form, active: row.active })),
     centerPosterVersion: centerPoster.rows[0]?.version || null,
+    finalShirtImages: Object.fromEntries(shirtImages.rows.map(row => [row.kind,row.version])),
   };
 }
 
@@ -123,7 +126,7 @@ export async function savePaymentAccountsSnapshot(paymentAccounts, actorId) {
 
 async function catalogAuditSnapshot(client) {
   const result = await client.query(`SELECT jsonb_build_object(
-    'rounds',(SELECT coalesce(jsonb_agg(jsonb_build_object('id',id,'competitionId',competition_id,'title',title,'year',year,'roundType',round_type,'openDate',open_date,'closeDate',close_date,'editCloseDate',edit_close_date,'examDate',exam_date,'isOpen',is_open,'active',active,'paperPriceSatang',paper_price_satang,'onlinePriceSatang',online_price_satang) ORDER BY id),'[]'::jsonb) FROM exam_rounds),
+    'rounds',(SELECT coalesce(jsonb_agg(jsonb_build_object('id',id,'competitionId',competition_id,'title',title,'year',year,'roundType',round_type,'openDate',open_date,'closeDate',close_date,'editCloseDate',edit_close_date,'examDate',exam_date,'isOpen',is_open,'active',active,'paperPriceSatang',paper_price_satang,'onlinePriceSatang',online_price_satang,'packagePrices',final_package_prices,'guestPriceSatang',final_guest_price_satang) ORDER BY id),'[]'::jsonb) FROM exam_rounds),
     'grades',(SELECT coalesce(jsonb_agg(jsonb_build_object('id',id,'label',label,'sortOrder',sort_order,'active',active) ORDER BY sort_order,id),'[]'::jsonb) FROM grade_catalog),
     'centers',(SELECT coalesce(jsonb_agg(jsonb_build_object('id',id,'code',code,'name',name,'active',active) ORDER BY code),'[]'::jsonb) FROM exam_centers),
     'pastPapers',(SELECT coalesce(jsonb_agg(jsonb_build_object('id',id,'competitionId',competition_id,'group',group_name,'title',title,'detail',detail,'priceSatang',price_satang,'active',active,'archived',archived) ORDER BY id),'[]'::jsonb) FROM past_papers),
@@ -225,6 +228,7 @@ export async function saveCatalogSnapshot(snapshot, actorId) {
     roundIds.add(id);
     return {
       id, competitionId, title, year, type,
+      finalPrices: finalPackagePriceColumns(competitionId,type,exam),
       openDate, closeDate,
       editCloseDate: isoDate(exam.editCloseDate, 'Edit close date'), examDate: isoDate(exam.examDate, 'Exam date'),
       finalConfirmCloseDate: type === 'FINAL' ? isoDate(exam.closeDate, 'Registration close date') : isoDate(exam.finalConfirmCloseDate, 'Final confirmation close date'),
@@ -307,17 +311,17 @@ export async function saveCatalogSnapshot(snapshot, actorId) {
       [paper.id, paper.competitionId, paper.group, paper.title, paper.detail, paper.priceSatang, paper.active]);
     }
     for (const exam of exams) {
-      await client.query(`INSERT INTO exam_rounds(id,competition_id,title,year,round_type,open_date,close_date,edit_close_date,exam_date,exam_start_time,exam_end_time,final_confirm_close_date,final_manually_closed,is_open,accent,logo_data_url,paper_price_satang,online_price_satang,description,active)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,true)
+      await client.query(`INSERT INTO exam_rounds(id,competition_id,title,year,round_type,open_date,close_date,edit_close_date,exam_date,exam_start_time,exam_end_time,final_confirm_close_date,final_manually_closed,is_open,accent,logo_data_url,paper_price_satang,online_price_satang,description,final_package_prices,final_guest_price_satang,active)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,true)
         ON CONFLICT(id) DO UPDATE SET competition_id=excluded.competition_id,title=excluded.title,year=excluded.year,round_type=excluded.round_type,
         open_date=excluded.open_date,close_date=excluded.close_date,edit_close_date=excluded.edit_close_date,exam_date=excluded.exam_date,
         exam_start_time=excluded.exam_start_time,exam_end_time=excluded.exam_end_time,final_confirm_close_date=excluded.final_confirm_close_date,
         final_manually_closed=excluded.final_manually_closed,is_open=excluded.is_open,accent=excluded.accent,logo_data_url=excluded.logo_data_url,
-        paper_price_satang=excluded.paper_price_satang,online_price_satang=excluded.online_price_satang,description=excluded.description,active=true,updated_at=now()`,
+        paper_price_satang=excluded.paper_price_satang,online_price_satang=excluded.online_price_satang,description=excluded.description,final_package_prices=coalesce(excluded.final_package_prices,exam_rounds.final_package_prices),final_guest_price_satang=coalesce(excluded.final_guest_price_satang,exam_rounds.final_guest_price_satang),active=true,updated_at=now()`,
       [exam.id, exam.competitionId, exam.title, exam.year, exam.type, exam.openDate, exam.closeDate, exam.editCloseDate, exam.examDate,
         exam.examStartTime, exam.examEndTime, exam.finalConfirmCloseDate, exam.finalManuallyClosed,
         Boolean(exam.openDate && exam.closeDate && exam.openDate <= today && today <= exam.closeDate && !exam.finalManuallyClosed), exam.accent, exam.logo || null,
-        exam.paperPrice, exam.onlinePrice, exam.description]);
+        exam.paperPrice, exam.onlinePrice, exam.description,exam.finalPrices.packagePrices ?? null,exam.finalPrices.guestPrice ?? null]);
       await client.query('DELETE FROM exam_round_grades WHERE exam_round_id=$1', [exam.id]);
       for (const gradeId of exam.gradeIds) await client.query('INSERT INTO exam_round_grades(exam_round_id,grade_id) VALUES($1,$2)', [exam.id, gradeId]);
       await client.query('DELETE FROM exam_round_centers WHERE exam_round_id=$1', [exam.id]);
@@ -429,6 +433,9 @@ export async function updateExamRound(id, patch, actorId) {
       if (patch.prices?.paperBased !== undefined) { values.push(Math.round(Number(patch.prices.paperBased) * 100)); assignments.push(`paper_price_satang=$${values.length}`); }
       if (patch.prices?.onlineExam !== undefined) { values.push(Math.round(Number(patch.prices.onlineExam) * 100)); assignments.push(`online_price_satang=$${values.length}`); }
     }
+    const finalPrices=finalPackagePriceColumns(roundBefore.competition_id,roundBefore.round_type,patch);
+    if(finalPrices.packagePrices!==undefined){values.push(finalPrices.packagePrices);assignments.push(`final_package_prices=$${values.length}`);}
+    if(finalPrices.guestPrice!==undefined){values.push(finalPrices.guestPrice);assignments.push(`final_guest_price_satang=$${values.length}`);}
     if (assignments.length) {
       values.push(id);
       await client.query(`UPDATE exam_rounds SET ${assignments.join(', ')}, updated_at=now() WHERE id=$${values.length}`, values);

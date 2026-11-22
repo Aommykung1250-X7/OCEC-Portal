@@ -1,3 +1,4 @@
+import { FinalBookingSummary } from '../applications/FinalBookingSummary.jsx';
 import { useEffect, useState } from "react";
 import { Button, Icon, PageHeading, StatusBadge } from "../../components/ui/index.jsx";
 import {
@@ -208,10 +209,11 @@ export function AdminReviewPage({ applications, schoolBatches = [], sourceFilter
                     const online = getApplicationCompetitionFormat(selected, competition) === "Online";
                     const examEmail = getApplicationCompetitionExamEmail(selected, competition);
                     return <div className="review-exam-row grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-2 rounded-lg border border-[#edf0f4] bg-[#fcfcfe] px-[10px] py-2" key={competition.id}>
-                      <span className="grid min-w-0 gap-0.5"><strong className="font-portal text-[13px] text-[#555b9e]">{competition.short || competition.name}</strong><small className="truncate text-xs text-[#687990]">{competition.name}</small><small className="text-xs leading-[1.45] text-[#687990]">{competition.grade || "ไม่ระบุชั้น"} · {online ? "Online Exam" : "Paper-Based"} · {getApplicationCompetitionCenter(selected, competition) || "—"}</small>{online ? <small className="review-exam-email text-xs leading-[1.45] text-[#4f6480] [overflow-wrap:anywhere]">อีเมลเข้าสอบ: {examEmail || "ยังไม่ได้ระบุ"}</small> : null}</span><b className="col-start-2 row-start-1 whitespace-nowrap text-xs text-[#465872]">{fmtMoney(competition.fee)}</b>
+                      <span className="grid min-w-0 gap-0.5"><strong className="font-portal text-[13px] text-[#555b9e]">{competition.short || competition.name}</strong><small className="truncate text-xs text-[#687990]">{competition.name}</small><small className="text-xs leading-[1.45] text-[#687990]">{competition.grade || "ไม่ระบุชั้น"} · {online ? "Online Exam" : "Paper-Based"} · {getApplicationCompetitionCenter(selected, competition) || "—"}</small>{online ? <small className="review-exam-email text-xs leading-[1.45] text-[#4f6480] [overflow-wrap:anywhere]">อีเมลเข้าสอบ: {examEmail || "ยังไม่ได้ระบุ"}</small> : null}{["FINAL","FINAL_X"].includes(competition.roundType) ? <small className="text-xs leading-relaxed text-[#4f6480]">ไซซ์เสื้อ: {competition.shirtSize || "ยังไม่ได้เลือก"}</small> : null}</span><b className="col-start-2 row-start-1 whitespace-nowrap text-xs text-[#465872]">{fmtMoney(competition.fee)}</b>
                     </div>;
                   }) : <p className="review-no-data">ไม่มีรายละเอียดรายการสอบในใบสมัครนี้</p>}
                 </div>
+                {(selected.competitions || []).map(competition=><FinalBookingSummary key={competition.applicationItemId || competition.id} competition={competition}/>)}
                 <div className="review-papers-row mt-2 grid gap-2 rounded-[9px] border border-[#dfddef] bg-[#f7f6fc] px-3 py-[10px]">
                   <div className="review-papers-heading flex items-center justify-between gap-2.5"><strong className="text-[13px] text-[#445873]">ข้อสอบเก่าที่เลือก</strong><span className="review-paper-count whitespace-nowrap rounded-md bg-[#f1effb] px-1.5 py-1 text-[11px] text-[#5652a2]">{selected.pastPapers?.length || 0} ชุด</span></div>
                   {selected.pastPapers?.length ? (

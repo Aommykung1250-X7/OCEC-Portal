@@ -1,7 +1,23 @@
 import { expect, test } from '@playwright/test';
 import { closeFixtures, createSchoolFinalFixture, finalClaimState, makeHeatSelfOwned } from './fixtures.js';
 
+const uploadedImage = { fileName: 'certificate.png', mimeType: 'image/png', dataBase64: Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0]).toString('base64') };
+
 test.afterAll(closeFixtures);
+
+test('unpublished Heat results show a red waiting message after a name search', async ({ page }) => {
+  await page.route('**/api/results', route => route.fulfill({ json: { results: [] } }));
+  await page.route('**/api/public/final-eligibility/search', route => route.fulfill({ json: { choices: [] } }));
+  await page.goto('/final/confirm');
+  const warning = page.getByRole('alert');
+  await expect(warning).toHaveCount(0);
+  await page.getByLabel('ชื่อและนามสกุลภาษาอังกฤษ').fill('Nickname Test');
+  await page.getByRole('button', { name: 'ค้นหาสิทธิ์ Final' }).click();
+  await expect(warning).toHaveText('รอประกาศผลรางวัลจาก HEAT ROUND ก่อน');
+  await expect(warning).toHaveCSS('color', 'rgb(153, 27, 27)');
+  await page.getByLabel('ชื่อและนามสกุลภาษาอังกฤษ').fill('Another Name');
+  await expect(warning).toHaveCount(0);
+});
 
 test('authenticated applicant opens the Heat form with both applicant source choices', async ({ page }) => {
   await page.goto('/api/auth/google/start?returnTo=/apply&testPersona=candidate');
@@ -16,7 +32,7 @@ test('authenticated applicant opens the Heat form with both applicant source cho
   await page.getByLabel('Date of Birth / วันเกิด').fill('2014-05-20');
   await page.getByLabel('School Name / โรงเรียน').selectOption('Bangkok Patana School');
   await page.getByLabel('Email / อีเมล').fill('heat-applicant@example.test');
-  await page.getByLabel('Phone Number / เบอร์โทรศัพท์').fill('0812345678');
+  await page.getByLabel('Phone Number / หมายเลขโทรศัพท์').fill('0812345678');
   await page.getByLabel('Address Line 1 / ที่อยู่').fill('123 Main Road');
   await page.getByLabel('District / City / เขตหรืออำเภอ').fill('Bangkok');
   await page.getByLabel('Province / จังหวัด').fill('Bangkok');
@@ -34,40 +50,32 @@ test('school applicant chooses an exam verifies phone then logs in with chosen G
   await expect(page.locator('.final-rights-school-panel')).not.toContainText(fixture.name);
   await expect(page.locator('.final-rights-school-panel')).not.toContainText('Browser School');
   await page.getByLabel('เลือกรายการสอบ').selectOption(fixture.roundId);
-  await page.getByLabel('เลข 4 ตัวท้ายของเบอร์โทรศัพท์').fill('5678');
+  await page.getByLabel('เลข 4 ตัวท้ายของหมายเลขโทรศัพท์').fill('5678');
   await page.getByRole('button', { name: 'ยืนยันตัวตน' }).click();
-  await expect(page.getByText('ยืนยันเบอร์โทรศัพท์แล้ว')).toBeVisible();
+  await expect(page.getByText('ยืนยันหมายเลขโทรศัพท์แล้ว')).toBeVisible();
   await page.getByRole('button', { name: 'เข้าสู่ระบบ Google แล้วสมัคร' }).click();
   await expect(page.getByText(fixture.name)).toBeVisible();
-  await page.getByRole('button', { name: 'สมัคร Final' }).click();
+  await page.getByRole('button', { name: 'สมัครรอบ Final', exact: true }).first().click();
   await expect(page).toHaveURL(/\/apply\/final/);
   await expect(page.getByRole('heading', { name: 'สมัครสอบ Final' })).toBeVisible();
-  const poster = page.locator('.center-poster-preview');
-  await expect(poster).toHaveCount(1);
-  await expect(poster.getByRole('img', { name: 'แผนที่ศูนย์สอบ Paper Based ทั่วประเทศไทย' })).toBeVisible();
-  await expect(page.locator('.competition-center-field')).toBeVisible();
-  const posterPrecedesCenter = await page.evaluate(() => {
-    const preview = document.querySelector('.center-poster-preview');
-    const center = document.querySelector('.competition-center-field');
-    return Boolean(preview && center && (preview.compareDocumentPosition(center) & Node.DOCUMENT_POSITION_FOLLOWING));
-  });
-  expect(posterPrecedesCenter).toBe(true);
+  await expect(page.locator('.center-poster-preview')).toHaveCount(0);
+  await expect(page.locator('.competition-center-field')).toHaveCount(0);
   await expect(page.locator(`input[value="${fixture.firstName}"]`)).toHaveCount(1);
   await expect(page.locator('input[value="Browser School"]')).toHaveCount(1);
   const selectedFinal = page.locator('.competition-card-selected');
   await expect(selectedFinal).toHaveCount(1);
   await expect(selectedFinal.locator('.competition-grade select')).toHaveValue('Primary 1');
-  const finalCenterOptions = await selectedFinal.locator('.competition-center-field select option').allTextContents();
-  expect(finalCenterOptions).toContain(fixture.centerName);
-  expect(finalCenterOptions).not.toContain(fixture.decoyCenterName);
-  const examFee = (await selectedFinal.locator('.competition-fee').innerText()).replace(/\s*\/ รายการ.*$/, '').trim();
-  expect(examFee).toBe('฿1,200');
+  await selectedFinal.getByRole('radio', { name: /Onsite \+ เข้าร่วมรับรางวัล/ }).check();
+  await selectedFinal.getByLabel('ไซซ์เสื้อผู้สมัคร BBB', { exact: true }).selectOption('M');
+  const examFee = (await selectedFinal.locator('.competition-fee').innerText()).match(/฿[\d,]+/)?.[0];
+  expect(examFee).toBe('฿7,900');
   await expect(page.locator('.payment-total-grid > div:nth-child(2) strong')).toHaveText(examFee);
   const submission = {
     source: 'final', sourceHeatApplicationId: fixture.heatApplicationId,
     applicant: { firstNameEn: fixture.firstName, lastNameEn: fixture.lastName, dateOfBirth: '2017-01-01', schoolName: 'Browser School', contactEmail: fixture.contactEmail, contactPhone: '0812345678' },
-    items: [{ roundId: fixture.roundId, gradeId: fixture.gradeId, format: 'paper', centerId: fixture.centerId }],
+    items: [{ roundId: fixture.roundId, gradeId: fixture.gradeId, format: 'paper', centerId: fixture.centerId, packageCode: 'onsite_ceremony', shirtSize: 'M', guests: [] }],
     slip: { fileName: 'payment.png', mimeType: 'image/png', dataBase64: Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0]).toString('base64') },
+    certificatePhoto: uploadedImage,
   };
   const submitted = await page.request.post('/api/applications/submit', { data: submission });
   expect(submitted.status(), await submitted.text()).toBe(201);
@@ -83,7 +91,7 @@ test('guest Final submission is unavailable', async ({ page }) => {
   await page.goto('/final/confirm');
   await expect(page.getByRole('button', { name: 'สมัครต่อโดยไม่เข้าสู่ระบบ' })).toHaveCount(0);
   await page.goto('/apply/final');
-  await expect(page.locator('body')).toContainText('ยืนยันสิทธิ์ก่อนสมัคร Final');
+  await expect(page.getByRole('heading', { name: 'ยืนยันสิทธิ์สมัครรอบ Final' })).toBeVisible();
 });
 
 test('Final eligibility search shows its loading and API error states on a phone viewport', async ({ page }) => {
@@ -135,8 +143,9 @@ test('concurrent school claims create one Final application', async ({ page }) =
   const submission = {
     source: 'final', sourceHeatApplicationId: fixture.heatApplicationId,
     applicant: { firstNameEn: fixture.firstName, lastNameEn: fixture.lastName, dateOfBirth: '2017-01-01', schoolName: 'Browser School', contactEmail: fixture.contactEmail, contactPhone: '0812345678' },
-    items: [{ roundId: fixture.roundId, gradeId: fixture.gradeId, format: 'paper', centerId: fixture.centerId }],
+    items: [{ roundId: fixture.roundId, gradeId: fixture.gradeId, format: 'paper', centerId: fixture.centerId, packageCode: 'onsite_ceremony', shirtSize: 'M', guests: [] }],
     slip: { fileName: 'payment.png', mimeType: 'image/png', dataBase64: Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0]).toString('base64') },
+    certificatePhoto: uploadedImage,
   };
   const responses = await Promise.all([page.request.post('/api/applications/submit', { data: submission }), page.request.post('/api/applications/submit', { data: submission })]);
   const statuses = responses.map((response) => response.status()).sort();
@@ -151,16 +160,16 @@ test('OAuth cancellation allows verification retry', async ({ page }) => {
   await page.getByLabel('ชื่อและนามสกุลภาษาอังกฤษ').fill(fixture.name);
   await page.getByRole('button', { name: 'ค้นหาสิทธิ์ Final' }).click();
   await page.getByLabel('เลือกรายการสอบ').selectOption(fixture.roundId);
-  await page.getByLabel('เลข 4 ตัวท้ายของเบอร์โทรศัพท์').fill('5678');
+  await page.getByLabel('เลข 4 ตัวท้ายของหมายเลขโทรศัพท์').fill('5678');
   await page.getByRole('button', { name: 'ยืนยันตัวตน' }).click();
-  await expect(page.getByText('ยืนยันเบอร์โทรศัพท์แล้ว')).toBeVisible();
+  await expect(page.getByText('ยืนยันหมายเลขโทรศัพท์แล้ว')).toBeVisible();
   const cancelled = await page.request.get('/api/auth/google/callback?error=access_denied');
   expect(cancelled.status()).toBe(400);
   await page.reload();
   await page.getByLabel('ชื่อและนามสกุลภาษาอังกฤษ').fill(fixture.name);
   await page.getByRole('button', { name: 'ค้นหาสิทธิ์ Final' }).click();
   await page.getByLabel('เลือกรายการสอบ').selectOption(fixture.roundId);
-  await page.getByLabel('เลข 4 ตัวท้ายของเบอร์โทรศัพท์').fill('5678');
+  await page.getByLabel('เลข 4 ตัวท้ายของหมายเลขโทรศัพท์').fill('5678');
   await page.getByRole('button', { name: 'ยืนยันตัวตน' }).click();
   await page.getByRole('button', { name: 'เข้าสู่ระบบ Google แล้วสมัคร' }).click();
   await expect(page.getByText(fixture.name)).toBeVisible();

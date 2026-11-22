@@ -1,5 +1,7 @@
+import { FinalPackageFields } from './features/applications/FinalPackageFields.jsx';
+import { FINAL_ONSITE_CENTER,getFinalPackageOptions,resolveFinalPackageSelection } from '../shared/finalPackages.js';
 import { nextExamRoundType } from '../shared/examProgression.js';
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { DEFAULT_CENTER_CATALOG, ONLINE_CENTER_CODE, getCommonCenters, isOnlineCenter } from "./centers.js";
 import { downloadWorkbook, readWorkbook, worksheetRows } from "./excel.js";
 import { getApplicationHeatResultState } from "./application-results.js";
@@ -11,6 +13,7 @@ import { BrandMark, Button, Field, Icon, PageHeading, StatusBadge } from "./comp
 import { formatThaiDate, getExamRoundType } from "./examUtils.js";
 import { PublicPortalLayout } from "./components/public/PublicPortalLayout.jsx";
 import { LandingPage } from "./features/home/LandingPage.jsx";
+import { createHomeDemoApplications } from "./features/home/homeDesignFixtures.js";
 import { ApplicationDetailPage, ApplicationsPage, EditApplicationPage, SchoolApplicationGroupPage } from "./features/applications/ApplicationPages.jsx";
 import { AdminLoginPage, AdminShell, HomePage } from "./features/admin/AdminShell.jsx";
 import { AdminHomePage } from "./features/admin/AdminHomePage.jsx";
@@ -49,6 +52,7 @@ import {
 } from "./features/applications/applicationUtils.js";
 
 const BACKEND_ENABLED = import.meta.env.VITE_BACKEND_ENABLED === "true";
+const HomeDesignPreview = BACKEND_ENABLED ? null : lazy(() => import("./features/home/HomeDesignPreview.jsx"));
 
 const DEFAULT_PAYMENT_ACCOUNTS = [
   { id: "ocec-main-account", bankName: "Kasikorn Bank", accountName: "บจก. โอซีอีซี (ไทยแลนด์)", accountNumber: "219-3-78805-2", category: "president", showInForm: true, active: true },
@@ -377,6 +381,9 @@ function AdminApplicationEditPage({ application, onSave, navigate, competitionFe
   const [formats, setFormats] = useState(Object.fromEntries(savedCompetitions.map((item) => [item.id, getApplicationCompetitionFormat(application, item)])));
   const [centers, setCenters] = useState(Object.fromEntries(savedCompetitions.map((item) => [item.id, item.centerId || item.centerSnapshot?.id || ""])));
   const [examEmailsByCompetition, setExamEmailsByCompetition] = useState(Object.fromEntries(savedCompetitions.filter((item) => getApplicationCompetitionFormat(application, item) === "Online").map((item) => [item.id, getApplicationCompetitionExamEmail(application, item)])));
+  const [finalSelections,setFinalSelections]=useState(()=>Object.fromEntries(savedCompetitions.map(item=>[item.id,{packageCode:item.packageCode || "",shirtSize:item.shirtSize || "",guests:item.guests || []}])));
+  const isFinalRound=["FINAL","FINAL_X"].includes(roundType);
+  const finalValue=id=>finalSelections[id] || {packageCode:"",shirtSize:"",guests:[]};
   const [additionalSlip, setAdditionalSlip] = useState(null);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -390,9 +397,19 @@ function AdminApplicationEditPage({ application, onSave, navigate, competitionFe
   const selectionLocked = (item) => Boolean(examDateFor(item) && today >= examDateFor(item));
   const formatLocked = (item) => Boolean(examDateFor(item) && today > examDateFor(item));
   const centersFor = (id) => getCommonCenters([id], examCatalog, centerCatalog, { year: application.year, roundType });
+  const packageRoundFor=competition=>{
+    const round=roundFor(competition) || {};
+    const previous=savedCompetitions.find(item=>item.id===competition.id);
+    const same=Boolean(previous?.packageCode && previous.packageCode===finalValue(competition.id).packageCode);
+    const prices=Object.fromEntries(getFinalPackageOptions(competition.id,roundType).map(option=>[option.code,round.packagePrices?.[option.code] ?? option.defaultPrice]));
+    return {...round,competitionId:competition.id,roundType,
+      packagePrices:same?{...prices,[previous.packageCode]:previous.packageFee}:prices,
+      guestPrice:same?previous.guestUnitPrice:round.guestPrice ?? 4500};
+  };
   const feeForCompetition = (competition) => {
     const previous = savedCompetitions.find((item) => item.id === competition.id);
     const format = formatFor(competition.id);
+    if(isFinalRound && finalValue(competition.id).packageCode){const value=finalValue(competition.id);const round=packageRoundFor(competition);return Number(round.packagePrices?.[value.packageCode] || 0)+(value.packageCode==="onsite_ceremony"?Number(round.guestPrice || 0)*value.guests.length:0);}
     if (previous && getApplicationCompetitionFormat(application, previous) === format && previous.fee !== undefined) return Number(previous.fee || 0);
     return getCompetitionExamPrice(examCatalog, competition.id, roundType, format, competitionFees, application.year);
   };
@@ -413,6 +430,12 @@ function AdminApplicationEditPage({ application, onSave, navigate, competitionFe
   });
   const hasOnsiteToOnline = changedFormats.some((item) => getApplicationCompetitionFormat(application, savedCompetitions.find((entry) => entry.id === item.id)) === "Paper-Based" && formatFor(item.id) === "Online");
 
+  function updateAdminFinalSelection(id,value){
+    setFinalSelections(current=>({...current,[id]:value}));
+    const option=getFinalPackageOptions(id,roundType).find(option=>option.code===value.packageCode);
+    if(!option)return;
+    setFormats(current=>({...current,[id]:option.format==="online"?"Online":"Paper-Based"}));
+  }
   function toggleCompetition(id) {
     setSelectedIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
     setError("");
@@ -439,9 +462,10 @@ function AdminApplicationEditPage({ application, onSave, navigate, competitionFe
     if (!phone.trim()) { setError("โปรดกรอกหมายเลขโทรศัพท์ของผู้สมัคร"); return; }
     if (!competitions.length) { setError("โปรดเลือกรายการสอบอย่างน้อย 1 รายการ"); return; }
     if (competitions.some((item) => !grades[item.id])) { setError("โปรดเลือกระดับชั้นให้ครบในทุกรายการที่สมัคร"); return; }
+    if(isFinalRound){try{for(const item of competitions){if(finalValue(item.id).packageCode)resolveFinalPackageSelection(packageRoundFor(item),finalValue(item.id));else if(!savedCompetitions.some(previous=>previous.id===item.id))throw new Error("กรุณาเลือกแพ็กเกจให้ครบ");}}catch(error){setError(error.message);return;}}
     const invalidRound = competitions.find((item) => !item.roundId && !roundFor(item));
     if (invalidRound) { setError(`ไม่พบข้อมูลรอบสอบของรายการ ${invalidRound.short || invalidRound.name}`); return; }
-    const missingCenter = competitions.find((item) => formatFor(item.id) === "Paper-Based"
+    const missingCenter = !isFinalRound && competitions.find((item) => formatFor(item.id) === "Paper-Based"
       && !centersFor(item.id).some((option) => option.id === centers[item.id])
       && !savedCompetitions.some((previous) => previous.id === item.id && previous.centerId === centers[item.id]
         && !isOnlineCenter(previous.centerSnapshot || { id: previous.centerId, code: previous.centerCode, name: previous.center })));
@@ -465,10 +489,11 @@ function AdminApplicationEditPage({ application, onSave, navigate, competitionFe
       const selectedCenter = availableCenter || (isOnlineCenter(unavailableCenter) ? null : unavailableCenter);
       const center = format === "Online"
         ? (previousFormat === "Online" ? selectedCenter || onlineCenter : onlineCenter)
-        : selectedCenter;
+        : isFinalRound ? (previous && previousFormat === "Paper-Based" ? historicalCenter : FINAL_ONSITE_CENTER) : selectedCenter;
       const round = roundFor(item);
       const gradeId = gradeCatalogEntries.find((entry) => entry.label === grades[item.id])?.id || previous?.gradeId || "";
       return { ...item, applicationItemId: previous?.applicationItemId || null, roundId: previous?.roundId || round?.id || item.roundId, gradeId,
+        ...(isFinalRound && finalValue(item.id).packageCode ? finalValue(item.id) : {}),
         grade: grades[item.id], format, examEmail: format === "Online" ? examEmailForCompetition(item.id).trim() : "", fee: feeForCompetition(item),
         center: center?.name || "", centerId: center?.id || "", centerCode: center?.code || "", centerSnapshot: center ? { id: center.id, code: center.code, name: center.name } : null };
     });
@@ -499,7 +524,7 @@ function AdminApplicationEditPage({ application, onSave, navigate, competitionFe
           profile: { firstNameEn: firstName.trim(), lastNameEn: lastName.trim(), firstNameTh: profile.thaiFirstName.trim(), lastNameTh: profile.thaiLastName.trim(), schoolName: school.trim(), contactEmail: email.trim(), contactPhone: phone.trim(),
             address: { address1: profile.address1, address2: profile.address2, city: profile.city, province: profile.province, postalCode: profile.postalCode } },
           items: updatedCompetitions.map((item) => ({ applicationItemId: item.applicationItemId, roundId: item.roundId, gradeId: item.gradeId,
-            format: item.format === "Online" ? "online" : "paper", centerId: item.centerId, examEmail: item.examEmail })),
+            format: item.format === "Online" ? "online" : "paper", centerId: item.centerId, examEmail: item.examEmail,...(item.packageCode?{packageCode:item.packageCode,shirtSize:item.shirtSize,guests:item.guests || []}:{}) })),
           ...(paymentSlip ? { paymentSlip } : {}),
         },
       });
@@ -529,7 +554,7 @@ function AdminApplicationEditPage({ application, onSave, navigate, competitionFe
               return <article className={`${active ? "admin-edit-competition active" : "admin-edit-competition"}${lockedSelection ? " admin-edit-competition-locked" : ""}`} key={competition.id}>
                 <label><input type="checkbox" checked={active} disabled={lockedSelection || saving} onChange={() => toggleCompetition(competition.id)} /><span className="admin-edit-checkbox"><Icon name="check" size={13} /></span><span><strong>{competition.name}</strong><small>{competition.subject}{lockedSelection ? ` · ปิดการแก้ไขรายการ ${examDateFor(competition)}` : ""}</small></span><span className="admin-edit-fee">฿{feeForCompetition(competition).toLocaleString()}<small> / รายการ</small></span></label>
                 {active ? <div className="admin-edit-competition-options">
-                  <CompetitionFormatPicker competitionId={competition.id} prefix={`admin-${application.id}`} format={format}
+                  {isFinalRound ? <FinalPackageFields competitionId={competition.id} competitionLabel={competition.short} roundType={roundType} {...packageRoundFor(competition)} value={finalValue(competition.id)} required={Boolean(finalValue(competition.id).packageCode) || !previous} disabled={lockedFormat || saving} onChange={value=>updateAdminFinalSelection(competition.id,value)}/> : <CompetitionFormatPicker competitionId={competition.id} prefix={`admin-${application.id}`} format={format}
                     disabled={lockedFormat || saving}
                     paperPrice={getCompetitionExamPrice(examCatalog, competition.id, roundType, "Paper-Based", competitionFees, application.year)}
                     onlinePrice={getCompetitionExamPrice(examCatalog, competition.id, roundType, "Online", competitionFees, application.year)}
@@ -542,8 +567,8 @@ function AdminApplicationEditPage({ application, onSave, navigate, competitionFe
                           : { ...current, [competition.id]: physicalCenters[0]?.id || "" });
                       }
                       setError("");
-                    }} />
-                  {format === "Paper-Based" ? <Field label={`ศูนย์สอบ ${competition.short}`} required className="competition-center-field"><select value={centers[competition.id] || ""} disabled={centerLocked || saving} onChange={(event) => setCenters((current) => ({ ...current, [competition.id]: event.target.value }))}>
+                    }} />}
+                  {format === "Paper-Based" ? isFinalRound ? <p>Onsite</p> : <Field label={`ศูนย์สอบ ${competition.short}`} required className="competition-center-field"><select value={centers[competition.id] || ""} disabled={centerLocked || saving} onChange={(event) => setCenters((current) => ({ ...current, [competition.id]: event.target.value }))}>
                     <option value="">เลือกศูนย์สอบ</option>{previous?.centerId && !isOnlineCenter(previous.centerSnapshot || { id: previous.centerId, code: previous.centerCode, name: previous.center }) && !availableCenters.some((item) => item.id === previous.centerId) ? <option value={previous.centerId}>{previous.center} · ปัจจุบัน</option> : null}{availableCenters.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.code}</option>)}
                   </select></Field> : <div className="competition-online-fields"><Field label={`อีเมลเข้าสอบ ${competition.short}`} required className="competition-exam-email" hint="ใช้อีเมลเดียวกับรายการอื่นได้ หากใช้บัญชีเดียวกัน"><input type="email" autoComplete="email" value={examEmailForCompetition(competition.id)} disabled={(lockedSelection && !dependentFormatChange) || saving} onChange={(event) => { setExamEmailsByCompetition((current) => ({ ...current, [competition.id]: event.target.value })); setError(""); }} placeholder="student@gmail.com" required /></Field></div>}
                   <Field label={`ระดับชั้น ${competition.short}`} required className="competition-grade"><select value={grades[competition.id] || ""} disabled={lockedSelection || saving} onChange={(event) => setGrades((current) => ({ ...current, [competition.id]: event.target.value }))}>
@@ -884,6 +909,7 @@ function App() {
   const [calendarDay, setCalendarDay] = useState(getBangkokTodayISO);
   const [centerCatalog, setCenterCatalog] = useState(BACKEND_ENABLED ? [] : DEFAULT_CENTER_CATALOG);
   const [centerPosterVersion, setCenterPosterVersion] = useState(null);
+  const [finalShirtImages, setFinalShirtImages] = useState({});
   const [applications, setApplications] = useState([]);
   const [publicEditApplication, setPublicEditApplication] = useState(null);
   const [publicEditCredentials, setPublicEditCredentials] = useState(null);
@@ -931,6 +957,7 @@ function App() {
         setGradeCatalogEntries(catalog.grades);
         setCenterCatalog(catalog.centers);
         setCenterPosterVersion(catalog.centerPosterVersion || null);
+        setFinalShirtImages(catalog.finalShirtImages || {});
         setPastPaperCatalog(catalog.pastPapers);
         setPaymentAccounts(catalog.paymentAccounts);
         setSavedCatalogSnapshot({ exams: catalog.exams, competitions: catalog.competitions || DEFAULT_COMPETITION_CATALOG, grades: catalog.grades.map((grade) => grade.label), centers: catalog.centers, pastPapers: catalog.pastPapers, paymentAccounts: catalog.paymentAccounts });
@@ -1114,6 +1141,13 @@ function App() {
       return;
     }
     notify("โหมดตัวอย่างเป็นแบบอ่านอย่างเดียว โปรดเปิดใช้งาน Portal API เพื่อเข้าสู่ระบบและสมัครสอบจริง");
+  }
+
+  function signInForHomePreview() {
+    if (BACKEND_ENABLED) return;
+    setPersona("candidate");
+    setAuthProfile(demoGoogleProfile);
+    setApplications(createHomeDemoApplications(demoGoogleProfile, examCatalog));
   }
 
   function signInAdmin() {
@@ -1311,7 +1345,7 @@ function App() {
       accent: exam.accent || null,
       logoDataUrl: exam.logoDataUrl || "",
       description: exam.description || "",
-      prices: exam.prices || { paperBased: 0, onlineExam: 0 },
+      ...(getExamRoundType(exam) === "HEAT" ? {prices:exam.prices || {paperBased:0,onlineExam:0}} : {packagePrices:exam.packagePrices,guestPrice:exam.guestPrice}),
       gradeOptions: exam.gradeOptions || [],
       centerIds: exam.centerIds || [],
     };
@@ -1379,6 +1413,7 @@ function App() {
               gradeId: grade.id,
               format: normalizeExamFormat(listing.format) === "Online" ? "online" : "paper",
               centerId: listing.centerId,
+              ...(applicant.kind === "Final" ? {packageCode:listing.packageCode,shirtSize:listing.shirtSize,guests:listing.guests || []} : {}),
               ...(normalizeExamFormat(listing.format) === "Online" ? { examEmail: listing.examEmail || applicant.examEmail || "" } : {}),
             };
           });
@@ -1409,6 +1444,7 @@ function App() {
             pastPaperIds: (applicant.pastPaperSelections || []).map((paper) => paper.id),
             marketingConsent: Boolean(applicant.marketingConsent ?? values.schoolBatch?.marketingConsent),
             ...(applicant.sourceHeatId ? { sourceHeatApplicationId: applicant.sourceHeatId } : {}),
+            ...(applicant.certificatePhoto ? {certificatePhoto:applicant.certificatePhoto} : {}),
           };
         };
         const slipFile = values.schoolBatch?.paymentSlipFile || applicants[0]?.slipFile;
@@ -1518,6 +1554,18 @@ function App() {
       notify(error?.message || "บันทึกรูปเกียรติบัตรไม่สำเร็จ");
       throw error;
     }
+  }
+
+  async function saveShirtSizes(id, items) {
+    if (!BACKEND_ENABLED) throw new Error("กรุณาเปิด backend ก่อนบันทึกไซซ์เสื้อ");
+    const response = await fetch(`/api/applications/${encodeURIComponent(id)}/shirt-sizes`, {
+      method: "PUT", credentials: "same-origin", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ items }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "บันทึกไซซ์เสื้อไม่สำเร็จ");
+    await refreshApplicationData();
+    return result;
   }
 
   async function approveApplication(id, paymentId = null) {
@@ -1678,6 +1726,7 @@ function App() {
         const refreshedCatalog = await catalogResponse.json();
         setExamCatalog(refreshedCatalog.exams || []);
         setCenterPosterVersion(refreshedCatalog.centerPosterVersion || null);
+        setFinalShirtImages(refreshedCatalog.finalShirtImages || {});
       } catch {
         refreshWarning = ' · ประกาศแล้ว แต่โหลดข้อมูลใหม่ไม่สำเร็จ กรุณารีเฟรชหน้า';
       }
@@ -1704,7 +1753,7 @@ function App() {
     const { applicant, item } = choice;
     const exam = examCatalog.find((round) => round.id === item.roundId);
     const grade = gradeCatalogEntries.find((entry) => entry.id === item.gradeId);
-    const center = centerCatalog.find((entry) => entry.id === item.centerId);
+    const center = item.centerId === FINAL_ONSITE_CENTER.id ? FINAL_ONSITE_CENTER : centerCatalog.find((entry) => entry.id === item.centerId);
     if (!exam || !grade || !center) { notify("ข้อมูลรอบสอบไม่ครบถ้วน โปรดตรวจสอบข้อมูลแล้วดำเนินการอีกครั้ง"); return; }
     const prefill = {
       id: choice.sourceHeatApplicationId, year: item.year, heatId: item.roundType === "FINAL_X" ? "" : item.sourceExamNumber, finalId: item.roundType === "FINAL_X" ? item.sourceExamNumber : "", sourceRoundType: item.roundType === "FINAL_X" ? "FINAL" : "HEAT",
@@ -1731,17 +1780,17 @@ function App() {
       case "admin-login":
         return <AdminLoginPage authProfile={authProfile} authChecked={authChecked} backendEnabled={BACKEND_ENABLED} onSignIn={signInAdmin} onSignOut={signOut} />;
       case "apply-heat":
-        return <ApplicationFormPage key={page} kind="Heat" onSubmit={submitApplication} navigate={navigate} competitionFees={competitionFees} examCatalog={examCatalog} competitionCatalog={competitionCatalog} centerCatalog={centerCatalog} pastPaperCatalog={pastPaperCatalog} paymentAccounts={paymentAccounts} centerPosterVersion={centerPosterVersion} backendEnabled={BACKEND_ENABLED} />;
+        return <ApplicationFormPage key={page} kind="Heat" onSubmit={submitApplication} navigate={navigate} competitionFees={competitionFees} examCatalog={examCatalog} competitionCatalog={competitionCatalog} centerCatalog={centerCatalog} pastPaperCatalog={pastPaperCatalog} paymentAccounts={paymentAccounts} centerPosterVersion={centerPosterVersion} finalShirtImages={finalShirtImages} backendEnabled={BACKEND_ENABLED} />;
       case "apply-final":
         return authProfile && finalAccess && finalAccess.heatId === activeApplicationId
-          ? <ApplicationFormPage key={`${page}-${activeApplicationId}`} kind="Final" prefill={finalAccess.prefill || activeApplication} applicationMode={finalAccess.mode} allowedRoundIds={finalAccess.allowedRoundIds} onSubmit={submitApplication} navigate={navigate} competitionFees={competitionFees} examCatalog={examCatalog} competitionCatalog={competitionCatalog} centerCatalog={centerCatalog} pastPaperCatalog={pastPaperCatalog} paymentAccounts={paymentAccounts} centerPosterVersion={centerPosterVersion} backendEnabled={BACKEND_ENABLED} />
+          ? <ApplicationFormPage key={`${page}-${activeApplicationId}`} kind="Final" prefill={finalAccess.prefill || activeApplication} applicationMode={finalAccess.mode} allowedRoundIds={finalAccess.allowedRoundIds} onSubmit={submitApplication} navigate={navigate} competitionFees={competitionFees} examCatalog={examCatalog} competitionCatalog={competitionCatalog} centerCatalog={centerCatalog} pastPaperCatalog={pastPaperCatalog} paymentAccounts={paymentAccounts} centerPosterVersion={centerPosterVersion} finalShirtImages={finalShirtImages} backendEnabled={BACKEND_ENABLED} />
           : <FinalAccessGate navigate={navigate} />;
       case "applications":
         return <ApplicationsPage applications={visibleApplications} navigate={navigate} resultRows={publishedResultRows} examCatalog={effectiveExamCatalog} today={calendarDay} authProfile={authProfile} onConfirmFinal={confirmFinalFromApplicationCard} />;
       case "school-application-group":
         return <SchoolApplicationGroupPage applications={visibleApplications} groupKey={activeApplicationId} navigate={navigate} />;
       case "application-detail":
-        return <ApplicationDetailPage application={applications.find((item) => item.id === activeApplicationId)} navigate={navigate} resultRows={publishedResultRows} examCatalog={effectiveExamCatalog} today={calendarDay} authProfile={authProfile} hasFinalApplication={applications.some((item) => item.kind === "Final" && item.sourceHeatId === activeApplicationId)} onConfirmFinal={confirmFinalFromApplicationCard} onSaveCertificatePhoto={saveCertificatePhoto} />;
+        return <ApplicationDetailPage application={applications.find((item) => item.id === activeApplicationId)} navigate={navigate} resultRows={publishedResultRows} examCatalog={effectiveExamCatalog} today={calendarDay} authProfile={authProfile} hasFinalApplication={applications.some((item) => item.kind === "Final" && item.sourceHeatId === activeApplicationId)} onConfirmFinal={confirmFinalFromApplicationCard} onSaveCertificatePhoto={saveCertificatePhoto} finalShirtImages={finalShirtImages} onSaveShirtSizes={saveShirtSizes} />;
       case "check-status":
         return <StatusLookupPage applications={applications} navigate={navigate} backendEnabled={BACKEND_ENABLED} />;
       case "lookup-choice":
@@ -1777,9 +1826,9 @@ function App() {
       case "admin-mock-papers":
         return <AdminMockPapersPage applications={applications} notify={notify} />;
       case "admin-round":
-        return <AdminRoundPage selectedCompetitionId={selectedAdminCompetitionId} examCatalog={effectiveExamCatalog} onUpdateExam={updateExam} onSetManualClosed={setExamManualClosed} onAddExam={addExam} onRemoveExam={removeExam} onSaveCatalog={saveAdminCatalog} onSaveExam={saveAdminExam} onRequestAutoSave={() => setAutoSaveRequested(true)} dirtyExamIds={dirtyExamIds} catalogSaveState={catalogSaveState} catalogDirty={catalogDirty} registrationOpen={registrationOpen} onGenerateHeatIds={generateHeatIds} centerCatalog={centerCatalog} setCenterCatalog={setCenterCatalog} centerPosterVersion={centerPosterVersion} onCenterPosterVersionChange={setCenterPosterVersion} gradeCatalog={gradeCatalog} setGradeCatalog={setGradeCatalog} competitionCatalog={competitionCatalog} setCompetitionCatalog={setCompetitionCatalog} applications={applications} pastPaperCatalog={pastPaperCatalog} setPastPaperCatalog={setPastPaperCatalog} notify={notify} />;
+        return <AdminRoundPage selectedCompetitionId={selectedAdminCompetitionId} examCatalog={effectiveExamCatalog} onUpdateExam={updateExam} onSetManualClosed={setExamManualClosed} onAddExam={addExam} onRemoveExam={removeExam} onSaveCatalog={saveAdminCatalog} onSaveExam={saveAdminExam} onRequestAutoSave={() => setAutoSaveRequested(true)} dirtyExamIds={dirtyExamIds} catalogSaveState={catalogSaveState} catalogDirty={catalogDirty} registrationOpen={registrationOpen} onGenerateHeatIds={generateHeatIds} centerCatalog={centerCatalog} setCenterCatalog={setCenterCatalog} centerPosterVersion={centerPosterVersion} onCenterPosterVersionChange={setCenterPosterVersion} finalShirtImages={finalShirtImages} onFinalShirtImagesChange={setFinalShirtImages} gradeCatalog={gradeCatalog} setGradeCatalog={setGradeCatalog} competitionCatalog={competitionCatalog} setCompetitionCatalog={setCompetitionCatalog} applications={applications} pastPaperCatalog={pastPaperCatalog} setPastPaperCatalog={setPastPaperCatalog} notify={notify} />;
       case "admin-form-options":
-        return <AdminRoundPage pageMode="form-options" examCatalog={examCatalog} onUpdateExam={updateExam} onSetManualClosed={setExamManualClosed} onAddExam={addExam} onRemoveExam={removeExam} onSaveCatalog={saveAdminCatalog} onSaveExam={saveAdminExam} catalogSaveState={catalogSaveState} catalogDirty={catalogDirty} registrationOpen={registrationOpen} onGenerateHeatIds={generateHeatIds} centerCatalog={centerCatalog} setCenterCatalog={setCenterCatalog} centerPosterVersion={centerPosterVersion} onCenterPosterVersionChange={setCenterPosterVersion} gradeCatalog={gradeCatalog} setGradeCatalog={setGradeCatalog} competitionCatalog={competitionCatalog} setCompetitionCatalog={setCompetitionCatalog} applications={applications} pastPaperCatalog={pastPaperCatalog} setPastPaperCatalog={setPastPaperCatalog} paymentAccounts={paymentAccounts} setPaymentAccounts={setPaymentAccounts} notify={notify} />;
+        return <AdminRoundPage pageMode="form-options" examCatalog={examCatalog} onUpdateExam={updateExam} onSetManualClosed={setExamManualClosed} onAddExam={addExam} onRemoveExam={removeExam} onSaveCatalog={saveAdminCatalog} onSaveExam={saveAdminExam} catalogSaveState={catalogSaveState} catalogDirty={catalogDirty} registrationOpen={registrationOpen} onGenerateHeatIds={generateHeatIds} centerCatalog={centerCatalog} setCenterCatalog={setCenterCatalog} centerPosterVersion={centerPosterVersion} onCenterPosterVersionChange={setCenterPosterVersion} finalShirtImages={finalShirtImages} onFinalShirtImagesChange={setFinalShirtImages} gradeCatalog={gradeCatalog} setGradeCatalog={setGradeCatalog} competitionCatalog={competitionCatalog} setCompetitionCatalog={setCompetitionCatalog} applications={applications} pastPaperCatalog={pastPaperCatalog} setPastPaperCatalog={setPastPaperCatalog} paymentAccounts={paymentAccounts} setPaymentAccounts={setPaymentAccounts} notify={notify} />;
       case "admin-results":
         return <AdminResultsPage applications={applications} examCatalog={examCatalog} resultWorkflows={resultWorkflows} onImportDraft={importResultDraft} onResolveConflict={resolveResultConflict} onPublishResult={publishResults} notify={notify} navigate={navigate} />;
       case "admin-final-ids":
@@ -1797,11 +1846,19 @@ function App() {
   }
 
   if (page === "home" && persona !== "admin") {
-    return <LandingPage applications={visibleApplications} today={calendarDay} navigate={navigate} setPersona={setPersona} authProfile={authProfile} onSignIn={signInWithGoogleDemo} onSignOut={signOut} onStartApplication={startApplication} resultPublished={resultPublished} examCatalog={effectiveExamCatalog} demoProfile={demoGoogleProfile} backendEnabled={BACKEND_ENABLED} />;
+    if (HomeDesignPreview) {
+      return (
+        <Suspense fallback={null}>
+          <HomeDesignPreview applications={visibleApplications} today={calendarDay} navigate={navigate} setPersona={setPersona} authProfile={authProfile} onSignIn={signInForHomePreview} onSignOut={signOut} onStartApplication={startApplication} examCatalog={effectiveExamCatalog} competitionCatalog={competitionCatalog} />
+        </Suspense>
+      );
+    }
+    return <LandingPage applications={visibleApplications} today={calendarDay} navigate={navigate} setPersona={setPersona} authProfile={authProfile} onSignIn={signInWithGoogleDemo} onSignOut={signOut} onStartApplication={startApplication} resultPublished={resultPublished} examCatalog={effectiveExamCatalog} competitionCatalog={competitionCatalog} demoProfile={demoGoogleProfile} backendEnabled={BACKEND_ENABLED} />;
   }
 
   if (persona !== "admin" && !page.startsWith("admin-")) {
-    return <PublicPortalLayout page={page} navigate={navigate} setPersona={setPersona} authProfile={authProfile} onSignIn={signInWithGoogleDemo} onSignOut={signOut} demoProfile={demoGoogleProfile} backendEnabled={BACKEND_ENABLED} toast={toast} setToast={setToast} scheduleNotice={<ExamScheduleNotice examCatalog={effectiveExamCatalog} navigate={navigate} />}>{requiresRegistrationLogin ? <RegistrationLoginGate kind="Heat" /> : content}</PublicPortalLayout>;
+    const previewRegistration = !BACKEND_ENABLED && page === "apply-heat";
+    return <PublicPortalLayout page={page} navigate={navigate} setPersona={setPersona} authProfile={authProfile} onSignIn={previewRegistration ? signInForHomePreview : signInWithGoogleDemo} onSignOut={signOut} demoProfile={demoGoogleProfile} backendEnabled={BACKEND_ENABLED} demoSignIn={previewRegistration} toast={toast} setToast={setToast} scheduleNotice={<ExamScheduleNotice examCatalog={effectiveExamCatalog} navigate={navigate} />}>{requiresRegistrationLogin ? <RegistrationLoginGate kind="Heat" /> : content}</PublicPortalLayout>;
   }
 
   const shellPersona = page.startsWith("admin-") ? "admin" : persona;

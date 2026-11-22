@@ -1,0 +1,113 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { APPLICATION_HEADERS, APPLICATION_HEADERS_WITH_MIDDLE, LEGACY_APPLICATION_HEADERS, applicationValuesFromPrevious, APPLICATION_ITEM_METADATA_KEY, applicationValuesFromLegacy, ensureApplicationSheetLayout, writeApplicationSheetRow, readApplicationSheetRows } from '../server/applicationSheetLayout.js';
+
+function mockSheet(headers=LEGACY_APPLICATION_HEADERS) {
+  const state={headers:[...headers],rows:[Array.from({length:headers.length},(_,i)=>`value-${i}`)],metadata:[],batches:[]};
+  if(headers===LEGACY_APPLICATION_HEADERS) state.rows[0][0]='item-1';
+  const request=async(url,options={})=>{
+    const path=decodeURIComponent(url);
+    const body=options.body?JSON.parse(options.body):{};
+    if(path.includes('?fields=sheets.properties')) return {sheets:[{properties:{sheetId:7,title:'BBB - Heat 2026',gridProperties:{rowCount:2,columnCount:state.headers.length}}}]};
+    if(path.includes('/developerMetadata:search')) return {matchedDeveloperMetadata:state.metadata.filter(m=>!body.dataFilters[0].developerMetadataLookup.metadataValue || m.metadataValue===body.dataFilters[0].developerMetadataLookup.metadataValue).map(developerMetadata=>({developerMetadata}))};
+    if(path.includes('!A1:AK1')) return {values:[state.headers]};
+    if(path.endsWith('!A2:AK')) return {values:state.rows};
+    if(path.endsWith('!A2:Z')) return {values:state.rows};
+    if(path.endsWith('!A2:A')) return {values:state.rows.map(row=>[row[0]])};
+    if(path.endsWith('!A:Z')) return {values:[state.headers,...state.rows]};
+    if(options.method==='PUT') {
+      const row=Number(path.match(/!A(\d+):/)[1])-2;
+      state.rows[row]=body.values[0]; return {};
+    }
+    if(path.endsWith(':batchUpdate')) {
+      state.batches.push(body.requests);
+      for(const req of body.requests) {
+        if(req.deleteDimension) {
+          const {startIndex,endIndex}=req.deleteDimension.range;
+          state.headers.splice(startIndex,endIndex-startIndex);
+          state.rows.forEach(row=>row.splice(startIndex,endIndex-startIndex));
+        }
+        if(req.createDeveloperMetadata) state.metadata.push(req.createDeveloperMetadata.developerMetadata);
+        if(req.updateCells) {
+          const {rowIndex}=req.updateCells.start;
+          const values=req.updateCells.rows[0].values.map(c=>c.userEnteredValue.stringValue??c.userEnteredValue.numberValue);
+          if(rowIndex===0) state.headers=values;
+          else { const row=state.rows[rowIndex-1] ||= []; row.splice(req.updateCells.start.columnIndex,values.length,...values); }
+        }
+      }
+      return {};
+    }
+    throw new Error(`Unexpected request ${path}`);
+  };
+  return {state,request};
+}
+
+test('removes exactly original A:C, AD and AF:AK; preserves remaining data and row identity',async()=>{
+  const {state,request}=mockSheet();
+  const oldRow=[...state.rows[0]];
+  await ensureApplicationSheetLayout(request,'workbook','BBB - Heat 2026');
+  assert.equal(APPLICATION_HEADERS.length,26);
+  assert.deepEqual(state.rows[0],applicationValuesFromLegacy(oldRow));
+  assert.deepEqual(state.rows[0],[...oldRow.slice(3,15),...oldRow.slice(16,29),oldRow[30]]);
+  assert.deepEqual(state.headers,APPLICATION_HEADERS);
+  assert.equal(state.metadata[0].metadataValue,'item-1');
+  assert.equal(state.metadata[0].metadataKey,APPLICATION_ITEM_METADATA_KEY);
+  assert.equal(state.metadata[0].location.dimensionRange.startIndex,1);
+  const batches=state.batches.length;
+  await ensureApplicationSheetLayout(request,'workbook','BBB - Heat 2026');
+  assert.equal(state.batches.length,batches,'repeated migration must not delete additional columns');
+});
+
+test('updates migrated rows through metadata and inserts values and identity atomically',async()=>{
+  const {state,request}=mockSheet();
+  const values=APPLICATION_HEADERS.map((_,i)=>i===22?100:`new-${i}`);
+  const first=await writeApplicationSheetRow(request,'workbook','BBB - Heat 2026','item-1',values);
+  assert.deepEqual(first,{outcome:'updated',rowNumber:2});
+  const second=await writeApplicationSheetRow(request,'workbook','BBB - Heat 2026','item-2',values);
+  assert.deepEqual(second,{outcome:'inserted',rowNumber:3});
+  const last=state.batches.at(-1);
+  assert.ok(last.some(r=>r.appendDimension?.dimension==='ROWS'));
+  assert.ok(last.some(r=>r.updateCells));
+  assert.ok(last.some(r=>r.createDeveloperMetadata));
+  const retry=await writeApplicationSheetRow(request,'workbook','BBB - Heat 2026','item-2',values);
+  assert.equal(retry.outcome,'updated');
+  assert.equal(state.rows.length,2);
+});
+
+test('unknown layouts stop before destructive changes',async()=>{
+  const {state,request}=mockSheet(['Custom header']);
+  await assert.rejects(ensureApplicationSheetLayout(request,'workbook','BBB - Heat 2026'),/Unexpected application headers/);
+  assert.equal(state.batches.length,0);
+});
+
+test('migrates the existing 27-column sheet and splits past papers into separate lines',async()=>{
+  const {state,request}=mockSheet(APPLICATION_HEADERS_WITH_MIDDLE);
+  state.rows[0][21]='Paper 2024 — Level 1 | Paper 2025 — Level 1';
+  const before=[...state.rows[0]];
+  await ensureApplicationSheetLayout(request,'workbook','BBB - Heat 2026');
+  assert.deepEqual(state.headers,APPLICATION_HEADERS);
+  assert.deepEqual(state.rows[0],applicationValuesFromPrevious(before));
+  assert.equal(state.rows[0][20],'Paper 2024 — Level 1\nPaper 2025 — Level 1');
+  assert.equal(state.metadata.length,0,'existing row identities are preserved');
+  assert.ok(state.batches[0].some(r=>r.autoResizeDimensions));
+});
+
+test('Mock source reads and application updates follow row metadata after sorting',async()=>{
+  const {state,request}=mockSheet();
+  const first=APPLICATION_HEADERS.map(()=> 'First applicant');
+  const second=APPLICATION_HEADERS.map(()=> 'Second applicant');
+  await writeApplicationSheetRow(request,'workbook','BBB - Heat 2026','item-1',first);
+  await writeApplicationSheetRow(request,'workbook','BBB - Heat 2026','item-2',second);
+  state.rows.reverse();
+  for(const metadata of state.metadata) {
+    const location=metadata.location.dimensionRange;
+    location.startIndex=location.startIndex===1?2:1;
+    location.endIndex=location.startIndex+1;
+  }
+  const source=await readApplicationSheetRows(request,'workbook','BBB - Heat 2026');
+  assert.deepEqual(source.get('item-1'),first);
+  assert.deepEqual(source.get('item-2'),second);
+  const updated=await writeApplicationSheetRow(request,'workbook','BBB - Heat 2026','item-1',first);
+  assert.equal(updated.rowNumber,3);
+  assert.deepEqual(state.rows[0],second);
+});

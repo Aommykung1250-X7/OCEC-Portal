@@ -1,3 +1,4 @@
+import { APPLICATION_HEADERS } from '../server/applicationSheetLayout.js';
 import assert from 'node:assert/strict';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import test from 'node:test';
@@ -225,7 +226,7 @@ if (!testUrl) {
         const file = driveFiles.get(fileId);
         return file ? new Response(file.content || Buffer.from('mock slip bytes')) : new Response(null, { status: 404 });
       }
-      if (fileId && options.method === 'GET') {
+      if (fileId && (options.method || 'GET') === 'GET') {
         const file = driveFiles.get(fileId) || driveFolderRecords.get(fileId);
         return file ? Response.json(file) : new Response(null, { status: 404 });
       }
@@ -309,7 +310,7 @@ if (!testUrl) {
       assert.notEqual(migratedRows.rows[0].drive_file_id, migratedRows.rows[1].drive_file_id);
       assert.deepEqual(driveFiles.get(legacyDriveFileId).parents, [driveFolders.get('OCEC Slip 2026')]);
       assert.equal([...driveFolderRecords.values()].filter((folder) => folder.name === 'OCEC Slip 2026').length, 1);
-      const stableFileIds = migratedRows.rows.map((row) => row.drive_file_id);
+      const stableFileIds = migratedRows.rows.slice(0, 2).map((row) => row.drive_file_id);
       const repeatResponse = await app.inject({ method: 'POST', url: '/api/admin/google-workspace/organize-payment-slips', headers: { cookie: migrationCookie } });
       assert.deepEqual({ moved: repeatResponse.json().moved, uploaded: repeatResponse.json().uploaded,
         skipped: repeatResponse.json().skipped, failed: repeatResponse.json().failed },
@@ -421,6 +422,8 @@ if (!testUrl) {
     const originalFetch = globalThis.fetch;
     const testEmail = `sheets-${runId}@example.test`;
     const sheetRows = [];
+    let applicationHeaders = [];
+    const applicationMetadata = [];
     const mockRows = [];
     const requests = [];
     let folderNumber = 1;
@@ -450,6 +453,28 @@ if (!testUrl) {
       }
       if (pathname.startsWith(`/drive/v3/files/`) && (pathname.endsWith(`-${runId}`)) && method === 'GET') return Response.json({ id: pathname.split('/').at(-1), parents: [] });
       if (pathname.startsWith(`/drive/v3/files/`) && (pathname.endsWith(`-${runId}`)) && method === 'PATCH') return Response.json({ id: pathname.split('/').at(-1) });
+      if (pathname === `/v4/spreadsheets/mock-workbook-${runId}` && method === 'GET') return Response.json({ sheets: [{ properties: { sheetId: 7, title: `BBB - Heat ${year}`, gridProperties: { rowCount: 1000, columnCount: 37 } } }] });
+      if (pathname === `/v4/spreadsheets/mock-workbook-${runId}/developerMetadata:search`) {
+        const lookup = JSON.parse(options.body).dataFilters[0].developerMetadataLookup;
+        return Response.json({ matchedDeveloperMetadata: applicationMetadata.filter(meta => !lookup.metadataValue || meta.metadataValue === lookup.metadataValue).map(developerMetadata => ({ developerMetadata })) });
+      }
+      if (pathname === `/v4/spreadsheets/mock-workbook-${runId}:batchUpdate` && method === 'POST') {
+        for (const request of JSON.parse(options.body).requests) {
+          if (request.createDeveloperMetadata) applicationMetadata.push(request.createDeveloperMetadata.developerMetadata);
+          if (request.updateCells) {
+            const values = request.updateCells.rows[0].values.map(cell => cell.userEnteredValue.stringValue ?? cell.userEnteredValue.numberValue);
+            const index = request.updateCells.start.rowIndex;
+            if (index === 0) applicationHeaders = values;
+            else sheetRows[index - 1] = values;
+          }
+        }
+        return Response.json({ replies: [] });
+      }
+      if (pathname.includes(`/mock-workbook-${runId}/values/`) && method === 'GET') {
+        if (pathname.includes('!A1:')) return Response.json({ values: applicationHeaders.length ? [applicationHeaders] : [] });
+        if (pathname.endsWith('!A2:Z')) return Response.json({ values: sheetRows });
+        if (pathname.endsWith('!A:Z')) return Response.json({ values: [applicationHeaders, ...sheetRows] });
+      }
       if (pathname === `/v4/spreadsheets/mock-delivery-${runId}:batchUpdate` && method === 'POST') return Response.json({ replies: [] });
       if (pathname === `/v4/spreadsheets/mock-delivery-${runId}/values:batchUpdate` && method === 'POST') {
         for (const update of JSON.parse(options.body).data) {
@@ -483,7 +508,9 @@ if (!testUrl) {
       const inserted = await syncGoogleWorkspaceSheetItem(item.rows[0].id);
       assert.equal(inserted.outcome, 'inserted');
       assert.equal(sheetRows.length, 1);
-      assert.equal(sheetRows[0][0], item.rows[0].id);
+      assert.equal(sheetRows[0].length, APPLICATION_HEADERS.length);
+      assert.equal(applicationMetadata[0].metadataValue, item.rows[0].id);
+      assert.ok(!sheetRows[0].includes(item.rows[0].id));
       await getPool().query("UPDATE applicants SET school_name='Updated Test School' WHERE id=(SELECT applicant_id FROM applications WHERE id=$1)", [draft.id]);
       const updated = await syncGoogleWorkspaceSheetItem(item.rows[0].id);
       assert.equal(updated.outcome, 'updated');
@@ -491,7 +518,7 @@ if (!testUrl) {
       assert.ok(sheetRows[0].includes('Updated Test School'));
       const mapping = await getPool().query('SELECT spreadsheet_row FROM google_workspace_sheet_rows WHERE application_item_id=$1', [item.rows[0].id]);
       assert.equal(mapping.rows[0].spreadsheet_row, 2);
-      assert.equal(requests.filter(({ pathname }) => pathname.endsWith(':append')).length, 1);
+      assert.equal(applicationMetadata.length, 1, 'sync retries reuse the row identity outside visible columns');
       const pendingSync = await syncGoogleWorkspaceSheetItem(pendingItem.rows[0].id);
       assert.equal(pendingSync.skipped, true, 'the regular application sheet sync stays limited to approved applications');
       await getPool().query("UPDATE applicants SET school_name='Outage Test School' WHERE id=(SELECT applicant_id FROM applications WHERE id=$1)", [draft.id]);
