@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { APPLICATION_HEADERS, APPLICATION_HEADERS_WITH_MIDDLE, LEGACY_APPLICATION_HEADERS, applicationValuesFromPrevious, APPLICATION_ITEM_METADATA_KEY, applicationValuesFromLegacy, ensureApplicationSheetLayout, writeApplicationSheetRow, readApplicationSheetRows } from '../server/applicationSheetLayout.js';
+import { APPLICATION_HEADERS, APPLICATION_HEADERS_WITH_MIDDLE, LEGACY_APPLICATION_HEADERS, applicationValuesFromPrevious, APPLICATION_ITEM_METADATA_KEY, applicationValuesFromLegacy, clearApplicationSheetRowByItemId, ensureApplicationSheetLayout, writeApplicationSheetRow, readApplicationSheetRows } from '../server/applicationSheetLayout.js';
 
 function mockSheet(headers=LEGACY_APPLICATION_HEADERS) {
   const state={headers:[...headers],rows:[Array.from({length:headers.length},(_,i)=>`value-${i}`)],metadata:[],batches:[]};
@@ -19,6 +19,17 @@ function mockSheet(headers=LEGACY_APPLICATION_HEADERS) {
       const row=Number(path.match(/!A(\d+):/)[1])-2;
       state.rows[row]=body.values[0]; return {};
     }
+    if(path.endsWith('/values:batchClearByDataFilter')) {
+      for(const filter of body.dataFilters||[]) {
+        const lookup=filter.developerMetadataLookup||{};
+        for(const meta of state.metadata) {
+          if(meta.metadataKey===lookup.metadataKey && meta.metadataValue===lookup.metadataValue && meta.location.dimensionRange.sheetId===7) {
+            state.rows[meta.location.dimensionRange.startIndex-1]=Array(APPLICATION_HEADERS.length).fill('');
+          }
+        }
+      }
+      return {};
+    }
     if(path.endsWith(':batchUpdate')) {
       state.batches.push(body.requests);
       for(const req of body.requests) {
@@ -28,6 +39,10 @@ function mockSheet(headers=LEGACY_APPLICATION_HEADERS) {
           state.rows.forEach(row=>row.splice(startIndex,endIndex-startIndex));
         }
         if(req.createDeveloperMetadata) state.metadata.push(req.createDeveloperMetadata.developerMetadata);
+        if(req.deleteDeveloperMetadata) {
+          const lookup=req.deleteDeveloperMetadata.dataFilter?.developerMetadataLookup||{};
+          state.metadata=state.metadata.filter(m=>!(m.metadataKey===lookup.metadataKey && m.metadataValue===lookup.metadataValue));
+        }
         if(req.updateCells) {
           const {rowIndex}=req.updateCells.start;
           const values=req.updateCells.rows[0].values.map(c=>c.userEnteredValue.stringValue??c.userEnteredValue.numberValue);
@@ -110,4 +125,39 @@ test('Mock source reads and application updates follow row metadata after sortin
   const updated=await writeApplicationSheetRow(request,'workbook','BBB - Heat 2026','item-1',first);
   assert.equal(updated.rowNumber,3);
   assert.deepEqual(state.rows[0],second);
+});
+
+test('clearApplicationSheetRowByItemId clears only the moved target row, stops on duplicate metadata or wrong sheet, and is idempotent',async()=>{
+  const {state,request}=mockSheet();
+  const first=APPLICATION_HEADERS.map(()=> 'First applicant');
+  const second=APPLICATION_HEADERS.map(()=> 'Second applicant');
+  await writeApplicationSheetRow(request,'workbook','BBB - Heat 2026','item-1',first);
+  await writeApplicationSheetRow(request,'workbook','BBB - Heat 2026','item-2',second);
+  // Sort and insert a row above so item-1 moves from row 2 to row 4
+  state.rows.reverse();
+  for(const metadata of state.metadata) {
+    const location=metadata.location.dimensionRange;
+    location.startIndex=location.startIndex===1?2:1;
+    location.endIndex=location.startIndex+1;
+  }
+  state.rows.unshift(APPLICATION_HEADERS.map(()=> 'Inserted row'));
+  for(const metadata of state.metadata) {
+    metadata.location.dimensionRange.startIndex+=1;
+    metadata.location.dimensionRange.endIndex+=1;
+  }
+  await assert.rejects(clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-1',{expectedSheetId:99}),/target mismatch/);
+  const cleared=await clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-1',{expectedSheetId:7});
+  assert.deepEqual(cleared,{cleared:true,alreadyCleared:false,itemId:'item-1',sheetId:7,rowNumber:4});
+  assert.ok(state.rows[2].every(cell=>cell===''));
+  assert.deepEqual(state.rows[1],second);
+  assert.equal(state.rows[0][0],'Inserted row');
+  // Re-run is an idempotent no-op
+  const repeat=await clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-1',{expectedSheetId:7});
+  assert.deepEqual(repeat,{cleared:false,alreadyCleared:true,itemId:'item-1',sheetId:7});
+  assert.deepEqual(state.rows[1],second);
+  // Duplicate metadata stops before clearing
+  const meta2=state.metadata.find(m=>m.metadataValue==='item-2');
+  state.metadata.push({...meta2});
+  await assert.rejects(clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-2',{expectedSheetId:7}),/Duplicate application row metadata/);
+  assert.deepEqual(state.rows[1],second);
 });

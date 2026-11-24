@@ -25,8 +25,8 @@
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {
-    "@fastify/static": "^10.1.6",
-    "fastify": "^5.12.5",
+    "@fastify/static": "^10.1.12",
+    "fastify": "^5.12.8",
     "google-auth-library": "^11.2.0",
     "pg": "^8.23.1",
     "react": "^19.3.0",

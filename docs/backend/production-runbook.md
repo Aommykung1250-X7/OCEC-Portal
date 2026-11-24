@@ -40,9 +40,10 @@ The Google account connected in the admin screen owns files and sends email thro
 1. Create a dedicated Portal PostgreSQL database. Do not point `DATABASE_URL` at OCEC-Cert.
 2. Take a database backup before the first production migration. The application history is retained and migrations do not delete application or payment history automatically.
 3. Build with `npm run build`, run migrations with `npm run db:migrate`, then start with `npm start`. In Railway, use build command `npm run build`, pre-deploy command `npm run db:migrate`, and start command `npm start`.
-4. Use `/api/ready` as the Railway health check. It returns success only after PostgreSQL is reachable and the current schema migration is present. `/api/health` is a basic database liveness check.
-5. After the service has its HTTPS domain, update `APP_ORIGIN`, both OAuth redirect URIs, and Google authorized origins/redirect URIs, then redeploy.
-6. Sign in, connect Workspace, initialize folders, and submit one controlled application using a dedicated test applicant before opening the form publicly.
+4. Use `/api/ready` as the Railway health check. It returns `200` only after PostgreSQL is reachable and **every** SQL migration declared in `server/migrationsManifest.js` (`001` through `025`) is present in `schema_migrations`; if even one migration is missing (including a middle gap), it returns `503`. `/api/health` and `/api/live` are process liveness checks independent of database connectivity. Startup also validates required production environment variables in `server/config.js` without printing secret values.
+5. Note for upgrading from migration `022` (current deployed baseline) to Phase 2 (`025`): take a database snapshot first, run read-only `npm run db:preflight:024`, reconcile any duplicate published batches if reported (`scripts/reconcile-duplicate-result-batches.js`), then run `npm run db:migrate` (which acquires a PostgreSQL advisory lock so concurrent migration runners serialize cleanly) to apply `023_payment_slip_inspections.sql`, `024_result_publication_snapshots.sql`, and `025_catalog_revision.sql`.
+6. After the service has its HTTPS domain, update `APP_ORIGIN`, both OAuth redirect URIs, and Google authorized origins/redirect URIs, then redeploy.
+7. Sign in, connect Workspace, initialize folders, and submit one controlled application using a dedicated test applicant before opening the form publicly.
 
 For local production-like operation, copy `.env.example` to `.env`, use a separate local Portal database, set `APP_ORIGIN=http://localhost:3001`, set both callback URLs to `http://localhost:3001/...`, set `VITE_BACKEND_ENABLED=true`, then run `npm run local:production`.
 
@@ -55,7 +56,7 @@ For local production-like operation, copy `.env.example` to `.env`, use a separa
 - [ ] Admin review requires staff to inspect the uploaded slip. Approval records the reviewing admin and approval time; receiving account, confirmed amount, and transfer time are not recorded.
 - [ ] A slip issue emails the coordinator for school batches. The single-use replacement link replaces the batch slip and returns only still-pending applications to review.
 - [ ] Approval queues email and one Sheets row per application item. Re-running a sync updates the existing row by Application Item ID.
-- [ ] Applicants and school coordinators can open the approved application; the applicant’s verified Google email can access their own school-submitted application and upload or replace a certificate photo after approval and before the edit deadline.
+- [ ] Applicants and school coordinators can open applications owned by their Google account (`owner_user_id`) or bound via a verifiable delegation grant; sharing a `contact_email` alone does not expose another user's application, certificate photo, or shirt sizes (see `BR-15` and `BR-OPEN-05`).
 - [ ] Heat exam numbers cannot be created while the round is open. A closed-round import is confirmed, appears on the right applicants, and is stable when repeated.
 - [ ] Result Excel imports as a draft. Unmatched, duplicate, and mismatched rows are resolved before publication. Public results change only after publish; publishing Heat grants Final only to eligible awards and opens the matching Final registration round.
 - [ ] Final number imports match only registered applicants with a valid Heat invitation and eligible published result; the admin resolves conflicts before applying numbers.

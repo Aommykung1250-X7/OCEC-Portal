@@ -2,6 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { OAuth2Client } from 'google-auth-library';
 import { getPool } from './db.js';
 import { bindFinalGrantToUser, finalGrantTokenFromRequest, findLiveFinalGrant } from './finalEligibility.js';
+import { isKnownSpaLocation } from '../src/routes.js';
 
 const hash = (value) => createHash('sha256').update(value).digest('hex');
 const random = () => randomBytes(32).toString('base64url');
@@ -19,12 +20,66 @@ const mockProfiles = Object.freeze({
 const configuredAdminEmails = () => (process.env.ADMIN_EMAILS || '').split(',').map((email) => email.trim().toLowerCase()).filter(Boolean);
 const isConfiguredAdmin = (email) => configuredAdminEmails().includes(String(email || '').trim().toLowerCase());
 
-function returnPath(value) {
-  if (typeof value !== 'string' || !/^\/(?!\/)[^\\\r\n]*$/.test(value)) return '/';
+function applySensitiveAuthHeaders(reply) {
+  return reply.header('Cache-Control', 'no-store').header('Referrer-Policy', 'no-referrer');
+}
+
+/**
+ * Parse and canonicalize a post-login redirect target once, verifying:
+ * 1. Exact origin matches APP_ORIGIN (no protocol-relative, backslash, control-char, or credential tricks)
+ * 2. Normalized path is a known Portal SPA route (never `/api/...` or an unknown path)
+ * Falls back to `${origin}/` whenever input is invalid or disallowed.
+ */
+export function resolveSafeReturnUrl(value, appOrigin = process.env.APP_ORIGIN) {
+  let originUrl;
   try {
-    const parsed = new URL(value, 'https://portal.invalid');
-    return `${parsed.pathname}${parsed.search}`;
-  } catch { return '/'; }
+    originUrl = new URL(String(appOrigin || ''));
+  } catch {
+    throw new Error('APP_ORIGIN must be configured as a valid URL');
+  }
+  if (!['http:', 'https:'].includes(originUrl.protocol) || originUrl.username || originUrl.password) {
+    throw new Error('APP_ORIGIN must be an http(s) origin without credentials');
+  }
+  const fallback = new URL('/', originUrl.origin).toString();
+  if (typeof value !== 'string') return fallback;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > 2048) return fallback;
+  if (/[\u0000-\u001f\u007f\\]/.test(trimmed)) return fallback;
+  if (!trimmed.startsWith('/') || trimmed.startsWith('//')) return fallback;
+  if (/^\/[a-z][a-z0-9+.-]*:/i.test(trimmed)) return fallback;
+
+  let decodedPrefix = trimmed;
+  try {
+    decodedPrefix = decodeURIComponent(trimmed.split(/[?#]/)[0]);
+  } catch {
+    return fallback;
+  }
+  if (/[\u0000-\u001f\u007f\\@]/.test(decodedPrefix) || decodedPrefix.startsWith('//') || decodedPrefix.includes('..')) {
+    return fallback;
+  }
+
+  let resolved;
+  try {
+    resolved = new URL(trimmed, originUrl.origin);
+  } catch {
+    return fallback;
+  }
+  if (resolved.origin !== originUrl.origin) return fallback;
+  if (resolved.username || resolved.password) return fallback;
+  if (resolved.pathname.startsWith('/api/') || resolved.pathname === '/api') return fallback;
+  if (resolved.pathname.startsWith('//') || resolved.pathname.includes('\\')) return fallback;
+  if (!isKnownSpaLocation({ pathname: resolved.pathname, hash: '' })) return fallback;
+
+  return `${originUrl.origin}${resolved.pathname}${resolved.search}`;
+}
+
+export function returnPath(value, appOrigin = process.env.APP_ORIGIN || 'https://portal.invalid') {
+  try {
+    const resolved = new URL(resolveSafeReturnUrl(value, appOrigin));
+    return `${resolved.pathname}${resolved.search}`;
+  } catch {
+    return '/';
+  }
 }
 
 export async function currentUser(request) {
@@ -54,6 +109,7 @@ export async function requireAdmin(request, reply) {
 export function registerAuthRoutes(app) {
   if (mockOAuth() && process.env.NODE_ENV !== 'test') throw new Error('Mock Google OAuth is available only in test mode');
   app.get('/api/auth/google/start', async (request, reply) => {
+    applySensitiveAuthHeaders(reply);
     if (!oauthReady()) return reply.code(503).send({ error: 'Google Login is not configured' });
     const finalToken = request.query?.flow === 'final' ? finalGrantTokenFromRequest(request) : null;
     const finalGrant = finalToken ? await findLiveFinalGrant(finalToken) : null;
@@ -62,7 +118,8 @@ export function registerAuthRoutes(app) {
     const nonce = random();
     const verifier = random();
     const challenge = createHash('sha256').update(verifier).digest('base64url');
-    await getPool().query('INSERT INTO oauth_attempts(state_hash, nonce, code_verifier, return_path, expires_at, final_verification_grant_id) VALUES($1,$2,$3,$4,now()+interval \'10 minutes\',$5)', [hash(state), nonce, verifier, returnPath(request.query?.returnTo), finalGrant?.id || null]);
+    const safePath = returnPath(request.query?.returnTo, process.env.APP_ORIGIN);
+    await getPool().query('INSERT INTO oauth_attempts(state_hash, nonce, code_verifier, return_path, expires_at, final_verification_grant_id) VALUES($1,$2,$3,$4,now()+interval \'10 minutes\',$5)', [hash(state), nonce, verifier, safePath, finalGrant?.id || null]);
     reply.header('Set-Cookie', `${stateCookieName}=${state}; Path=/api/auth/google/callback; HttpOnly; SameSite=Lax; Max-Age=600${isSecure() ? '; Secure' : ''}`);
     if (mockOAuth()) {
       const persona = Object.hasOwn(mockProfiles, request.query?.testPersona) ? request.query.testPersona : 'candidate';
@@ -76,6 +133,7 @@ export function registerAuthRoutes(app) {
   });
 
   app.get('/api/auth/google/callback', async (request, reply) => {
+    applySensitiveAuthHeaders(reply);
     const { code, state, error } = request.query || {};
     if (error || typeof code !== 'string' || typeof state !== 'string') return reply.code(400).send({ error: 'Google authentication cancelled or invalid' });
     const browserState = request.headers.cookie?.split(';').map((part) => part.trim()).find((part) => part.startsWith(`${stateCookieName}=`))?.slice(stateCookieName.length + 1);
@@ -108,15 +166,18 @@ export function registerAuthRoutes(app) {
       `${stateCookieName}=; Path=/api/auth/google/callback; HttpOnly; SameSite=Lax; Max-Age=0${isSecure() ? '; Secure' : ''}`,
       cookie(session, 14 * 24 * 60 * 60),
     ]);
-    return reply.redirect(new URL(attempt.rows[0].return_path, process.env.APP_ORIGIN).toString());
+    const finalRedirectUrl = resolveSafeReturnUrl(attempt.rows[0].return_path, process.env.APP_ORIGIN);
+    return reply.redirect(finalRedirectUrl);
   });
 
-  app.get('/api/auth/me', async (request) => {
+  app.get('/api/auth/me', async (request, reply) => {
+    applySensitiveAuthHeaders(reply);
     const user = await currentUser(request);
     return { user: user ? { id: user.id, email: user.email, name: user.display_name, picture: user.picture_url, isAdmin: user.is_admin } : null };
   });
 
   app.post('/api/auth/logout', async (request, reply) => {
+    applySensitiveAuthHeaders(reply);
     const raw = request.headers.cookie?.split(';').map((part) => part.trim()).find((part) => part.startsWith(`${cookieName}=`));
     const token = raw?.slice(cookieName.length + 1);
     if (token) await getPool().query('DELETE FROM sessions WHERE token_hash=$1', [hash(token)]);

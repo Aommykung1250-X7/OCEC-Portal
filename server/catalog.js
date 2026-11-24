@@ -12,8 +12,38 @@ const bangkokToday = () => {
   return `${values.year}-${values.month}-${values.day}`;
 };
 
+export const formatCatalogEtag = (revision) => `"catalog-rev-${Number(revision)}"`;
+
+export function parseCatalogRevision(rawValue) {
+  if (rawValue == null || rawValue === '') return null;
+  if (typeof rawValue === 'number') {
+    if (!Number.isSafeInteger(rawValue) || rawValue < 1) throw fail('Invalid catalog revision');
+    return rawValue;
+  }
+  const text = String(rawValue).trim();
+  const match = text.match(/^(?:W\/)?"?(?:catalog-rev-)?([1-9]\d*)"?$/);
+  if (!match) throw fail('Invalid catalog revision or ETag');
+  const parsed = Number(match[1]);
+  if (!Number.isSafeInteger(parsed) || parsed < 1) throw fail('Invalid catalog revision or ETag');
+  return parsed;
+}
+
+async function assertAndBumpCatalogRevision(client, { expectedRevision = null, expectedRevisionSource = 'body', actorId = null } = {}) {
+  await client.query('INSERT INTO catalog_revisions(singleton, revision) VALUES(true, 1) ON CONFLICT (singleton) DO NOTHING');
+  const currentResult = await client.query('SELECT revision FROM catalog_revisions WHERE singleton=true FOR UPDATE');
+  const currentRevision = Number(currentResult.rows[0]?.revision || 1);
+  if (expectedRevision != null && Number(expectedRevision) !== currentRevision) {
+    const error = fail('ข้อมูลแค็ตตาล็อกมีการเปลี่ยนแปลงโดยผู้ดูแลระบบท่านอื่น โปรดโหลดข้อมูลล่าสุดใหม่ก่อนบันทึก', expectedRevisionSource === 'if-match' ? 412 : 409);
+    error.code = 'CATALOG_REVISION_CONFLICT';
+    error.currentRevision = currentRevision;
+    throw error;
+  }
+  const bumped = await client.query('UPDATE catalog_revisions SET revision=revision+1, updated_at=now(), updated_by=$1 WHERE singleton=true RETURNING revision', [actorId || null]);
+  return Number(bumped.rows[0].revision);
+}
+
 export async function loadCatalog() {
-  const [rounds, grades, centers, links, pastPapers, accounts, competitions, centerPoster, shirtImages] = await Promise.all([
+  const [rounds, grades, centers, links, pastPapers, accounts, competitions, centerPoster, shirtImages, revisionResult] = await Promise.all([
     getPool().query('SELECT * FROM exam_rounds WHERE active=true ORDER BY year DESC, title'),
     getPool().query('SELECT * FROM grade_catalog WHERE active=true ORDER BY sort_order, label'),
     getPool().query('SELECT * FROM exam_centers ORDER BY code'),
@@ -26,6 +56,7 @@ export async function loadCatalog() {
     getPool().query('SELECT * FROM competitions ORDER BY id'),
     getPool().query("SELECT to_char(updated_at AT TIME ZONE 'UTC', 'YYYYMMDDHH24MISSUS') AS version FROM application_center_poster WHERE id=1"),
     getPool().query("SELECT kind,to_char(updated_at AT TIME ZONE 'UTC', 'YYYYMMDDHH24MISSUS') AS version FROM final_shirt_images"),
+    getPool().query('SELECT revision FROM catalog_revisions WHERE singleton=true'),
   ]);
   const gradeById = new Map(grades.rows.map((grade) => [grade.id, grade.label]));
   const gradeOrder = new Map(grades.rows.map((grade, index) => [grade.label, index]));
@@ -55,6 +86,7 @@ export async function loadCatalog() {
     paymentAccounts: accounts.rows.map((row) => ({ id: row.id, bankName: row.bank_name, accountName: row.account_name, accountNumber: row.account_number, category: row.category, showInForm: row.show_in_form, active: row.active })),
     centerPosterVersion: centerPoster.rows[0]?.version || null,
     finalShirtImages: Object.fromEntries(shirtImages.rows.map(row => [row.kind,row.version])),
+    revision: Number(revisionResult.rows[0]?.revision || 1),
   };
 }
 
@@ -103,8 +135,9 @@ export function normalizePaymentAccounts(paymentAccounts) {
   return accounts;
 }
 
-async function persistPaymentAccounts(accounts, actorId, action) {
-  await transaction(async (client) => {
+async function persistPaymentAccounts(accounts, actorId, action, revisionOptions = {}) {
+  return transaction(async (client) => {
+    const nextRevision = await assertAndBumpCatalogRevision(client, { ...revisionOptions, actorId });
     const before = await catalogAuditSnapshot(client);
     await client.query('UPDATE payment_accounts SET active=false');
     for (const account of accounts) await client.query(`INSERT INTO payment_accounts(id,bank_name,account_name,account_number,category,show_in_form,active)
@@ -114,31 +147,20 @@ async function persistPaymentAccounts(accounts, actorId, action) {
     const after = await catalogAuditSnapshot(client);
     await client.query(`INSERT INTO audit_logs(actor_user_id,entity_type,entity_id,action,before_data,after_data)
       VALUES($1,'catalog','payment-accounts',$2,$3,$4)`, [actorId, action, before, after]);
+    return nextRevision;
   });
 }
 
 /** Persist just the payment-account selection, independent from unrelated catalog validation. */
-export async function savePaymentAccountsSnapshot(paymentAccounts, actorId) {
+export async function savePaymentAccountsSnapshot(paymentAccounts, actorId, revisionOptions = {}) {
   const accounts = normalizePaymentAccounts(paymentAccounts);
-  await persistPaymentAccounts(accounts, actorId, 'payment_accounts_replace');
-  return (await loadCatalog()).paymentAccounts;
+  const revision = await persistPaymentAccounts(accounts, actorId, 'payment_accounts_replace', revisionOptions);
+  const catalog = await loadCatalog();
+  return { paymentAccounts: catalog.paymentAccounts, revision };
 }
 
-async function catalogAuditSnapshot(client) {
-  const result = await client.query(`SELECT jsonb_build_object(
-    'rounds',(SELECT coalesce(jsonb_agg(jsonb_build_object('id',id,'competitionId',competition_id,'title',title,'year',year,'roundType',round_type,'openDate',open_date,'closeDate',close_date,'editCloseDate',edit_close_date,'examDate',exam_date,'isOpen',is_open,'active',active,'paperPriceSatang',paper_price_satang,'onlinePriceSatang',online_price_satang,'packagePrices',final_package_prices,'guestPriceSatang',final_guest_price_satang) ORDER BY id),'[]'::jsonb) FROM exam_rounds),
-    'grades',(SELECT coalesce(jsonb_agg(jsonb_build_object('id',id,'label',label,'sortOrder',sort_order,'active',active) ORDER BY sort_order,id),'[]'::jsonb) FROM grade_catalog),
-    'centers',(SELECT coalesce(jsonb_agg(jsonb_build_object('id',id,'code',code,'name',name,'active',active) ORDER BY code),'[]'::jsonb) FROM exam_centers),
-    'pastPapers',(SELECT coalesce(jsonb_agg(jsonb_build_object('id',id,'competitionId',competition_id,'group',group_name,'title',title,'detail',detail,'priceSatang',price_satang,'active',active,'archived',archived) ORDER BY id),'[]'::jsonb) FROM past_papers),
-    'paymentAccounts',(SELECT coalesce(jsonb_agg(jsonb_build_object('id',id,'bankName',bank_name,'accountName',account_name,'accountLast4',right(regexp_replace(account_number,'[^0-9]','','g'),4),'category',category,'showInForm',show_in_form,'active',active) ORDER BY id),'[]'::jsonb) FROM payment_accounts),
-    'competitions',(SELECT coalesce(jsonb_agg(jsonb_build_object('id',id,'short',short_name,'name',name,'subject',subject,'active',active) ORDER BY id),'[]'::jsonb) FROM competitions)
-  ) AS snapshot`);
-  return result.rows[0].snapshot;
-}
-
-/** Persist the current admin-edited catalog atomically; referenced rows are archived, never hard-deleted. */
-export async function saveCatalogSnapshot(snapshot, actorId) {
-  for (const key of ['exams', 'grades', 'centers', 'pastPapers', 'paymentAccounts']) {
+function normalizeGeneralCatalogSections(snapshot) {
+  for (const key of ['grades', 'centers', 'pastPapers']) {
     if (!Array.isArray(snapshot?.[key])) throw fail(`Catalog field ${key} must be an array`);
   }
   const labelIds = new Map();
@@ -182,6 +204,223 @@ export async function saveCatalogSnapshot(snapshot, actorId) {
     competitionIds.add(id); competitionShorts.add(shortKey);
     return { id, short, name, subject, active: competition.active !== false };
   });
+  const papers = snapshot.pastPapers.map((paper) => {
+    const id = safeId(paper.id, 'Past paper ID');
+    const name = String(paper.name || '').trim();
+    const title = cleanText(paper.title || name.split(' — ')[0], 'Past paper title', 255);
+    const detail = String(paper.detail ?? (name.includes(' — ') ? name.slice(name.indexOf(' — ') + 3) : '')).trim().slice(0, 255);
+    const group = cleanText(paper.group, 'Past paper group', 255);
+    const competitionId = paper.competitionId || null;
+    const priceSatang = Math.round(Number(paper.price) * 100);
+    if (!Number.isSafeInteger(priceSatang) || priceSatang < 0) throw fail(`Invalid price for past paper ${title}`);
+    return { id, title, detail, group, competitionId, priceSatang, active: paper.active !== false };
+  });
+  const paperIds = new Set();
+  if (papers.some((paper) => paperIds.has(paper.id) || !paperIds.add(paper.id))) throw fail('Past paper IDs must be unique');
+  return { labelIds, duplicateGradeIds, grades, centers, competitions, papers };
+}
+
+/**
+ * Persist general form-option catalog entries (grades, centers, past papers, competitions)
+ * WITHOUT overwriting exam rounds, exam pricing, or payment accounts.
+ */
+export async function saveGeneralCatalogOptions(snapshot, actorId, revisionOptions = {}) {
+  const { duplicateGradeIds, grades, centers, competitions, papers } = normalizeGeneralCatalogSections(snapshot);
+  const expectedRevision = revisionOptions.expectedRevision ?? parseCatalogRevision(snapshot?.expectedRevision ?? snapshot?.revision);
+  await transaction(async (client) => {
+    await assertAndBumpCatalogRevision(client, {
+      expectedRevision,
+      expectedRevisionSource: revisionOptions.expectedRevisionSource || 'body',
+      actorId,
+    });
+    if (duplicateGradeIds.length) {
+      const referencedDuplicates = await client.query('SELECT DISTINCT grade_id FROM application_items WHERE grade_id=ANY($1::text[])', [duplicateGradeIds]);
+      if (referencedDuplicates.rowCount) throw fail('Cannot merge duplicate grades that are used by existing applications');
+    }
+    const before = await catalogAuditSnapshot(client);
+
+    const activeGradeIds = grades.map((grade) => grade.id);
+    const openRoundsWithoutGrade = await client.query(
+      `SELECT r.title
+       FROM exam_rounds r
+       WHERE r.active = true
+         AND NOT coalesce(r.final_manually_closed, false)
+         AND r.open_date IS NOT NULL AND r.close_date IS NOT NULL
+         AND r.open_date <= (now() AT TIME ZONE 'Asia/Bangkok')::date
+         AND (now() AT TIME ZONE 'Asia/Bangkok')::date <= r.close_date
+         AND EXISTS (
+           SELECT 1 FROM exam_round_grades existing
+           WHERE existing.exam_round_id = r.id
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM exam_round_grades rg
+           WHERE rg.exam_round_id = r.id AND rg.grade_id = ANY($1::text[])
+         )
+       LIMIT 1`,
+      [activeGradeIds],
+    );
+    if (openRoundsWithoutGrade.rowCount) {
+      throw fail(`Open round ${openRoundsWithoutGrade.rows[0].title} requires at least one grade`);
+    }
+
+    await client.query('UPDATE grade_catalog SET active=false');
+    for (const grade of grades) {
+      await client.query(`INSERT INTO grade_catalog(id,label,sort_order,active) VALUES($1,$2,$3,true)
+        ON CONFLICT(id) DO UPDATE SET label=excluded.label,sort_order=excluded.sort_order,active=true`, [grade.id, grade.label, grade.sortOrder]);
+    }
+    await client.query('DELETE FROM exam_round_grades WHERE NOT (grade_id = ANY($1::text[]))', [activeGradeIds]);
+
+    await client.query("UPDATE exam_centers SET active=false WHERE code <> '500'");
+    for (const center of centers) {
+      await client.query(`INSERT INTO exam_centers(id,code,name,active) VALUES($1,$2,$3,$4)
+        ON CONFLICT(id) DO UPDATE SET code=excluded.code,name=excluded.name,active=excluded.active`, [center.id, center.code, center.name, center.active]);
+    }
+    const activePhysicalCenterIds = centers.filter((center) => center.active && center.code !== '500').map((center) => center.id);
+    await client.query('DELETE FROM exam_round_centers WHERE NOT (center_id = ANY($1::text[]))', [activePhysicalCenterIds]);
+
+    const existingCompetitions = await client.query('SELECT id,short_name,name,subject,active FROM competitions');
+    const compById = new Map(existingCompetitions.rows.map((item) => [item.id, item]));
+    if (Array.isArray(snapshot.competitions)) {
+      await client.query('UPDATE competitions SET active=false');
+      for (const competition of competitions) {
+        await client.query(`INSERT INTO competitions(id,short_name,name,subject,active) VALUES($1,$2,$3,$4,$5)
+          ON CONFLICT(id) DO UPDATE SET short_name=excluded.short_name,name=excluded.name,subject=excluded.subject,active=excluded.active`,
+        [competition.id, competition.short, competition.name, competition.subject, competition.active]);
+        compById.set(competition.id, { short_name: competition.short, name: competition.name, subject: competition.subject, active: competition.active });
+      }
+    }
+
+    await client.query('UPDATE past_papers SET active=false, archived=true WHERE archived=false');
+    for (const paper of papers) {
+      if (paper.competitionId && !compById.has(paper.competitionId)) throw fail(`Unknown competition for past paper ${paper.title}`);
+      await client.query(`INSERT INTO past_papers(id,competition_id,group_name,title,detail,price_satang,active,archived)
+        VALUES($1,$2,$3,$4,$5,$6,$7,false) ON CONFLICT(id) DO UPDATE SET competition_id=excluded.competition_id,
+        group_name=excluded.group_name,title=excluded.title,detail=excluded.detail,price_satang=excluded.price_satang,active=excluded.active,archived=false`,
+      [paper.id, paper.competitionId, paper.group, paper.title, paper.detail, paper.priceSatang, paper.active]);
+    }
+
+    const after = await catalogAuditSnapshot(client);
+    await client.query(`INSERT INTO audit_logs(actor_user_id,entity_type,entity_id,action,before_data,after_data)
+      VALUES($1,'catalog','options','options_replace',$2,$3)`, [actorId, before, after]);
+  });
+  return loadCatalog();
+}
+
+/** Create one or more new exam rounds independently of general catalog or payment account snapshots. */
+export async function createExamRounds(examsInput, actorId, revisionOptions = {}) {
+  if (!Array.isArray(examsInput) || !examsInput.length || examsInput.length > 20) {
+    throw fail('At least one exam round is required');
+  }
+  const isoDate = (value, label) => {
+    if (value == null || value === '') return null;
+    const dateValue = String(value);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue) || Number.isNaN(Date.parse(`${dateValue}T00:00:00Z`))) throw fail(`${label} must be a valid date`);
+    return dateValue;
+  };
+  const timeValue = (value, label) => {
+    if (value == null || value === '') return null;
+    const timeText = String(value);
+    if (!/^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(timeText)) throw fail(`${label} must be a valid time`);
+    return timeText.length === 5 ? `${timeText}:00` : timeText;
+  };
+  const price = (value, label) => {
+    const amount = Number(value);
+    if (!Number.isSafeInteger(Math.round(amount * 100)) || amount < 0) throw fail(`${label} must be a non-negative amount`);
+    return Math.round(amount * 100);
+  };
+
+  const revision = await transaction(async (client) => {
+    const nextRevision = await assertAndBumpCatalogRevision(client, { ...revisionOptions, actorId });
+    const gradesResult = await client.query('SELECT id, label FROM grade_catalog WHERE active=true');
+    const gradeIdByLabel = new Map(gradesResult.rows.map((row) => [row.label.toLocaleLowerCase(), row.id]));
+    const centersResult = await client.query("SELECT id FROM exam_centers WHERE active=true AND code <> '500'");
+    const activeCenterIds = new Set(centersResult.rows.map((row) => row.id));
+    const compResult = await client.query('SELECT id FROM competitions');
+    const knownComps = new Set(compResult.rows.map((row) => row.id));
+    const compShort = (id) => ({ bbb: 'BBB', hkimo: 'HKIMO', hkiso: 'HKISO', hkico: 'HKICO', timo: 'TIMO' }[id] || id.toUpperCase().slice(0, 30));
+    const todayResult = await client.query("SELECT (now() AT TIME ZONE 'Asia/Bangkok')::date AS today");
+    const today = String(todayResult.rows[0].today).slice(0, 10);
+
+    for (const exam of examsInput) {
+      const id = safeId(exam.id, 'Exam round ID');
+      const competitionId = safeId(exam.competitionId, 'Competition ID');
+      const title = cleanText(exam.title, 'Exam title', 255);
+      const year = cleanText(exam.year, 'Academic year', 8);
+      const type = roundType(exam);
+      if (!['HEAT', 'FINAL', 'FINAL_X'].includes(type)) throw fail(`Unsupported exam round type: ${type}`);
+      if (type === 'FINAL_X' && competitionId !== 'bbb') throw fail('Final X เปิดให้เฉพาะ BBB');
+      const selectedGrades = [...new Set((exam.gradeOptions || []).map((label) => {
+        const found = gradeIdByLabel.get(String(label).toLocaleLowerCase());
+        if (!found) throw fail(`Unknown grade selected for ${title}: ${label}`);
+        return found;
+      }))];
+      const selectedCenters = [...new Set(exam.centerIds || [])]
+        .map((centerId) => safeId(centerId, 'Exam center ID'))
+        .filter((centerId) => centerId !== ONLINE_CENTER_ID);
+      if (selectedCenters.some((centerId) => !activeCenterIds.has(centerId))) {
+        throw fail(`Unknown or inactive exam center selected for ${title}`);
+      }
+      const openDate = isoDate(exam.openDate, 'Opening date');
+      const closeDate = isoDate(exam.closeDate, 'Registration close date');
+      if (openDate && closeDate && openDate > closeDate) throw fail(`Opening date must be on or before the registration close date for ${title}`);
+      const logo = String(exam.logoDataUrl || '');
+      if (logo && (!/^data:image\/(png|jpeg|webp);base64,/.test(logo) || logo.length > 7_000_000)) {
+        throw fail(`Logo for ${title} must be PNG/JPG/WEBP and no larger than 5 MB`);
+      }
+      const finalManuallyClosed = exam.finalManuallyClosed !== undefined ? Boolean(exam.finalManuallyClosed) : !exam.isOpen;
+      const isOpen = Boolean(!finalManuallyClosed && openDate && closeDate && openDate <= today && today <= closeDate);
+      if (isOpen && !selectedGrades.length) throw fail(`Open round ${title} requires at least one grade`);
+      const finalPrices = finalPackagePriceColumns(competitionId, type, exam);
+
+      if (!knownComps.has(competitionId)) {
+        const subject = /iso/i.test(competitionId) ? 'Science' : /ico/i.test(competitionId) ? 'Computer' : 'Mathematics';
+        await client.query('INSERT INTO competitions(id,short_name,name,subject,active) VALUES($1,$2,$3,$4,true) ON CONFLICT(id) DO NOTHING', [competitionId, compShort(competitionId), title, subject]);
+        knownComps.add(competitionId);
+      }
+
+      const existing = await client.query('SELECT id FROM exam_rounds WHERE id=$1', [id]);
+      if (existing.rowCount) throw fail(`Exam round already exists: ${id}`, 409);
+
+      await client.query(`INSERT INTO exam_rounds(id,competition_id,title,year,round_type,open_date,close_date,edit_close_date,exam_date,exam_start_time,exam_end_time,final_confirm_close_date,final_manually_closed,is_open,accent,logo_data_url,paper_price_satang,online_price_satang,description,final_package_prices,final_guest_price_satang,active)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,true)`, [
+        id, competitionId, title, year, type, openDate, closeDate,
+        isoDate(exam.editCloseDate, 'Edit close date'), isoDate(exam.examDate, 'Exam date'),
+        timeValue(exam.examStartTime, 'Exam start time'), timeValue(exam.examEndTime, 'Exam end time'),
+        type === 'FINAL' ? closeDate : isoDate(exam.finalConfirmCloseDate, 'Final confirmation close date'),
+        finalManuallyClosed, isOpen, String(exam.accent || '').slice(0, 40) || null, logo || null,
+        price(exam.prices?.paperBased ?? 0, 'Paper-Based price'), price(exam.prices?.onlineExam ?? 0, 'Online Exam price'),
+        String(exam.description || '').slice(0, 1000), finalPrices.packagePrices ?? null, finalPrices.guestPrice ?? null,
+      ]);
+      for (const gradeId of selectedGrades) await client.query('INSERT INTO exam_round_grades(exam_round_id,grade_id) VALUES($1,$2)', [id, gradeId]);
+      for (const centerId of selectedCenters) await client.query('INSERT INTO exam_round_centers(exam_round_id,center_id) VALUES($1,$2)', [id, centerId]);
+      await client.query(`INSERT INTO audit_logs(actor_user_id,entity_type,entity_id,action,after_data)
+        VALUES($1,'exam_round',$2,'create',$3)`, [actorId, id, { id, competitionId, title, year, roundType: type }]);
+    }
+    return nextRevision;
+  });
+  const catalog = await loadCatalog();
+  return { exams: catalog.exams, revision };
+}
+
+async function catalogAuditSnapshot(client) {
+  const result = await client.query(`SELECT jsonb_build_object(
+    'rounds',(SELECT coalesce(jsonb_agg(jsonb_build_object('id',id,'competitionId',competition_id,'title',title,'year',year,'roundType',round_type,'openDate',open_date,'closeDate',close_date,'editCloseDate',edit_close_date,'examDate',exam_date,'isOpen',is_open,'active',active,'paperPriceSatang',paper_price_satang,'onlinePriceSatang',online_price_satang,'packagePrices',final_package_prices,'guestPriceSatang',final_guest_price_satang) ORDER BY id),'[]'::jsonb) FROM exam_rounds),
+    'grades',(SELECT coalesce(jsonb_agg(jsonb_build_object('id',id,'label',label,'sortOrder',sort_order,'active',active) ORDER BY sort_order,id),'[]'::jsonb) FROM grade_catalog),
+    'centers',(SELECT coalesce(jsonb_agg(jsonb_build_object('id',id,'code',code,'name',name,'active',active) ORDER BY code),'[]'::jsonb) FROM exam_centers),
+    'pastPapers',(SELECT coalesce(jsonb_agg(jsonb_build_object('id',id,'competitionId',competition_id,'group',group_name,'title',title,'detail',detail,'priceSatang',price_satang,'active',active,'archived',archived) ORDER BY id),'[]'::jsonb) FROM past_papers),
+    'paymentAccounts',(SELECT coalesce(jsonb_agg(jsonb_build_object('id',id,'bankName',bank_name,'accountName',account_name,'accountLast4',right(regexp_replace(account_number,'[^0-9]','','g'),4),'category',category,'showInForm',show_in_form,'active',active) ORDER BY id),'[]'::jsonb) FROM payment_accounts),
+    'competitions',(SELECT coalesce(jsonb_agg(jsonb_build_object('id',id,'short',short_name,'name',name,'subject',subject,'active',active) ORDER BY id),'[]'::jsonb) FROM competitions)
+  ) AS snapshot`);
+  return result.rows[0].snapshot;
+}
+
+/** Persist the current admin-edited catalog atomically; referenced rows are archived, never hard-deleted. */
+export async function saveCatalogSnapshot(snapshot, actorId, revisionOptions = {}) {
+  for (const key of ['exams', 'grades', 'centers', 'pastPapers', 'paymentAccounts']) {
+    if (!Array.isArray(snapshot?.[key])) throw fail(`Catalog field ${key} must be an array`);
+  }
+  const expectedRevision = revisionOptions.expectedRevision ?? parseCatalogRevision(snapshot?.expectedRevision ?? snapshot?.revision);
+  const { labelIds, duplicateGradeIds, grades, centers, competitions, papers } = normalizeGeneralCatalogSections(snapshot);
   const roundIds = new Set();
   const onlineCenterIds = new Set(centers.filter((center) => center.code === '500').map((center) => center.id));
   const exams = snapshot.exams.map((exam) => {
@@ -238,22 +477,14 @@ export async function saveCatalogSnapshot(snapshot, actorId) {
       onlinePrice: price(exam.prices?.onlineExam ?? 0, 'Online Exam price'), gradeIds: selectedGrades, centerIds: selectedCenters,
     };
   });
-  const papers = snapshot.pastPapers.map((paper) => {
-    const id = safeId(paper.id, 'Past paper ID');
-    const name = String(paper.name || '').trim();
-    const title = cleanText(paper.title || name.split(' — ')[0], 'Past paper title', 255);
-    const detail = String(paper.detail ?? (name.includes(' — ') ? name.slice(name.indexOf(' — ') + 3) : '')).trim().slice(0, 255);
-    const group = cleanText(paper.group, 'Past paper group', 255);
-    const competitionId = paper.competitionId || null;
-    const priceSatang = Math.round(Number(paper.price) * 100);
-    if (!Number.isSafeInteger(priceSatang) || priceSatang < 0) throw fail(`Invalid price for past paper ${title}`);
-    return { id, title, detail, group, competitionId, priceSatang, active: paper.active !== false };
-  });
-  const paperIds = new Set();
-  if (papers.some((paper) => paperIds.has(paper.id) || !paperIds.add(paper.id))) throw fail('Past paper IDs must be unique');
   const accounts = normalizePaymentAccounts(snapshot.paymentAccounts);
 
   await transaction(async (client) => {
+    await assertAndBumpCatalogRevision(client, {
+      expectedRevision,
+      expectedRevisionSource: revisionOptions.expectedRevisionSource || 'body',
+      actorId,
+    });
     if (duplicateGradeIds.length) {
       const referencedDuplicates = await client.query('SELECT DISTINCT grade_id FROM application_items WHERE grade_id=ANY($1::text[])', [duplicateGradeIds]);
       if (referencedDuplicates.rowCount) throw fail('Cannot merge duplicate grades that are used by existing applications');
@@ -341,19 +572,21 @@ export async function saveCatalogSnapshot(snapshot, actorId) {
   return loadCatalog();
 }
 
-export async function archiveExamRound(id, actorId) {
+export async function archiveExamRound(id, actorId, revisionOptions = {}) {
   return transaction(async (client) => {
+    const nextRevision = await assertAndBumpCatalogRevision(client, { ...revisionOptions, actorId });
     const prior = await client.query('SELECT * FROM exam_rounds WHERE id=$1 AND active=true FOR UPDATE', [id]);
     if (!prior.rowCount) return false;
     await client.query('UPDATE exam_rounds SET active=false,is_open=false,updated_at=now() WHERE id=$1', [id]);
     await client.query('INSERT INTO audit_logs(actor_user_id,entity_type,entity_id,action,before_data,after_data) VALUES($1,$2,$3,$4,$5,$6)', [actorId, 'exam_round', id, 'archive', prior.rows[0], { active: false, is_open: false }]);
-    return true;
+    return { archived: true, revision: nextRevision };
   });
 }
 
-export async function updateExamRound(id, patch, actorId) {
+export async function updateExamRound(id, patch, actorId, revisionOptions = {}) {
   const allowed = { title: 'title', openDate: 'open_date', closeDate: 'close_date', editCloseDate: 'edit_close_date', examDate: 'exam_date', examStartTime: 'exam_start_time', examEndTime: 'exam_end_time', accent: 'accent', description: 'description' };
   return transaction(async (client) => {
+    const nextRevision = await assertAndBumpCatalogRevision(client, { ...revisionOptions, actorId });
     const prior = await client.query('SELECT * FROM exam_rounds WHERE id=$1 FOR UPDATE', [id]);
     if (!prior.rowCount) return null;
     const roundBefore = prior.rows[0];

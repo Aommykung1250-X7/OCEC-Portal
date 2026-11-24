@@ -23,7 +23,7 @@ function ClearableDateField({ id, label, value, onChange, labelClassName, inputC
   </div>;
 }
 
-export function AdminRoundPage({ pageMode = "rounds", selectedCompetitionId = "", examCatalog, onUpdateExam, onSetManualClosed = async () => {}, onAddExam, onRemoveExam, onSaveCatalog, onSaveExam, onRequestAutoSave = () => {}, dirtyExamIds = [], catalogSaveState = { status: "idle", error: "" }, catalogDirty = false, registrationOpen, onGenerateHeatIds, centerCatalog, setCenterCatalog, centerPosterVersion = null, onCenterPosterVersionChange = () => {}, finalShirtImages = {}, onFinalShirtImagesChange = () => {}, gradeCatalog, setGradeCatalog, competitionCatalog = DEFAULT_COMPETITION_CATALOG, setCompetitionCatalog = () => {}, applications, pastPaperCatalog, setPastPaperCatalog, paymentAccounts = [], setPaymentAccounts = () => {}, notify }) {
+export function AdminRoundPage({ pageMode = "rounds", selectedCompetitionId = "", examCatalog, onUpdateExam, onSetManualClosed = async () => {}, onAddExam, onRemoveExam, onCreateExams, onArchiveExam, onSaveCatalog, onSaveExam, onReloadCatalog = () => {}, onRequestAutoSave = () => {}, dirtyExamIds = [], catalogSaveState = { status: "idle", error: "" }, catalogDirty = false, registrationOpen, onGenerateHeatIds, centerCatalog, setCenterCatalog, centerPosterVersion = null, onCenterPosterVersionChange = () => {}, finalShirtImages = {}, onFinalShirtImagesChange = () => {}, gradeCatalog, setGradeCatalog, competitionCatalog = DEFAULT_COMPETITION_CATALOG, setCompetitionCatalog = () => {}, applications, pastPaperCatalog, setPastPaperCatalog, paymentAccounts = [], setPaymentAccounts = () => {}, notify }) {
   const confirmAction = useConfirm();
   const [centerFile, setCenterFile] = useState("");
   const [centerPreview, setCenterPreview] = useState(null);
@@ -215,7 +215,7 @@ export function AdminRoundPage({ pageMode = "rounds", selectedCompetitionId = ""
       return;
     }
     const createdAt = Date.now();
-    newExam.roundTypes.forEach((roundType, index) => onAddExam({
+    const createdRounds = newExam.roundTypes.map((roundType, index) => ({
       id: `exam-${createdAt}-${index}`,
       competitionId,
       roundType,
@@ -239,6 +239,19 @@ export function AdminRoundPage({ pageMode = "rounds", selectedCompetitionId = ""
       ...(roundType !== "HEAT" ? {packagePrices:Object.fromEntries(getFinalPackageOptions(competitionId,roundType).map(option=>[option.code,newExam.finalPackageSettings?.[roundType]?.packagePrices?.[option.code] ?? option.defaultPrice])),guestPrice:newExam.finalPackageSettings?.[roundType]?.guestPrice ?? 4500} : {}),
       closes: formatThaiDate(newExam.closeDate),
     }));
+    if (onCreateExams) {
+      onCreateExams(createdRounds).then((ok) => {
+        if (!ok) return;
+        setYearFilter(newExam.year.trim());
+        setNewExam({ competitionId: competitionCatalog.find((competition) => competition.active !== false)?.id || "", roundTypes: [], year: catalogYears[0] || "", openDate: "", closeDate: "", examDate: "", examStartTime: "", examEndTime: "", editCloseDate: "", gradeOptions: [], accent: "violet", description: "ตรวจสอบกำหนดการและรายละเอียดการสมัคร", centerIds: [...activePhysicalCenterIds], prices: { HEAT: { paperBased: 755, onlineExam: 655 }, FINAL: { paperBased: 1550, onlineExam: 1350 }, FINAL_X: { paperBased: 1550, onlineExam: 1350 } } });
+        setNewExamLogo("");
+        setNewExamError("");
+        setShowNewExamForm(false);
+        notify(`เพิ่ม ${title} ${selectedRoundLabels.filter((_, index) => newExam.roundTypes[index]).join(" · ")} แล้ว · ปิดรับสมัครไว้จนกว่าผู้ดูแลระบบจะเปิดรับจากรายการ`);
+      });
+      return;
+    }
+    createdRounds.forEach((round) => onAddExam(round));
     setYearFilter(newExam.year.trim());
     setNewExam({ competitionId: competitionCatalog.find((competition) => competition.active !== false)?.id || "", roundTypes: [], year: catalogYears[0] || "", openDate: "", closeDate: "", examDate: "", examStartTime: "", examEndTime: "", editCloseDate: "", gradeOptions: [], accent: "violet", description: "ตรวจสอบกำหนดการและรายละเอียดการสมัคร", centerIds: [...activePhysicalCenterIds], prices: { HEAT: { paperBased: 755, onlineExam: 655 }, FINAL: { paperBased: 1550, onlineExam: 1350 }, FINAL_X: { paperBased: 1550, onlineExam: 1350 } } });
     setNewExamLogo("");
@@ -442,7 +455,8 @@ export function AdminRoundPage({ pageMode = "rounds", selectedCompetitionId = ""
   return (
     <div className="page-stack">
       <PageHeading eyebrow={pageMode === "form-options" ? "รอบสอบและข้อมูลตั้งต้น" : selectedCompetitionId ? "จัดการรายการสอบ" : "รอบสอบและข้อมูลตั้งต้น"} title={pageMode === "form-options" ? "ข้อมูลตัวเลือกในแบบฟอร์ม" : selectedCompetitionId ? pageCompetitionTitle : "รายการสอบและกำหนดการ"} description={pageMode === "form-options" ? "จัดการระดับชั้น ศูนย์สอบ และข้อสอบเก่าที่ใช้เป็นตัวเลือกในแบบฟอร์มสมัคร" : selectedCompetitionId ? `จัดการรอบสอบทั้งหมดของ ${pageCompetitionTitle} แยกตามปีการศึกษา` : "แก้ไขรายการสอบและบันทึกการเปลี่ยนแปลงลงฐานข้อมูล"} action={pageMode === "form-options" ? <span className="admin-data-note"><Icon name="building" size={14} />ระดับชั้น {gradeCatalog.length} ระดับ · ศูนย์สอบ {centerCatalog.filter((center) => center.active !== false).length} แห่ง</span> : <span className={registrationOpen ? "schedule-open" : "closed-badge"}>{registrationOpen ? `เปิดรับสมัคร ${visibleExams.filter((exam) => exam.isOpen).length} รายการ` : "ปิดรับสมัครทั้งหมด"}</span>} />
-      {catalogSaveState.status === "error" ? <p className="admin-save-feedback admin-save-feedback-error" role="alert">บันทึกไม่สำเร็จ: {catalogSaveState.error} <Button type="button" variant="outline" onClick={() => catalogSaveState.examId ? onSaveExam(catalogSaveState.examId) : onSaveCatalog()}>บันทึกอีกครั้ง</Button></p>
+      {catalogSaveState.status === "conflict" ? <p className="admin-save-feedback admin-save-feedback-error" role="alert">{catalogSaveState.error || "ข้อมูลแค็ตตาล็อกมีการเปลี่ยนแปลงโดยผู้ดูแลระบบท่านอื่น กรุณาโหลดข้อมูลล่าสุดก่อนบันทึกใหม่"} <Button type="button" variant="outline" onClick={onReloadCatalog}>โหลดข้อมูลล่าสุด</Button></p>
+        : catalogSaveState.status === "error" ? <p className="admin-save-feedback admin-save-feedback-error" role="alert">บันทึกไม่สำเร็จ: {catalogSaveState.error} <Button type="button" variant="outline" onClick={() => catalogSaveState.examId ? onSaveExam(catalogSaveState.examId) : onSaveCatalog()}>บันทึกอีกครั้ง</Button></p>
         : catalogSaveState.status === "saving" ? <p className="admin-save-feedback" role="status">กำลังบันทึกการเปลี่ยนแปลง…</p>
         : catalogDirty ? <p className="admin-save-feedback" role="status">{pageMode === "form-options" ? "มีการเปลี่ยนแปลง · จะบันทึกอัตโนมัติ" : "มีการเปลี่ยนแปลง · บันทึกรายการสอบก่อนดำเนินการ"}</p>
         : catalogSaveState.status === "saved" ? <p className="admin-save-feedback admin-save-feedback-saved" role="status">บันทึกแล้ว</p> : null}
@@ -538,7 +552,7 @@ export function AdminRoundPage({ pageMode = "rounds", selectedCompetitionId = ""
                         {isHeatRound ? <Button className="min-h-11 min-[701px]:min-h-[35px]" type="button" variant={heatIdsToGenerate ? "outline" : "success"} icon={heatIdsToGenerate ? "hash" : "check"} disabled={!registrationEnded || !heatIdsToGenerate} ariaLabel={`สร้างเลขประจำตัวสอบ ${exam.title} ${roundLabel} ปี ${exam.year}${!registrationEnded ? " · รอปิดรับสมัคร" : ""}`} title={!registrationEnded ? "โปรดปิดรับสมัคร หรือรอจนพ้นกำหนดปิดรับสมัคร" : heatIdsToGenerate ? `สร้างเลขประจำตัวสอบให้ ${heatIdsToGenerate} รายการ` : "ไม่มีเลขประจำตัวสอบที่ต้องสร้าง"} onClick={() => requestHeatIdGeneration(exam)}>{!registrationEnded ? "รอปิดรับสมัครก่อนจึงจะสร้างเลขประจำตัวสอบได้" : heatIdsToGenerate ? `สร้างเลขประจำตัวสอบ · ${heatIdsToGenerate} รายการ${heatHasExistingNumbers ? "ใหม่" : ""}` : heatItems.length ? "สร้างเลขประจำตัวสอบแล้ว" : "ยังไม่มีผู้สมัคร"}</Button> : null}
                       </>}
                     {!exam.isOpen ? <Button type="button" variant="outline" icon="download" className="center-summary-download min-h-11 px-2 min-[701px]:min-h-[34px] min-[701px]:px-[9px] min-[701px]:text-[11px]" onClick={() => downloadCenterSummary(exam)}>สรุปศูนย์สอบ</Button> : null}
-                    <Button variant="outline" className="admin-round-delete min-h-11 border-[#efd4db] bg-[#fffafb] text-[#a44e61] hover:border-[#d8a9b5] hover:bg-[#fff2f4] hover:text-[#873c4e] min-[701px]:min-h-[35px]" icon="trash" ariaLabel={`ลบ ${exam.title} ${exam.round || ""} ปี ${exam.year}`} title="ลบรายการสอบนี้" onClick={async () => { if (!await confirmAction({ title: 'ลบรายการสอบ?', message: `${exam.title} ${roundLabel} ปี ${exam.year}`, confirmLabel: 'ลบรายการสอบ', tone: 'danger' })) return; onRemoveExam(exam.id); onRequestAutoSave(); notify(`ลบ ${exam.title} ${roundLabel} ปี ${exam.year} แล้ว · กำลังบันทึก`); }}>ลบ</Button>
+                    <Button variant="outline" className="admin-round-delete min-h-11 border-[#efd4db] bg-[#fffafb] text-[#a44e61] hover:border-[#d8a9b5] hover:bg-[#fff2f4] hover:text-[#873c4e] min-[701px]:min-h-[35px]" icon="trash" ariaLabel={`ลบ ${exam.title} ${exam.round || ""} ปี ${exam.year}`} title="ลบรายการสอบนี้" onClick={async () => { if (!await confirmAction({ title: 'ลบรายการสอบ?', message: `${exam.title} ${roundLabel} ปี ${exam.year}`, confirmLabel: 'ลบรายการสอบ', tone: 'danger' })) return; if (onArchiveExam) { const ok = await onArchiveExam(exam.id); if (ok) notify(`ลบ ${exam.title} ${roundLabel} ปี ${exam.year} แล้ว`); return; } onRemoveExam(exam.id); onRequestAutoSave(); notify(`ลบ ${exam.title} ${roundLabel} ปี ${exam.year} แล้ว · กำลังบันทึก`); }}>ลบ</Button>
                   </div>
                 </div>
                 {isFinalRound ? <div className="admin-final-auto-note flex items-start gap-2 rounded-lg border border-[#e8e5f8] bg-[#f8f7ff] px-2.5 py-2 text-[10px] leading-[1.5] text-[#706e9e]"><Icon className="mt-px shrink-0" name="info" size={14} /><span>เมื่อประกาศผลรอบก่อนหน้า ระบบเปิดสิทธิ์ให้ผู้ผ่านยืนยันได้ภายในช่วงวันรับสมัครของรอบนี้ โดย BBB Final X ต้องได้เหรียญทอง เงิน หรือทองแดงจาก Final</span></div> : null}

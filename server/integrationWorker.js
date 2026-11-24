@@ -37,7 +37,7 @@ async function execute(job) {
     return sendGoogleWorkspaceEmail(payload);
   }
   if (job.kind === 'sheets.sync_item') return syncGoogleWorkspaceSheetItem(job.payload.applicationItemId);
-  if (job.kind === 'sheets.clear_row') return clearGoogleWorkspaceSheetRow(job.payload.examRoundId, job.payload.spreadsheetRow);
+  if (job.kind === 'sheets.clear_row') return clearGoogleWorkspaceSheetRow(job.payload);
   throw new Error(`Unsupported integration job: ${job.kind}`);
 }
 

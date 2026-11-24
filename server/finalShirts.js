@@ -1,6 +1,7 @@
 import { FINAL_SHIRT_SIZES, FINAL_SHIRT_IMAGE_LABELS } from '../shared/finalShirts.js';
 import { getPool, transaction } from './db.js';
 import { decodeCenterPosterUpload } from './centerPoster.js';
+import { assertApplicationAccess } from './applicationAccess.js';
 
 const fail = (message, statusCode = 400) => Object.assign(new Error(message), { statusCode });
 const versionSql = "to_char(updated_at AT TIME ZONE 'UTC', 'YYYYMMDDHH24MISSUS') AS version";
@@ -12,12 +13,12 @@ export async function saveFinalShirtSizes(applicationId, items, user) {
     throw fail('กรุณาเลือกไซซ์เสื้อจากรายการที่กำหนดและไม่ส่งรายการสอบซ้ำ');
   }
   return transaction(async client => {
-    const result = await client.query(`SELECT a.owner_user_id,a.status,ap.contact_email
-      FROM applications a JOIN applicants ap ON ap.id=a.applicant_id WHERE a.id=$1 FOR UPDATE OF a`, [applicationId]);
-    const application = result.rows[0];
-    if (!application) throw fail('ไม่พบใบสมัคร',404);
-    const isApplicant = Boolean(user.email) && String(application.contact_email).toLowerCase() === user.email.toLowerCase();
-    if (!user.is_admin && application.owner_user_id !== user.id && !isApplicant) throw fail('ไม่มีสิทธิ์จัดการไซซ์เสื้อของใบสมัครนี้',403);
+    const application = await assertApplicationAccess(client, applicationId, user, {
+      action: 'shirt',
+      forUpdate: true,
+      notFoundMessage: 'ไม่พบใบสมัคร',
+      forbiddenMessage: 'ไม่มีสิทธิ์จัดการไซซ์เสื้อของใบสมัครนี้',
+    });
     if (!['pending','slip_issue','approved'].includes(application.status)) throw fail('ใบสมัครนี้ยังไม่เปิดให้เปลี่ยนไซซ์เสื้อ',409);
     const context = await client.query(`SELECT ai.id,ai.shirt_size,r.round_type
       FROM application_items ai JOIN exam_rounds r ON r.id=ai.exam_round_id

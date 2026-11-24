@@ -117,3 +117,79 @@ export async function readApplicationSheetRows(request,spreadsheetId,title) {
   }
   return values;
 }
+
+/**
+ * Clear a single application item row by its developer metadata (`ocecApplicationItemId`),
+ * using Google Sheets `values:batchClearByDataFilter` directly and deleting the row's
+ * developer metadata afterward so repeated executions are safe no-ops.
+ */
+export async function clearApplicationSheetRowByItemId(request, spreadsheetId, title, itemId, { expectedSheetId = null } = {}) {
+  const normalizedItemId = String(itemId || '').trim();
+  if (!normalizedItemId) throw new Error('Application Item ID is required to clear a Google Sheets row');
+  const sheet = await ensureApplicationSheetLayout(request, spreadsheetId, title);
+  if (expectedSheetId != null && Number(sheet.sheetId) !== Number(expectedSheetId)) {
+    throw new Error(`Google Sheets target mismatch for item ${normalizedItemId}: expected sheetId ${expectedSheetId}, found ${sheet.sheetId} (${title})`);
+  }
+  const url = base(spreadsheetId);
+  const lookup = {
+    metadataKey: APPLICATION_ITEM_METADATA_KEY,
+    metadataValue: normalizedItemId,
+    locationType: 'ROW',
+    visibility: 'DOCUMENT',
+  };
+  const found = await request(`${url}/developerMetadata:search`, post({ dataFilters: [{ developerMetadataLookup: lookup }] }));
+  const matched = (found.matchedDeveloperMetadata || []).map((entry) => entry.developerMetadata).filter((meta) => meta?.location?.dimensionRange);
+  const sameSheet = matched.filter((meta) => meta.location.dimensionRange.sheetId === sheet.sheetId);
+  const otherSheet = matched.filter((meta) => meta.location.dimensionRange.sheetId !== sheet.sheetId);
+
+  if (sameSheet.length > 1) {
+    throw new Error(`Duplicate application row metadata for ${normalizedItemId}; clear stopped`);
+  }
+  if (!sameSheet.length && otherSheet.length) {
+    throw new Error(`Application item ${normalizedItemId} metadata found on unexpected sheetId ${otherSheet[0].location.dimensionRange.sheetId} instead of ${sheet.sheetId}; clear stopped`);
+  }
+  if (!sameSheet.length) {
+    return { cleared: false, alreadyCleared: true, itemId: normalizedItemId, sheetId: sheet.sheetId };
+  }
+
+  const target = sameSheet[0];
+  const rowNumber = target.location.dimensionRange.startIndex + 1;
+  await request(`${url}/values:batchClearByDataFilter`, post({
+    dataFilters: [{ developerMetadataLookup: lookup }],
+  }));
+  await request(`${url}:batchUpdate`, post({
+    requests: [{
+      deleteDeveloperMetadata: {
+        dataFilter: {
+          developerMetadataLookup: {
+            ...lookup,
+            ...(target.metadataId != null ? { metadataId: target.metadataId } : {}),
+          },
+        },
+      },
+    }],
+  }));
+  return { cleared: true, alreadyCleared: false, itemId: normalizedItemId, sheetId: sheet.sheetId, rowNumber };
+}
+
+/**
+ * Inspect a specific row index for legacy `sheets.clear_row` jobs that predate
+ * storing `applicationItemId` in the outbox payload.
+ */
+export async function inspectSheetRowForLegacyClear(request, spreadsheetId, title, rowNumber) {
+  const sheet = await ensureApplicationSheetLayout(request, spreadsheetId, title);
+  const url = base(spreadsheetId);
+  const found = await request(`${url}/developerMetadata:search`, post({
+    dataFilters: [{ developerMetadataLookup: { metadataKey: APPLICATION_ITEM_METADATA_KEY, locationType: 'ROW', visibility: 'DOCUMENT' } }],
+  }));
+  const rowIndex = Number(rowNumber) - 1;
+  const metadataValues = (found.matchedDeveloperMetadata || [])
+    .map((entry) => entry.developerMetadata)
+    .filter((meta) => meta?.location?.dimensionRange?.sheetId === sheet.sheetId && meta.location.dimensionRange.startIndex === rowIndex)
+    .map((meta) => String(meta.metadataValue || '').trim())
+    .filter(Boolean);
+  const valuesResult = await request(`${url}/values/${range(title, `A${rowNumber}:Z${rowNumber}`)}`);
+  const cells = valuesResult.values?.[0] || [];
+  const hasNonEmptyValues = cells.some((cell) => String(cell ?? '').trim() !== '');
+  return { sheet, metadataValues, hasNonEmptyValues };
+}

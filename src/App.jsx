@@ -925,12 +925,15 @@ function App() {
   const [competitionFees, setCompetitionFees] = useState({ heatOnline: 655, heatOnsite: 755, finalOnline: 1350, finalOnsite: 1550 });
   const [pastPaperCatalog, setPastPaperCatalog] = useState(BACKEND_ENABLED ? [] : DEMO_PAST_PAPERS);
   const [paymentAccounts, setPaymentAccounts] = useState(BACKEND_ENABLED ? [] : DEFAULT_PAYMENT_ACCOUNTS);
+  const [catalogRevision, setCatalogRevision] = useState(1);
   const [savedCatalogSnapshot, setSavedCatalogSnapshot] = useState(null);
   const [catalogSaveState, setCatalogSaveState] = useState({ status: "idle", error: "" });
   const [autoSaveRequested, setAutoSaveRequested] = useState(false);
   const catalogSaveInFlightRef = useRef(false);
   const lastFailedCatalogSignatureRef = useRef("");
   const latestCatalogSignatureRef = useRef("");
+  const latestGeneralSignatureRef = useRef("");
+  const latestPaymentAccountsSignatureRef = useRef("");
   const [activeApplicationId, setActiveApplicationId] = useState(() => routeFromLocation().applicationId);
   const [toast, setToast] = useState("");
   const [authProfile, setAuthProfile] = useState(null);
@@ -959,6 +962,7 @@ function App() {
         setFinalShirtImages(catalog.finalShirtImages || {});
         setPastPaperCatalog(catalog.pastPapers);
         setPaymentAccounts(catalog.paymentAccounts);
+        setCatalogRevision(Number(catalog.revision || 1));
         setSavedCatalogSnapshot({ exams: catalog.exams, competitions: catalog.competitions || DEFAULT_COMPETITION_CATALOG, grades: catalog.grades.map((grade) => grade.label), centers: catalog.centers, pastPapers: catalog.pastPapers, paymentAccounts: catalog.paymentAccounts });
         setAuthProfile(auth.user);
         setAuthChecked(true);
@@ -1023,16 +1027,30 @@ function App() {
   const effectiveExamCatalog = getFinalRegistrationCatalog(examCatalog, applications, publishedHeatResults, calendarDay);
   const registrationOpen = effectiveExamCatalog.some((exam) => exam.isOpen);
   const catalogSnapshot = { exams: examCatalog, competitions: competitionCatalog, grades: gradeCatalog, centers: centerCatalog, pastPapers: pastPaperCatalog, paymentAccounts };
+  const generalOptionsSnapshot = { competitions: competitionCatalog, grades: gradeCatalog, centers: centerCatalog, pastPapers: pastPaperCatalog };
   const catalogSignature = JSON.stringify(catalogSnapshot);
+  const generalOptionsSignature = JSON.stringify(generalOptionsSnapshot);
+  const paymentAccountsSignature = JSON.stringify(paymentAccounts);
   latestCatalogSignatureRef.current = catalogSignature;
+  latestGeneralSignatureRef.current = generalOptionsSignature;
+  latestPaymentAccountsSignatureRef.current = paymentAccountsSignature;
   const catalogDirty = BACKEND_ENABLED && Boolean(savedCatalogSnapshot) && catalogSignature !== JSON.stringify(savedCatalogSnapshot);
+  const generalOptionsDirty = BACKEND_ENABLED && Boolean(savedCatalogSnapshot) && generalOptionsSignature !== JSON.stringify({ competitions: savedCatalogSnapshot.competitions, grades: savedCatalogSnapshot.grades, centers: savedCatalogSnapshot.centers, pastPapers: savedCatalogSnapshot.pastPapers });
+  const paymentAccountsDirty = BACKEND_ENABLED && Boolean(savedCatalogSnapshot) && paymentAccountsSignature !== JSON.stringify(savedCatalogSnapshot.paymentAccounts);
   const dirtyExamIds = savedCatalogSnapshot ? examCatalog.filter((exam) => JSON.stringify(exam) !== JSON.stringify(savedCatalogSnapshot.exams.find((saved) => saved.id === exam.id))).map((exam) => exam.id) : [];
   const catalogPage = page === "admin-round" || page === "admin-form-options";
   useEffect(() => {
-    if (!BACKEND_ENABLED || !catalogDirty || !(page === "admin-form-options" || autoSaveRequested) || catalogSaveState.status === "saving" || catalogSignature === lastFailedCatalogSignatureRef.current) return undefined;
-    const timer = window.setTimeout(() => { saveAdminCatalog({ silent: true }); }, 1100);
-    return () => window.clearTimeout(timer);
-  }, [page, catalogDirty, catalogSignature, autoSaveRequested, catalogSaveState.status]);
+    if (!BACKEND_ENABLED || catalogSaveState.status === "saving" || catalogSaveState.status === "conflict") return undefined;
+    if (page === "admin-form-options" && paymentAccountsDirty && paymentAccountsSignature !== lastFailedCatalogSignatureRef.current) {
+      const timer = window.setTimeout(() => { saveAdminPaymentAccounts({ silent: true }); }, 1100);
+      return () => window.clearTimeout(timer);
+    }
+    if ((page === "admin-form-options" || autoSaveRequested) && generalOptionsDirty && generalOptionsSignature !== lastFailedCatalogSignatureRef.current) {
+      const timer = window.setTimeout(() => { saveAdminCatalogOptions({ silent: true }); }, 1100);
+      return () => window.clearTimeout(timer);
+    }
+    return undefined;
+  }, [page, paymentAccountsDirty, paymentAccountsSignature, generalOptionsDirty, generalOptionsSignature, autoSaveRequested, catalogSaveState.status]);
   useEffect(() => {
     if (!catalogDirty && autoSaveRequested && catalogSaveState.status !== "saving") setAutoSaveRequested(false);
   }, [catalogDirty, autoSaveRequested, catalogSaveState.status]);
@@ -1250,6 +1268,49 @@ function App() {
     setExamCatalog((current) => current.map((exam) => exam.id === id ? { ...exam, ...updates } : exam));
   }
 
+  function applyLoadedCatalog(catalog) {
+    setExamCatalog(catalog.exams);
+    setCompetitionCatalog(catalog.competitions || DEFAULT_COMPETITION_CATALOG);
+    setGradeCatalog(catalog.grades.map((grade) => grade.label));
+    setGradeCatalogEntries(catalog.grades);
+    setCenterCatalog(catalog.centers);
+    setCenterPosterVersion(catalog.centerPosterVersion || null);
+    setFinalShirtImages(catalog.finalShirtImages || {});
+    setPastPaperCatalog(catalog.pastPapers);
+    setPaymentAccounts(catalog.paymentAccounts);
+    setCatalogRevision(Number(catalog.revision || 1));
+    setSavedCatalogSnapshot({
+      exams: catalog.exams,
+      competitions: catalog.competitions || DEFAULT_COMPETITION_CATALOG,
+      grades: catalog.grades.map((grade) => grade.label),
+      centers: catalog.centers,
+      pastPapers: catalog.pastPapers,
+      paymentAccounts: catalog.paymentAccounts,
+    });
+    lastFailedCatalogSignatureRef.current = "";
+    setAutoSaveRequested(false);
+    setCatalogSaveState({ status: "idle", error: "" });
+  }
+
+  async function reloadAdminCatalog() {
+    if (!BACKEND_ENABLED) return false;
+    try {
+      const response = await fetch('/api/catalog', { credentials: 'same-origin' });
+      const catalog = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(catalog.error || 'ไม่สามารถโหลดข้อมูลล่าสุดได้');
+      applyLoadedCatalog(catalog);
+      notify('โหลดข้อมูลแค็ตตาล็อกล่าสุดแล้ว');
+      return true;
+    } catch (error) {
+      notify(error?.message || 'ไม่สามารถโหลดข้อมูลล่าสุดได้');
+      return false;
+    }
+  }
+
+  function catalogIfMatchHeader() {
+    return { 'content-type': 'application/json', 'If-Match': `"catalog-rev-${catalogRevision}"` };
+  }
+
   async function setExamManualClosed(id, manualClosed) {
     if (!BACKEND_ENABLED) {
       const today = getBangkokTodayISO();
@@ -1261,11 +1322,17 @@ function App() {
       return true;
     }
     const response = await fetch(`/api/admin/exams/${encodeURIComponent(id)}`, {
-      method: 'PATCH', credentials: 'same-origin', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ manualClosed }),
+      method: 'PATCH', credentials: 'same-origin', headers: catalogIfMatchHeader(),
+      body: JSON.stringify({ manualClosed, expectedRevision: catalogRevision }),
     });
     const result = await response.json().catch(() => ({}));
+    if (response.status === 409 || response.status === 412) {
+      const message = result.error || 'ข้อมูลมีการเปลี่ยนแปลงโดยผู้ดูแลระบบท่านอื่น โปรดโหลดข้อมูลล่าสุดก่อนบันทึกใหม่';
+      setCatalogSaveState({ status: 'conflict', error: message, examId: id });
+      throw new Error(message);
+    }
     if (!response.ok) throw new Error(result.error || 'บันทึกสถานะรายการสอบไม่สำเร็จ');
+    if (result.revision) setCatalogRevision(Number(result.revision));
     const today = getBangkokTodayISO();
     setExamCatalog((current) => current.map((exam) => exam.id === id ? {
       ...exam,
@@ -1273,14 +1340,15 @@ function App() {
       finalManuallyClosed: manualClosed,
       isOpen: !manualClosed && Boolean(exam.openDate && exam.closeDate && exam.openDate <= today && today <= exam.closeDate),
     } : exam));
+    setSavedCatalogSnapshot((current) => current ? { ...current, exams: current.exams.map((item) => item.id === id ? { ...item, ...result.exam } : item) } : current);
     return result.exam;
   }
 
-  async function saveAdminCatalog(options = {}) {
+  async function saveAdminPaymentAccounts(options = {}) {
     if (!BACKEND_ENABLED) { notify("โหมดตัวอย่างยังไม่ได้เชื่อมต่อฐานข้อมูล"); return false; }
     if (catalogSaveInFlightRef.current) return false;
     const silent = options?.silent === true;
-    const attemptedSignature = catalogSignature;
+    const attemptedSignature = paymentAccountsSignature;
     catalogSaveInFlightRef.current = true;
     lastFailedCatalogSignatureRef.current = "";
     setCatalogSaveState({ status: "saving", error: "" });
@@ -1289,32 +1357,84 @@ function App() {
       ...account,
       showInForm: Boolean(selectedPaymentAccountId && account.id === selectedPaymentAccountId),
     }));
+    try {
+      const response = await fetch('/api/admin/payment-accounts', {
+        method: 'PUT', credentials: 'same-origin', headers: catalogIfMatchHeader(),
+        body: JSON.stringify({ paymentAccounts: normalizedPaymentAccounts, expectedRevision: catalogRevision }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (response.status === 409 || response.status === 412) {
+        const message = result.error || "ข้อมูลบัญชีรับเงินหรือแค็ตตาล็อกมีการเปลี่ยนแปลงแล้ว โปรดโหลดข้อมูลล่าสุดใหม่";
+        lastFailedCatalogSignatureRef.current = attemptedSignature;
+        setCatalogSaveState({ status: "conflict", error: message });
+        if (!silent) notify(message);
+        return false;
+      }
+      if (!response.ok) throw new Error(result.error || "บันทึกบัญชีรับชำระเงินไม่สำเร็จ");
+      if (result.revision) setCatalogRevision(Number(result.revision));
+      if (latestPaymentAccountsSignatureRef.current === attemptedSignature) {
+        setPaymentAccounts(result.paymentAccounts);
+      }
+      setSavedCatalogSnapshot((current) => current ? { ...current, paymentAccounts: result.paymentAccounts } : current);
+      setCatalogSaveState({ status: "saved", error: "" });
+      if (!silent) notify("บันทึกบัญชีรับชำระเงินแล้ว");
+      return true;
+    } catch (error) {
+      const message = error?.message || "บันทึกบัญชีรับชำระเงินไม่สำเร็จ";
+      lastFailedCatalogSignatureRef.current = attemptedSignature;
+      setCatalogSaveState({ status: "error", error: message });
+      if (!silent) notify(message);
+      return false;
+    } finally { catalogSaveInFlightRef.current = false; }
+  }
+
+  async function saveAdminCatalogOptions(options = {}) {
+    if (!BACKEND_ENABLED) { notify("โหมดตัวอย่างยังไม่ได้เชื่อมต่อฐานข้อมูล"); return false; }
+    if (catalogSaveInFlightRef.current) return false;
+    const silent = options?.silent === true;
+    const attemptedSignature = generalOptionsSignature;
+    catalogSaveInFlightRef.current = true;
+    lastFailedCatalogSignatureRef.current = "";
+    setCatalogSaveState({ status: "saving", error: "" });
     const grades = gradeCatalog.map((label, index) => ({
       id: gradeCatalogEntries.find((entry) => entry.label === label)?.id || `grade-${label.normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "")}`,
       label,
       sortOrder: index + 1,
     }));
     try {
-      const response = await fetch('/api/admin/catalog', {
-        method: 'PUT', credentials: 'same-origin', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ exams: examCatalog, competitions: competitionCatalog, grades, centers: centerCatalog, pastPapers: pastPaperCatalog, paymentAccounts: normalizedPaymentAccounts }),
+      const response = await fetch('/api/admin/catalog/options', {
+        method: 'PUT', credentials: 'same-origin', headers: catalogIfMatchHeader(),
+        body: JSON.stringify({ competitions: competitionCatalog, grades, centers: centerCatalog, pastPapers: pastPaperCatalog, expectedRevision: catalogRevision }),
       });
       const result = await response.json().catch(() => ({}));
+      if (response.status === 409 || response.status === 412) {
+        const message = result.error || "ข้อมูลแค็ตตาล็อกมีการเปลี่ยนแปลงโดยผู้ดูแลระบบท่านอื่น โปรดโหลดข้อมูลล่าสุดใหม่";
+        lastFailedCatalogSignatureRef.current = attemptedSignature;
+        setCatalogSaveState({ status: "conflict", error: message });
+        if (!silent) notify(message);
+        return false;
+      }
       if (!response.ok) throw new Error(result.error || "บันทึกข้อมูลตั้งต้นไม่สำเร็จ");
       const catalog = result.catalog;
+      setCatalogRevision(Number(catalog.revision || catalogRevision + 1));
       setGradeCatalogEntries(catalog.grades);
-      if (latestCatalogSignatureRef.current === attemptedSignature) {
-        setExamCatalog(catalog.exams);
+      if (latestGeneralSignatureRef.current === attemptedSignature) {
         setCompetitionCatalog(catalog.competitions || []);
         setGradeCatalog(catalog.grades.map((grade) => grade.label));
         setCenterCatalog(catalog.centers);
         setPastPaperCatalog(catalog.pastPapers);
-        setPaymentAccounts(catalog.paymentAccounts);
         setAutoSaveRequested(false);
       }
-      setSavedCatalogSnapshot({ exams: catalog.exams, competitions: catalog.competitions || [], grades: catalog.grades.map((grade) => grade.label), centers: catalog.centers, pastPapers: catalog.pastPapers, paymentAccounts: catalog.paymentAccounts });
+      setSavedCatalogSnapshot((current) => ({
+        exams: current?.exams || catalog.exams,
+        competitions: catalog.competitions || [],
+        grades: catalog.grades.map((grade) => grade.label),
+        centers: catalog.centers,
+        pastPapers: catalog.pastPapers,
+        paymentAccounts: current?.paymentAccounts || catalog.paymentAccounts,
+      }));
       setCatalogSaveState({ status: "saved", error: "" });
-      if (!silent) notify("บันทึกข้อมูลแล้ว");
+      if (!silent) notify("บันทึกข้อมูลตัวเลือกแล้ว");
       return true;
     } catch (error) {
       const message = error?.message || "บันทึกข้อมูลตั้งต้นไม่สำเร็จ";
@@ -1325,6 +1445,11 @@ function App() {
     } finally { catalogSaveInFlightRef.current = false; }
   }
 
+  async function saveAdminCatalog(options = {}) {
+    if (paymentAccountsDirty) return saveAdminPaymentAccounts(options);
+    return saveAdminCatalogOptions(options);
+  }
+
   async function saveAdminExam(id) {
     if (!BACKEND_ENABLED || catalogSaveInFlightRef.current) return false;
     const exam = examCatalog.find((item) => item.id === id);
@@ -1333,6 +1458,7 @@ function App() {
     catalogSaveInFlightRef.current = true;
     setCatalogSaveState({ status: "saving", error: "", examId: id });
     const patch = {
+      expectedRevision: catalogRevision,
       title: exam.title,
       openDate: exam.openDate || null,
       closeDate: exam.closeDate || null,
@@ -1350,11 +1476,18 @@ function App() {
     };
     try {
       const response = await fetch(`/api/admin/exams/${encodeURIComponent(id)}`, {
-        method: "PATCH", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify(patch),
+        method: "PATCH", credentials: "same-origin", headers: catalogIfMatchHeader(), body: JSON.stringify(patch),
       });
       const result = await response.json().catch(() => ({}));
+      if (response.status === 409 || response.status === 412) {
+        const message = result.error || "ข้อมูลรอบสอบหรือแค็ตตาล็อกมีการเปลี่ยนแปลงแล้ว โปรดโหลดข้อมูลล่าสุดใหม่";
+        setCatalogSaveState({ status: "conflict", error: message, examId: id });
+        notify(message);
+        return false;
+      }
       if (!response.ok) throw new Error(result.error || "บันทึกรายการสอบไม่สำเร็จ");
       if (!result.exam) throw new Error("ไม่พบข้อมูลรายการสอบหลังบันทึก");
+      if (result.revision) setCatalogRevision(Number(result.revision));
       setExamCatalog((current) => current.map((item) => item.id === id && JSON.stringify(item) === attemptedExamSignature ? result.exam : item));
       setSavedCatalogSnapshot((current) => current ? { ...current, exams: current.exams.map((item) => item.id === id ? result.exam : item) } : current);
       setCatalogSaveState({ status: "saved", error: "" });
@@ -1363,6 +1496,73 @@ function App() {
     } catch (error) {
       const message = error?.message || "บันทึกรายการสอบไม่สำเร็จ";
       setCatalogSaveState({ status: "error", error: message, examId: id });
+      return false;
+    } finally { catalogSaveInFlightRef.current = false; }
+  }
+
+  async function createAdminExams(newExams) {
+    if (!BACKEND_ENABLED) {
+      newExams.forEach((exam) => addExam(exam));
+      return true;
+    }
+    if (catalogSaveInFlightRef.current) return false;
+    catalogSaveInFlightRef.current = true;
+    setCatalogSaveState({ status: "saving", error: "" });
+    try {
+      const response = await fetch('/api/admin/exams', {
+        method: 'POST', credentials: 'same-origin', headers: catalogIfMatchHeader(),
+        body: JSON.stringify({ exams: newExams, expectedRevision: catalogRevision }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (response.status === 409 || response.status === 412) {
+        const message = result.error || "ข้อมูลแค็ตตาล็อกมีการเปลี่ยนแปลงแล้ว โปรดโหลดข้อมูลล่าสุดใหม่";
+        setCatalogSaveState({ status: "conflict", error: message });
+        notify(message);
+        return false;
+      }
+      if (!response.ok) throw new Error(result.error || "เพิ่มรายการสอบไม่สำเร็จ");
+      if (result.revision) setCatalogRevision(Number(result.revision));
+      setExamCatalog(result.exams);
+      setSavedCatalogSnapshot((current) => current ? { ...current, exams: result.exams } : current);
+      setCatalogSaveState({ status: "saved", error: "" });
+      return true;
+    } catch (error) {
+      const message = error?.message || "เพิ่มรายการสอบไม่สำเร็จ";
+      setCatalogSaveState({ status: "error", error: message });
+      notify(message);
+      return false;
+    } finally { catalogSaveInFlightRef.current = false; }
+  }
+
+  async function archiveAdminExam(id) {
+    if (!BACKEND_ENABLED) {
+      removeExam(id);
+      return true;
+    }
+    if (catalogSaveInFlightRef.current) return false;
+    catalogSaveInFlightRef.current = true;
+    setCatalogSaveState({ status: "saving", error: "" });
+    try {
+      const response = await fetch(`/api/admin/exams/${encodeURIComponent(id)}`, {
+        method: 'DELETE', credentials: 'same-origin', headers: { 'If-Match': `"catalog-rev-${catalogRevision}"` },
+      });
+      const result = await response.json().catch(() => ({}));
+      if (response.status === 409 || response.status === 412) {
+        const message = result.error || "ข้อมูลแค็ตตาล็อกมีการเปลี่ยนแปลงแล้ว โปรดโหลดข้อมูลล่าสุดใหม่";
+        setCatalogSaveState({ status: "conflict", error: message });
+        notify(message);
+        return false;
+      }
+      if (!response.ok) throw new Error(result.error || "ลบรายการสอบไม่สำเร็จ");
+      if (result.revision) setCatalogRevision(Number(result.revision));
+      setExamCatalog((current) => current.filter((exam) => exam.id !== id));
+      setSavedCatalogSnapshot((current) => current ? { ...current, exams: current.exams.filter((exam) => exam.id !== id) } : current);
+      setCatalogSaveState({ status: "saved", error: "" });
+      return true;
+    } catch (error) {
+      const message = error?.message || "ลบรายการสอบไม่สำเร็จ";
+      setCatalogSaveState({ status: "error", error: message });
+      notify(message);
       return false;
     } finally { catalogSaveInFlightRef.current = false; }
   }
@@ -1842,9 +2042,9 @@ function App() {
       case "admin-mock-papers":
         return <AdminMockPapersPage applications={applications} notify={notify} />;
       case "admin-round":
-        return <AdminRoundPage selectedCompetitionId={selectedAdminCompetitionId} examCatalog={effectiveExamCatalog} onUpdateExam={updateExam} onSetManualClosed={setExamManualClosed} onAddExam={addExam} onRemoveExam={removeExam} onSaveCatalog={saveAdminCatalog} onSaveExam={saveAdminExam} onRequestAutoSave={() => setAutoSaveRequested(true)} dirtyExamIds={dirtyExamIds} catalogSaveState={catalogSaveState} catalogDirty={catalogDirty} registrationOpen={registrationOpen} onGenerateHeatIds={generateHeatIds} centerCatalog={centerCatalog} setCenterCatalog={setCenterCatalog} centerPosterVersion={centerPosterVersion} onCenterPosterVersionChange={setCenterPosterVersion} finalShirtImages={finalShirtImages} onFinalShirtImagesChange={setFinalShirtImages} gradeCatalog={gradeCatalog} setGradeCatalog={setGradeCatalog} competitionCatalog={competitionCatalog} setCompetitionCatalog={setCompetitionCatalog} applications={applications} pastPaperCatalog={pastPaperCatalog} setPastPaperCatalog={setPastPaperCatalog} notify={notify} />;
+        return <AdminRoundPage selectedCompetitionId={selectedAdminCompetitionId} examCatalog={effectiveExamCatalog} onUpdateExam={updateExam} onSetManualClosed={setExamManualClosed} onAddExam={addExam} onRemoveExam={removeExam} onCreateExams={createAdminExams} onArchiveExam={archiveAdminExam} onSaveCatalog={saveAdminCatalog} onSaveExam={saveAdminExam} onReloadCatalog={reloadAdminCatalog} onRequestAutoSave={() => setAutoSaveRequested(true)} dirtyExamIds={dirtyExamIds} catalogSaveState={catalogSaveState} catalogDirty={catalogDirty} registrationOpen={registrationOpen} onGenerateHeatIds={generateHeatIds} centerCatalog={centerCatalog} setCenterCatalog={setCenterCatalog} centerPosterVersion={centerPosterVersion} onCenterPosterVersionChange={setCenterPosterVersion} finalShirtImages={finalShirtImages} onFinalShirtImagesChange={setFinalShirtImages} gradeCatalog={gradeCatalog} setGradeCatalog={setGradeCatalog} competitionCatalog={competitionCatalog} setCompetitionCatalog={setCompetitionCatalog} applications={applications} pastPaperCatalog={pastPaperCatalog} setPastPaperCatalog={setPastPaperCatalog} notify={notify} />;
       case "admin-form-options":
-        return <AdminRoundPage pageMode="form-options" examCatalog={examCatalog} onUpdateExam={updateExam} onSetManualClosed={setExamManualClosed} onAddExam={addExam} onRemoveExam={removeExam} onSaveCatalog={saveAdminCatalog} onSaveExam={saveAdminExam} catalogSaveState={catalogSaveState} catalogDirty={catalogDirty} registrationOpen={registrationOpen} onGenerateHeatIds={generateHeatIds} centerCatalog={centerCatalog} setCenterCatalog={setCenterCatalog} centerPosterVersion={centerPosterVersion} onCenterPosterVersionChange={setCenterPosterVersion} finalShirtImages={finalShirtImages} onFinalShirtImagesChange={setFinalShirtImages} gradeCatalog={gradeCatalog} setGradeCatalog={setGradeCatalog} competitionCatalog={competitionCatalog} setCompetitionCatalog={setCompetitionCatalog} applications={applications} pastPaperCatalog={pastPaperCatalog} setPastPaperCatalog={setPastPaperCatalog} paymentAccounts={paymentAccounts} setPaymentAccounts={setPaymentAccounts} notify={notify} />;
+        return <AdminRoundPage pageMode="form-options" examCatalog={examCatalog} onUpdateExam={updateExam} onSetManualClosed={setExamManualClosed} onAddExam={addExam} onRemoveExam={removeExam} onCreateExams={createAdminExams} onArchiveExam={archiveAdminExam} onSaveCatalog={saveAdminCatalog} onSaveExam={saveAdminExam} onReloadCatalog={reloadAdminCatalog} catalogSaveState={catalogSaveState} catalogDirty={catalogDirty} registrationOpen={registrationOpen} onGenerateHeatIds={generateHeatIds} centerCatalog={centerCatalog} setCenterCatalog={setCenterCatalog} centerPosterVersion={centerPosterVersion} onCenterPosterVersionChange={setCenterPosterVersion} finalShirtImages={finalShirtImages} onFinalShirtImagesChange={setFinalShirtImages} gradeCatalog={gradeCatalog} setGradeCatalog={setGradeCatalog} competitionCatalog={competitionCatalog} setCompetitionCatalog={setCompetitionCatalog} applications={applications} pastPaperCatalog={pastPaperCatalog} setPastPaperCatalog={setPastPaperCatalog} paymentAccounts={paymentAccounts} setPaymentAccounts={setPaymentAccounts} notify={notify} />;
       case "admin-results":
         return <AdminResultsPage applications={applications} examCatalog={examCatalog} resultWorkflows={resultWorkflows} onImportDraft={importResultDraft} onResolveConflict={resolveResultConflict} onPublishResult={publishResults} notify={notify} navigate={navigate} />;
       case "admin-final-ids":

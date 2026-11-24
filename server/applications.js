@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { getPool, transaction } from './db.js';
+import { assertApplicationAccess, VERIFIED_DELEGATION_EXISTS_SQL } from './applicationAccess.js';
 import { finalGrantHash, ensureFinalXInvitations } from './finalEligibility.js';
 import { deleteGoogleDriveFile, downloadGoogleDriveFile, uploadGoogleDriveFile } from './googleWorkspace.js';
 import { encryptQueuedEmailText, enqueueIntegrationJob } from './integrationQueue.js';
@@ -1192,9 +1193,30 @@ export async function updateAdminApplication(applicationId, input, adminUserId) 
         const photos = await client.query('SELECT drive_file_id FROM certificate_photos WHERE application_item_id=ANY($1::uuid[])', [removedIds]);
         deletedPhotoDriveIds.push(...photos.rows.map((row) => row.drive_file_id).filter(Boolean));
         await client.query('DELETE FROM certificate_photos WHERE application_item_id=ANY($1::uuid[])', [removedIds]);
-        const sheetRows = await client.query('SELECT exam_round_id,spreadsheet_row FROM google_workspace_sheet_rows WHERE application_item_id=ANY($1::uuid[])', [removedIds]);
+        const sheetRows = await client.query(`SELECT r.application_item_id, r.exam_round_id, r.spreadsheet_row,
+            t.sheet_id, t.title AS sheet_title,
+            s.drive_file_id AS spreadsheet_id, s.academic_year
+          FROM google_workspace_sheet_rows r
+          LEFT JOIN google_workspace_sheet_tabs t ON t.exam_round_id = r.exam_round_id
+          LEFT JOIN google_workspace_spreadsheets s ON s.academic_year = t.academic_year
+          WHERE r.application_item_id = ANY($1::uuid[])`, [removedIds]);
         deletedSheetRows.push(...sheetRows.rows);
-        for (const row of sheetRows.rows) await enqueueIntegrationJob(client, 'sheets.clear_row', { examRoundId: row.exam_round_id, spreadsheetRow: row.spreadsheet_row }, `sheets-clear:${row.exam_round_id}:${row.spreadsheet_row}:${Date.now()}`);
+        for (const row of sheetRows.rows) {
+          await enqueueIntegrationJob(
+            client,
+            'sheets.clear_row',
+            {
+              applicationItemId: row.application_item_id,
+              examRoundId: row.exam_round_id,
+              academicYear: row.academic_year || null,
+              spreadsheetId: row.spreadsheet_id || null,
+              sheetId: row.sheet_id ?? null,
+              sheetTitle: row.sheet_title || null,
+              legacySpreadsheetRow: row.spreadsheet_row,
+            },
+            `sheets-clear:${row.exam_round_id}:${row.application_item_id}`,
+          );
+        }
         await client.query('DELETE FROM application_items WHERE id=ANY($1::uuid[])', [removedIds]);
       }
       await client.query("UPDATE application_items SET duplicate_key='admin-edit-'||id::text WHERE application_id=ANY($1::uuid[])", [affectedIds]);
@@ -1450,13 +1472,12 @@ function parseCertificatePhoto(photo) {
   return { buffer, mimeType, extension, fileName: `${baseName}.${extension}`, sha256: createHash('sha256').update(buffer).digest('hex') };
 }
 
-async function getPhotoUploadContext(applicationId, userId, userEmail, isAdmin) {
-  const result = await getPool().query(`SELECT a.id,a.owner_user_id,a.status,ap.first_name_en,ap.middle_name_en,ap.last_name_en,ap.contact_email
-    FROM applications a JOIN applicants ap ON ap.id=a.applicant_id WHERE a.id=$1`, [applicationId]);
-  if (!result.rowCount) throw invalid('ไม่พบใบสมัคร',404);
-  const application = result.rows[0];
-  const isApplicant = Boolean(userEmail) && application.contact_email.toLowerCase() === String(userEmail).toLowerCase();
-  if (!isAdmin && application.owner_user_id !== userId && !isApplicant) throw invalid('ไม่มีสิทธิ์จัดการภาพของใบสมัครนี้',403);
+async function getPhotoUploadContext(applicationId, userId, _userEmail, isAdmin) {
+  const application = await assertApplicationAccess(getPool(), applicationId, { id: userId, is_admin: isAdmin }, {
+    action: 'photo',
+    notFoundMessage: 'ไม่พบใบสมัคร',
+    forbiddenMessage: 'ไม่มีสิทธิ์จัดการภาพของใบสมัครนี้',
+  });
   const items = await getPool().query(`SELECT ai.id AS application_item_id,ai.exam_number,r.id AS round_id,r.year,r.round_type,
       c.short_name,c.name AS competition_name
     FROM application_items ai JOIN exam_rounds r ON r.id=ai.exam_round_id JOIN competitions c ON c.id=r.competition_id
@@ -1489,14 +1510,14 @@ function assertCertificatePhotoState(status,eligibility) {
   assertCertificatePhotoEligibility(eligibility);
 }
 
-async function assertCertificatePhotoPermission(db, applicationId, userId, userEmail, isAdmin) {
-  const checked = await db.query(`SELECT a.id,a.owner_user_id,a.status,ap.contact_email
-    FROM applications a JOIN applicants ap ON ap.id=a.applicant_id WHERE a.id=$1 FOR UPDATE OF a`, [applicationId]);
-  if (!checked.rowCount) throw invalid('ไม่พบใบสมัคร',404);
-  const contactEmail = String(checked.rows[0].contact_email || '').toLowerCase();
-  const applicantEmailMatches = Boolean(userEmail) && contactEmail === String(userEmail).toLowerCase();
-  if (!isAdmin && checked.rows[0].owner_user_id !== userId && !applicantEmailMatches) throw invalid('ไม่มีสิทธิ์จัดการภาพของใบสมัครนี้',403);
-  assertCertificatePhotoState(checked.rows[0].status,await getCertificatePhotoEligibility(db, applicationId));
+async function assertCertificatePhotoPermission(db, applicationId, userId, _userEmail, isAdmin) {
+  const application = await assertApplicationAccess(db, applicationId, { id: userId, is_admin: isAdmin }, {
+    action: 'photo',
+    forUpdate: true,
+    notFoundMessage: 'ไม่พบใบสมัคร',
+    forbiddenMessage: 'ไม่มีสิทธิ์จัดการภาพของใบสมัครนี้',
+  });
+  assertCertificatePhotoState(application.status,await getCertificatePhotoEligibility(db, applicationId));
 }
 
 const safeFilePart = (value) => String(value || '').normalize('NFKC').trim().replace(/[^\p{L}\p{N}-]+/gu, '_').replace(/^_+|_+$/g, '').slice(0, 80);
@@ -1568,13 +1589,16 @@ export async function removeCertificatePhoto(applicationId, userId, userEmail, i
   return { removed: removed.length, itemCount: items.length };
 }
 
-export async function downloadCertificatePhoto(applicationItemId, userId, userEmail, isAdmin = false) {
-  const result = await getPool().query(`SELECT cp.drive_file_id,cp.file_name,cp.mime_type,a.owner_user_id,ap.contact_email
+export async function downloadCertificatePhoto(applicationItemId, userId, _userEmail, isAdmin = false) {
+  const result = await getPool().query(`SELECT cp.drive_file_id,cp.file_name,cp.mime_type,a.id AS application_id
     FROM certificate_photos cp JOIN application_items ai ON ai.id=cp.application_item_id
-    JOIN applications a ON a.id=ai.application_id JOIN applicants ap ON ap.id=a.applicant_id WHERE ai.id=$1`, [applicationItemId]);
+    JOIN applications a ON a.id=ai.application_id WHERE ai.id=$1`, [applicationItemId]);
   if (!result.rowCount) throw invalid('ไม่พบรูปสำหรับเกียรติบัตร',404);
-  const isApplicant = Boolean(userEmail) && result.rows[0].contact_email.toLowerCase() === String(userEmail).toLowerCase();
-  if (!isAdmin && result.rows[0].owner_user_id !== userId && !isApplicant) throw invalid('ไม่มีสิทธิ์ดูภาพนี้',403);
+  await assertApplicationAccess(getPool(), result.rows[0].application_id, { id: userId, is_admin: isAdmin }, {
+    action: 'photo',
+    notFoundMessage: 'ไม่พบใบสมัคร',
+    forbiddenMessage: 'ไม่มีสิทธิ์ดูภาพนี้',
+  });
   const content = await downloadGoogleDriveFile(result.rows[0].drive_file_id);
   return { content, fileName: result.rows[0].file_name, mimeType: result.rows[0].mime_type };
 }
@@ -1586,7 +1610,7 @@ async function clarifyDuplicate(error, candidates, ownerId) {
   return invalid('Duplicate application', 409, { existingApplicationId: result.rows[0]?.id || null });
 }
 
-async function queryApplications({ userId = null, userEmail = null, excludeDrafts = false, applicationId = null } = {}) {
+async function queryApplications({ userId = null, excludeDrafts = false, applicationId = null } = {}) {
   const result = await getPool().query(`SELECT a.id AS application_id, a.source, a.status AS application_status, a.submitted_at,
       a.approved_at, a.school_batch_id, a.registration_total_satang, a.paper_total_satang, a.non_refundable_adjustment_satang, a.total_satang,
       a.source_heat_application_id, a.marketing_consent, a.review_note, edit_rule.edit_deadline, edit_rule.editable AS edit_window_open,
@@ -1636,10 +1660,10 @@ async function queryApplications({ userId = null, userEmail = null, excludeDraft
       'at',al.created_at,'changes',al.after_data->'changes') ORDER BY al.created_at DESC),'[]'::json) AS change_history
       FROM audit_logs al LEFT JOIN users u ON u.id=al.actor_user_id
       WHERE al.entity_type='application' AND al.entity_id=a.id::text AND al.action IN ('edit_profile','admin_edit')) edit_history ON true
-    WHERE ($1::uuid IS NULL OR a.owner_user_id=$1 OR ($2::text IS NOT NULL AND lower(ap.contact_email)=lower($2)))
-      AND (NOT $3::boolean OR a.status <> 'draft')
-      AND ($4::uuid IS NULL OR a.id=$4)
-    ORDER BY a.submitted_at DESC, r.year DESC, c.short_name`, [userId, userEmail, excludeDrafts, applicationId]);
+    WHERE ($1::uuid IS NULL OR a.owner_user_id=$1 OR ${VERIFIED_DELEGATION_EXISTS_SQL})
+      AND (NOT $2::boolean OR a.status <> 'draft')
+      AND ($3::uuid IS NULL OR a.id=$3)
+    ORDER BY a.submitted_at DESC, r.year DESC, c.short_name`, [userId, excludeDrafts, applicationId]);
   const applications = new Map();
   for (const row of result.rows) {
     let application = applications.get(row.application_id);
@@ -1727,7 +1751,7 @@ async function queryApplications({ userId = null, userEmail = null, excludeDraft
   });
 }
 
-export async function listMyApplications(userId, userEmail) { return queryApplications({ userId, userEmail }); }
+export async function listMyApplications(userId, _userEmail = null) { return queryApplications({ userId }); }
 export async function listAllApplications() { return queryApplications({ excludeDrafts: true }); }
 
 function mapAdminApplicationNote(row) {
