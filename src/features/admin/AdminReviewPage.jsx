@@ -74,13 +74,28 @@ export function AdminReviewPage({ applications, schoolBatches = [], sourceFilter
   const paymentRecords = selected?.paymentRecords || [];
   const selectedPayment = paymentRecords.find((payment) => payment.id === selectedPaymentId) || paymentRecords[0] || null;
   const slipMetadata = paymentRecords.length ? selectedPayment?.slipFile || null : selectedSchoolBatch?.paymentSlipFile || selected?.slipFile || null;
-  const selectedSlipKey = `${selected?.id || ""}:${selectedPayment?.id || ""}:${slipMetadata?.id || ""}`;
+  const selectedSlipKey = `${selected?.id || ""}:${selectedPayment?.id || ""}:${slipMetadata?.id || ""}:${slipMetadata?.version || ""}`;
   const selectedSlipFile = slipMetadata?.dataUrl ? slipMetadata : loadedSlip?.key === selectedSlipKey ? loadedSlip : slipMetadata;
   const selectedSlipDataUrl = selectedSlipFile?.dataUrl || "";
-  const selectedSlipType = selectedSlipFile?.type || "";
+  const selectedSlipType = selectedSlipFile?.type || slipMetadata?.type || "";
+  const isPdfSlip = selectedSlipType === "application/pdf";
+  const canOpenPdfDialog = Boolean(backendEnabled && isPdfSlip && slipMetadata?.url);
   const selectedSlipFileName = selectedSlipFile?.name || selectedSchoolBatch?.paymentSlipFileName || selected?.slipFileName || (backendEnabled ? "ไม่พบไฟล์หลักฐานการชำระเงิน" : `payment-slip-${selected?.id || "application"}.pdf`);
+  const [slipLoading, setSlipLoading] = useState(false);
   const [slipLoadError, setSlipLoadError] = useState("");
-  const hasReviewableSlip = !backendEnabled || Boolean(selectedSlipDataUrl);
+  const [confirmedSlip, setConfirmedSlip] = useState(null);
+  const [confirmingSlip, setConfirmingSlip] = useState(false);
+  const [slipConfirmError, setSlipConfirmError] = useState("");
+  const verifiedSlipId = loadedSlip?.key === selectedSlipKey ? loadedSlip.slipId : (slipMetadata?.id || null);
+  const verifiedSlipVersion = loadedSlip?.key === selectedSlipKey ? loadedSlip.slipVersion : (Number(slipMetadata?.version) || null);
+  const hasLoadedSlip = !backendEnabled || Boolean(selectedSlipDataUrl && loadedSlip?.key === selectedSlipKey && verifiedSlipId && verifiedSlipVersion >= 1);
+  const hasConfirmedSlip = !backendEnabled || Boolean(
+    hasLoadedSlip
+    && confirmedSlip?.key === selectedSlipKey
+    && confirmedSlip.slipId === verifiedSlipId
+    && confirmedSlip.slipVersion === verifiedSlipVersion
+  );
+  const hasReviewableSlip = hasConfirmedSlip;
   const pendingAdditionalPayment = selected?.status === "confirmed" && selectedPayment?.status === "pending";
   const pendingCount = applications.filter((item) => item.status === "pending" || hasUnreviewedPayment(item)).length;
   const schoolPendingCount = schoolApplications.filter((item) => item.status === "pending" || hasUnreviewedPayment(item)).length;
@@ -101,31 +116,89 @@ export function AdminReviewPage({ applications, schoolBatches = [], sourceFilter
   useEffect(() => {
     setSlipPreviewOpen(false);
     setSelectedPaymentId("");
+    setConfirmedSlip(null);
+    setSlipConfirmError("");
   }, [selected?.id]);
+
+  useEffect(() => {
+    setLoadedSlip(null);
+    setConfirmedSlip(null);
+    setSlipLoading(false);
+    setSlipLoadError("");
+    setSlipConfirmError("");
+  }, [selectedSlipKey]);
 
   useEffect(() => {
     let cancelled = false;
     if (!selected || !slipMetadata?.url || slipMetadata.dataUrl) {
       if (!slipMetadata?.url) setLoadedSlip(null);
+      setSlipLoading(false);
       setSlipLoadError("");
       return undefined;
     }
-    setLoadedSlip(null);
+    // PDF slips must be explicitly opened in the document viewer before loading and confirming inspection.
+    if (slipMetadata.type === "application/pdf" && !slipPreviewOpen) {
+      setSlipLoading(false);
+      return undefined;
+    }
+    if (loadedSlip?.key === selectedSlipKey && loadedSlip?.dataUrl) {
+      setSlipLoading(false);
+      return undefined;
+    }
+    setSlipLoading(true);
     setSlipLoadError("");
     fetch(slipMetadata.url, { credentials: "same-origin" })
-      .then((response) => { if (!response.ok) throw new Error("เปิดไฟล์หลักฐานการชำระเงินจากฐานข้อมูลไม่สำเร็จ"); return response.blob(); })
-      .then((blob) => new Promise((resolve, reject) => {
+      .then(async (response) => {
+        if (!response.ok) throw new Error("เปิดไฟล์หลักฐานการชำระเงินจากฐานข้อมูลไม่สำเร็จ");
+        const slipIdHeader = response.headers.get("X-Payment-Slip-Id") || slipMetadata.id || "";
+        const slipVersionHeader = Number(response.headers.get("X-Payment-Slip-Version") || slipMetadata.version || 0);
+        const blob = await response.blob();
+        if (!blob.size) throw new Error("ไม่พบเนื้อหาไฟล์หลักฐานการชำระเงิน");
+        return { blob, slipId: slipIdHeader, slipVersion: slipVersionHeader };
+      })
+      .then(({ blob, slipId, slipVersion }) => new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+        reader.onload = () => resolve({ dataUrl: typeof reader.result === "string" ? reader.result : "", slipId, slipVersion });
         reader.onerror = () => reject(new Error("อ่านไฟล์หลักฐานการชำระเงินไม่สำเร็จ"));
         reader.readAsDataURL(blob);
       }))
-      .then((dataUrl) => { if (!cancelled) setLoadedSlip({ key: selectedSlipKey, applicationId: selected.id, paymentId: selectedPayment?.id, name: slipMetadata.name, type: slipMetadata.type, dataUrl }); })
-      .catch((error) => { if (!cancelled) setSlipLoadError(error.message || "เปิดไฟล์หลักฐานการชำระเงินไม่สำเร็จ"); });
+      .then(({ dataUrl, slipId, slipVersion }) => { if (!cancelled) { setLoadedSlip({ key: selectedSlipKey, applicationId: selected.id, paymentId: selectedPayment?.id, slipId, slipVersion, name: slipMetadata.name, type: slipMetadata.type, dataUrl }); setSlipLoading(false); } })
+      .catch((error) => { if (!cancelled) { setSlipLoadError(error.message || "เปิดไฟล์หลักฐานการชำระเงินไม่สำเร็จ"); setSlipLoading(false); } });
     return () => { cancelled = true; };
-  }, [selected?.id, selectedPayment?.id, selectedSlipKey, slipMetadata?.url, slipMetadata?.dataUrl]);
+  }, [selected?.id, selectedPayment?.id, selectedSlipKey, slipMetadata?.url, slipMetadata?.dataUrl, slipMetadata?.type, slipPreviewOpen]);
 
 
+
+  async function confirmSlipInspection() {
+    if (!backendEnabled || !hasLoadedSlip || !selectedPayment?.id || !verifiedSlipId || !verifiedSlipVersion || confirmingSlip) return false;
+    setConfirmingSlip(true);
+    setSlipConfirmError("");
+    try {
+      const response = await fetch(`/api/admin/payment-slips/${encodeURIComponent(verifiedSlipId)}/confirm-inspection`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ paymentId: selectedPayment.id, slipVersion: verifiedSlipVersion }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "ยืนยันการตรวจหลักฐานการชำระเงินไม่สำเร็จ");
+      setConfirmedSlip({
+        key: selectedSlipKey,
+        slipId: result.slipId || verifiedSlipId,
+        slipVersion: Number(result.slipVersion || verifiedSlipVersion),
+        confirmedAt: result.confirmedAt || new Date().toISOString(),
+      });
+      notify("ยืนยันการตรวจหลักฐานการชำระเงินฉบับล่าสุดแล้ว");
+      return true;
+    } catch (error) {
+      const message = error?.message || "ยืนยันการตรวจหลักฐานการชำระเงินไม่สำเร็จ";
+      setSlipConfirmError(message);
+      notify(message);
+      return false;
+    } finally {
+      setConfirmingSlip(false);
+    }
+  }
 
   async function copyApplicantField(label, value) {
     if (!value) return;
@@ -231,23 +304,55 @@ export function AdminReviewPage({ applications, schoolBatches = [], sourceFilter
                 {selectedPayment ? <div className="review-payment-amount my-2 flex items-center gap-2 rounded-[9px] border border-[#f1e5c7] bg-[#fffaf0] px-2.5 py-2"><span className="text-[10px] text-[#788398]">ยอดของหลักฐานการชำระเงินนี้</span><strong className="font-portal text-[14px] font-bold text-[#465271]">{fmtMoney(expectedTransferAmount)}</strong><small className="ml-auto text-[9px] text-[#97723a]">{selectedPayment.status === "confirmed" ? "ยืนยันยอดแล้ว" : "อยู่ระหว่างตรวจสอบยอดนี้"}</small></div> : null}
                 <div className="review-slip-only flex items-start">
                   <div className="review-slip-column w-full max-w-[200px] min-w-0">
-                    <button type="button" className="review-slip-preview box-border flex h-[min(400px,70dvh)] min-h-0 max-h-[400px] w-full max-w-[200px] items-center justify-center overflow-hidden rounded-[10px] border border-[#e5e8f0] bg-[#f4f6fb] p-[5px] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#7773c2] disabled:cursor-not-allowed disabled:opacity-75" aria-label={"ขยายดูหลักฐานการชำระเงินของ " + selected.candidate} title="เลือกเพื่อขยายดูหลักฐานการชำระเงิน" disabled={!selectedSlipDataUrl && backendEnabled} onClick={() => setSlipPreviewOpen(true)}>
+                    <button type="button" className="review-slip-preview box-border flex h-[min(400px,70dvh)] min-h-0 max-h-[400px] w-full max-w-[200px] items-center justify-center overflow-hidden rounded-[10px] border border-[#e5e8f0] bg-[#f4f6fb] p-[5px] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#7773c2] disabled:cursor-not-allowed disabled:opacity-75" aria-label={"ขยายดูหลักฐานการชำระเงินของ " + selected.candidate} title="เลือกเพื่อขยายดูหลักฐานการชำระเงิน" disabled={!selectedSlipDataUrl && !canOpenPdfDialog && backendEnabled} onClick={() => setSlipPreviewOpen(true)}>
                       {selectedSlipDataUrl && selectedSlipType.startsWith("image/") ? <img className="review-slip-image block h-auto max-h-full max-w-full w-auto flex-[0_1_auto] object-contain" src={selectedSlipDataUrl} alt={"หลักฐานการชำระเงินโอนเงินของ " + selected.candidate} />
-                        : selectedSlipDataUrl && selectedSlipType === "application/pdf" ? <span className="review-slip-pdf-card grid min-h-full place-content-center justify-items-center gap-[5px] text-[#55519b]"><Icon name="file" size={25} /><strong className="text-[15px]">PDF</strong><small className="text-[11px] text-[#737f94]">เลือกเพื่อเปิดดูหลักฐานการชำระเงินฉบับเต็ม</small></span>
+                        : selectedSlipType === "application/pdf" && (selectedSlipDataUrl || canOpenPdfDialog) ? <span className="review-slip-pdf-card grid min-h-full place-content-center justify-items-center gap-[5px] text-[#55519b]"><Icon name="file" size={25} /><strong className="text-[15px]">PDF</strong><small className="text-[11px] text-[#737f94]">คลิกเพื่อเปิดดูเอกสาร PDF ฉบับเต็มก่อนยืนยัน</small></span>
                           : backendEnabled ? <span className="review-slip-empty"><Icon name="info" /><strong>ไม่พบไฟล์หลักฐานการชำระเงินใน Portal</strong><small>ตรวจสอบไฟล์บน Google Drive</small></span> : <DemoTransferSlip application={selected} amount={expectedTransferAmount} />}
                     </button>
                     {slipLoadError ? <small className="review-slip-load-error">{slipLoadError}</small> : null}
+                    {backendEnabled && (hasLoadedSlip || canOpenPdfDialog) && selected.status !== "rejected" && (selected.status !== "confirmed" || pendingAdditionalPayment) && !selected.slipIssue ? (
+                      <div className="review-slip-confirm mt-2 grid gap-1.5">
+                        {hasConfirmedSlip ? (
+                          <div className="review-slip-confirmed-badge flex items-center gap-1.5 rounded-lg border border-[#b9e4c9] bg-[#eefaf2] px-2.5 py-2 text-xs font-semibold text-[#1f6b3b]">
+                            <Icon name="check" size={14} />
+                            <span>ยืนยันการตรวจหลักฐานแล้ว (ฉบับที่ v{verifiedSlipVersion})</span>
+                          </div>
+                        ) : isPdfSlip ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="min-h-10 w-full px-2.5 py-1.5 text-xs"
+                            icon="file"
+                            onClick={() => setSlipPreviewOpen(true)}
+                          >
+                            เปิดดูไฟล์ PDF เพื่อยืนยันการตรวจ
+                          </Button>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="min-h-10 w-full px-2.5 py-1.5 text-xs"
+                            icon="check"
+                            disabled={confirmingSlip}
+                            onClick={confirmSlipInspection}
+                          >
+                            {confirmingSlip ? "กำลังยืนยันการตรวจ…" : "ยืนยันว่าตรวจหลักฐานการชำระเงินแล้ว"}
+                          </Button>
+                        )}
+                        {slipConfirmError ? <small className="review-slip-load-error">{slipConfirmError}</small> : null}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               </section>
             </div>
             <details className="review-history-collapsible"><summary>ประวัติการแก้ไข · {(selected.changeHistory || []).length} ครั้ง</summary>{selected.changeHistory?.length ? <div className="review-history-list">{selected.changeHistory.map((entry) => <article className="review-history-entry" key={entry.id}><div className="review-history-meta"><strong>{entry.editor}</strong><time>{entry.at}</time></div><div className="review-history-changes">{entry.changes.map((change, index) => <div key={`${entry.id}-${index}`}><span>{change.label}</span><div><del>{change.oldValue || "—"}</del><Icon name="arrow" size={13} /><strong>{change.newValue || "—"}</strong></div></div>)}</div></article>)}</div> : <p className="review-history-empty">ยังไม่มีประวัติการแก้ไข</p>}</details>
             <div className="review-actions mt-[9px] flex items-center justify-between gap-3 border-t border-[#edf0f4] pt-[9px] max-[800px]:items-stretch max-[800px]:flex-col">
-              <div className="review-action-label"><strong>ผลการตรวจสอบ</strong><small>{pendingAdditionalPayment ? "ใบสมัครอนุมัติแล้ว · ตรวจหลักฐานการชำระเงินยอดชำระเพิ่ม" : selected.status === "confirmed" ? "ใบสมัครนี้อนุมัติแล้ว" : selected.slipIssue ? "รอหลักฐานการชำระเงินใหม่ก่อนอนุมัติ" : !hasReviewableSlip ? "ยังเปิดหลักฐานการชำระเงินไม่ได้ จึงยังอนุมัติไม่ได้" : "ตรวจสอบหลักฐานการชำระเงินแล้วอนุมัติใบสมัคร"}</small></div>
+              <div className="review-action-label"><strong>ผลการตรวจสอบ</strong><small>{pendingAdditionalPayment ? (hasConfirmedSlip ? "ใบสมัครอนุมัติแล้ว · พร้อมยืนยันยอดชำระเพิ่ม" : isPdfSlip ? "ใบสมัครอนุมัติแล้ว · เปิดดูไฟล์ PDF และกดยืนยันการตรวจก่อน" : "ใบสมัครอนุมัติแล้ว · เปิดดูและกดยืนยันการตรวจหลักฐานยอดชำระเพิ่มก่อน") : selected.status === "confirmed" ? "ใบสมัครนี้อนุมัติแล้ว" : selected.slipIssue ? "รอหลักฐานการชำระเงินใหม่ก่อนอนุมัติ" : (!hasLoadedSlip && !canOpenPdfDialog) ? "ยังเปิดหลักฐานการชำระเงินไม่ได้ จึงยังอนุมัติไม่ได้" : !hasConfirmedSlip ? (isPdfSlip ? "กรุณาเปิดดูไฟล์ PDF ฉบับเต็มและกดยืนยันการตรวจก่อนอนุมัติ" : "โปรดกดยืนยันว่าตรวจหลักฐานการชำระเงินแล้วก่อนอนุมัติ") : "ยืนยันการตรวจหลักฐานแล้ว · พร้อมอนุมัติใบสมัคร"}</small></div>
               <div className="review-action-buttons flex flex-col items-end gap-2 max-[800px]:items-stretch">
                 {selected.status !== "confirmed" && !selected.slipIssue && selectedPayment?.status !== "confirmed" ? <div className="template-menu"><span>ส่งเทมเพลตแจ้งปัญหาหลักฐานการชำระเงิน</span><div><Button className="min-h-9 px-[9px] text-xs max-[800px]:min-h-11" variant="outline" icon="mail" onClick={() => onSlipIssue(selected.id, "หลักฐานการชำระเงินไม่ถูกต้อง", selectedPayment?.id)}>หลักฐานการชำระเงินไม่ถูกต้อง</Button><Button className="min-h-9 px-[9px] text-xs max-[800px]:min-h-11" variant="outline" icon="mail" onClick={() => onSlipIssue(selected.id, "เปิดหลักฐานการชำระเงินไม่ได้", selectedPayment?.id)}>เปิดหลักฐานการชำระเงินไม่ได้</Button></div></div> : null}
                 <div className="review-decision-buttons grid w-full max-w-[360px] grid-cols-2 gap-2 max-[800px]:max-w-full">
-                  <Button className={`min-h-11 min-w-0 whitespace-normal px-[10px] py-2 leading-[1.35] ${selected.status === "confirmed" || selected.status === "rejected" ? "col-start-2" : ""}`} icon="check" disabled={(selected.status === "confirmed" && !pendingAdditionalPayment) || Boolean(selected.slipIssue) || !hasReviewableSlip} onClick={() => onApprove(selected.id, selectedPayment?.id)} title={!hasReviewableSlip ? "โปรดเปิดหลักฐานการชำระเงินก่อนอนุมัติ หรือแจ้งปัญหาที่พบ" : undefined}>{pendingAdditionalPayment ? "ยืนยันยอดชำระเพิ่ม" : selected.status === "confirmed" ? "อนุมัติแล้ว" : "อนุมัติใบสมัคร"}</Button>
+                  <Button className={`min-h-11 min-w-0 whitespace-normal px-[10px] py-2 leading-[1.35] ${selected.status === "confirmed" || selected.status === "rejected" ? "col-start-2" : ""}`} icon="check" disabled={(selected.status === "confirmed" && !pendingAdditionalPayment) || Boolean(selected.slipIssue) || !hasReviewableSlip} onClick={() => onApprove(selected.id, selectedPayment?.id, verifiedSlipId, verifiedSlipVersion)} title={!hasReviewableSlip ? "โปรดเปิดหลักฐานการชำระเงินก่อนอนุมัติ หรือแจ้งปัญหาที่พบ" : undefined}>{pendingAdditionalPayment ? "ยืนยันยอดชำระเพิ่ม" : selected.status === "confirmed" ? "อนุมัติแล้ว" : "อนุมัติใบสมัคร"}</Button>
                   {selected.status !== "confirmed" && selected.status !== "rejected" ? <Button variant="outline" className="review-reject-trigger min-h-11 min-w-0 whitespace-normal border-[#ffd6df] bg-[#fff7f9] px-[10px] py-2 leading-[1.35] text-[#a13450] hover:border-[#f7a9bb] hover:bg-[#fff0f4]" onClick={() => setRejectApplicationId(selected.id)}>ไม่อนุมัติใบสมัคร</Button> : null}
                 </div>
               </div>
@@ -255,7 +360,7 @@ export function AdminReviewPage({ applications, schoolBatches = [], sourceFilter
           </section>
         ) : reviewView === "school-groups" && !selectedGroup ? <section className="surface review-group-guide"><span><Icon name="grid" size={22} /></span><p className="eyebrow">ตรวจใบสมัครจากโรงเรียน</p><h2>เลือกกลุ่มรายการสอบ</h2><p>แต่ละกลุ่มรวมใบสมัครตามรายการสอบและปีการศึกษา เมื่อเลือกกลุ่มแล้วจะแสดงรายชื่อผู้สมัคร พร้อมตัวกรองสถานะและค้นหาชื่อ</p></section> : <div className="surface empty-state">เลือกใบสมัครเพื่อดูรายละเอียด</div>}
       </div>
-      {slipPreviewOpen && selected ? <ReviewSlipDialog key={selected.id} backendEnabled={backendEnabled} application={selected} amount={expectedTransferAmount} fileName={selectedSlipFileName} dataUrl={selectedSlipDataUrl} fileType={selectedSlipType} onClose={() => setSlipPreviewOpen(false)} /> : null}
+      {slipPreviewOpen && selected ? <ReviewSlipDialog key={selected.id} backendEnabled={backendEnabled} application={selected} amount={expectedTransferAmount} fileName={selectedSlipFileName} dataUrl={selectedSlipDataUrl} fileType={selectedSlipType} loading={slipLoading} loadError={slipLoadError} slipConfirmed={hasConfirmedSlip} confirmingSlip={confirmingSlip} onConfirmSlip={backendEnabled && selected.status !== "rejected" && (selected.status !== "confirmed" || pendingAdditionalPayment) && !selected.slipIssue ? confirmSlipInspection : null} onClose={() => setSlipPreviewOpen(false)} /> : null}
       {rejectTarget ? <ReviewRejectDialog key={rejectTarget.id} application={rejectTarget} onReject={onReject} onClose={() => setRejectApplicationId("")} /> : null}
     </div>
   );

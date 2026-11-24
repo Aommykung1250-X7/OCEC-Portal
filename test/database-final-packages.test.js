@@ -31,7 +31,7 @@ else {
     adminCookie=`ocec_session=${adminToken}`;
     await installMockGoogleWorkspace();
   });
-  test.after(async()=>{await getPool().query("UPDATE exam_rounds SET active=false,final_manually_closed=true WHERE id LIKE 'pkg-%'");await app.close();await getPool().end();});
+  test.after(async()=>{await getPool().query("DELETE FROM google_workspace_connection WHERE account_email='workspace@ocec.test'");await getPool().query("UPDATE exam_rounds SET active=false,final_manually_closed=true WHERE id LIKE 'pkg-%'");await app.close();await getPool().end();});
   async function fixture(competition='timo',type='FINAL',lastName='Smith'){
     const suffix=randomUUID();
     const targetId=`pkg-target-${suffix}`,sourceRound=`pkg-source-${suffix}`;
@@ -42,7 +42,8 @@ else {
     const person=(await getPool().query("INSERT INTO applicants(first_name_en,last_name_en,date_of_birth,school_name,contact_email,contact_phone) VALUES($1,$2,$3,$4,$5,$6) RETURNING id",Object.values(applicant))).rows[0].id;
     const source=(await getPool().query("INSERT INTO applications(applicant_id,owner_user_id,source,status,registration_total_satang) VALUES($1,$2,'self','approved',75500) RETURNING id",[person,owner])).rows[0].id;
     const sourceItem=(await getPool().query("INSERT INTO application_items(application_id,exam_round_id,grade_id,format,center_id,fee_satang,snapshot,duplicate_key,exam_number) VALUES($1,$2,'grade-1','paper','center-554',75500,'{}',$3,'SOURCE123') RETURNING id",[source,sourceRound,suffix])).rows[0].id;
-    await getPool().query("INSERT INTO results(application_item_id,award,eligible_for_final,published_at) VALUES($1,'GOLD AWARD',true,now())",[sourceItem]);
+    const sourceAward=competition==='bbb'&&type==='FINAL'?'1ST AWARD':'GOLD AWARD';
+    await getPool().query("INSERT INTO results(application_item_id,award,eligible_for_final,published_at) VALUES($1,$2,true,now())",[sourceItem,sourceAward]);
     await getPool().query('INSERT INTO final_invitations(heat_application_item_id,final_exam_round_id) VALUES($1,$2)',[sourceItem,targetId]);
     return {targetId,sourceRound,source,sourceItem,candidate:{applicant,items:[{roundId:targetId,gradeId:'grade-1',format:'paper',centerId:'center-554',packageCode:'onsite_ceremony',shirtSize:'SS',guests:[guest,guest]}],pastPaperIds:[],sourceHeatApplicationId:source,source:'final',slip:photo,certificatePhoto:photo}};
   }

@@ -397,7 +397,7 @@ if (!testUrl) {
     const existing = await getPool().query('SELECT account_email FROM google_workspace_connection WHERE singleton=true');
     assert.equal(existing.rowCount, 0, 'Sheets mock requires an unconnected disposable database');
     const roundId = `bbb-sheets-test-${runId}`;
-    const year = `test-${runId}`;
+    const year = `t${runId.slice(0, 7)}`;
     await getPool().query(`INSERT INTO exam_rounds(id,competition_id,title,year,round_type,open_date,close_date,edit_close_date,
       is_open,paper_price_satang,online_price_satang)
       VALUES($1,'bbb','BBB Sheets Test',$2,'HEAT',(now() AT TIME ZONE 'Asia/Bangkok')::date-1,
@@ -563,6 +563,7 @@ if (!testUrl) {
       assert.equal(approvedMockRow[8], 'ติดตามอีเมล', 'a later sync must preserve the administrator note');
     } finally {
       globalThis.fetch = originalFetch;
+      await getPool().query('UPDATE exam_rounds SET active=false,final_manually_closed=true WHERE id=$1', [roundId]);
       await getPool().query('DELETE FROM google_workspace_connection WHERE account_email=$1', [testEmail]);
       for (const [key, value] of Object.entries(previous)) {
         if (value === undefined) delete process.env[key]; else process.env[key] = value;

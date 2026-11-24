@@ -24,3 +24,30 @@ test('feature matrix covers the public and admin menu groups', async () => {
     }
   }
 });
+
+test('authoritative business rules registry links every approved rule to an owner, date, and executable test', async () => {
+  const registry = await readFile(new URL('../docs/business-rules-registry.md', import.meta.url), 'utf8');
+  const ruleRows = registry.split('\n').filter((line) => line.startsWith('| BR-'));
+  assert.ok(ruleRows.length >= 10, 'expected reconciled business rules in docs/business-rules-registry.md');
+  for (const row of ruleRows) {
+    const cells = row.split('|').slice(1, -1).map((cell) => cell.trim());
+    if (cells[0].startsWith('BR-OPEN-')) {
+      assert.equal(cells.length, 5, row);
+      assert.ok(cells.every(Boolean), row);
+      continue;
+    }
+    assert.equal(cells.length, 8, row);
+    const [ruleId, , , , status, owner, decisionDate, testsCell] = cells;
+    assert.equal(status, 'Approved', `${ruleId} must be Approved`);
+    assert.ok(owner.length >= 3, `${ruleId} needs an owner`);
+    assert.match(decisionDate, /^\d{4}-\d{2}-\d{2}$/, `${ruleId} needs an ISO decision date`);
+    const refs = [...testsCell.matchAll(/(test\/[^` ]+\.test\.js|test\/[^` ]+\.spec\.js) :: ([^`]+)`/g)];
+    assert.ok(refs.length > 0, `${ruleId} must cite at least one acceptance test`);
+    if (process.env.TRACEABILITY_REQUIRE_IMPLEMENTED === '1') {
+      for (const [, path, name] of refs) {
+        const source = await readFile(new URL(`../${path}`, import.meta.url), 'utf8');
+        assert.ok(source.includes(name), `${ruleId} -> ${path}: ${name}`);
+      }
+    }
+  }
+});

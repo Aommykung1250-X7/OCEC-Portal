@@ -1,6 +1,8 @@
 # OCEC Portal test strategy and decision log
 
-Updated: 16 October 2026. Scope: OCEC Portal only.
+Updated: 24 November 2026. Scope: OCEC Portal only.
+
+> **Authoritative Business Rules (OCEC-21):** All reconciled product decisions (including `D01`–`D12` below and later P0 rules) are consolidated with owners, dates, and CI-verified acceptance tests in [docs/business-rules-registry.md](../business-rules-registry.md).
 
 ## Purpose
 

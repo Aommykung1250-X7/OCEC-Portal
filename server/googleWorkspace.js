@@ -30,6 +30,27 @@ let cachedAccessTokenExpiresAt = 0;
 const sha256 = (value) => createHash('sha256').update(value).digest('hex');
 const money = (value) => Number(value || 0) / 100;
 
+function driveTimeoutMs(override = null) {
+  const configured = Number(override ?? process.env.GOOGLE_DRIVE_TIMEOUT_MS ?? 10000);
+  return Number.isFinite(configured) && configured > 0 ? configured : 10000;
+}
+
+async function fetchWithDeadline(url, options = {}, timeoutMs = null) {
+  const deadline = driveTimeoutMs(timeoutMs);
+  const signal = options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(deadline)]) : AbortSignal.timeout(deadline);
+  try {
+    return await fetch(url, { ...options, signal });
+  } catch (error) {
+    if (error?.name === 'TimeoutError' || error?.name === 'AbortError' || signal.aborted) {
+      throw Object.assign(new Error('การเชื่อมต่อ Google Drive เกินเวลาที่กำหนด โปรดลองอีกครั้ง'), {
+        statusCode: 504,
+        code: 'GOOGLE_DRIVE_TIMEOUT',
+      });
+    }
+    throw error;
+  }
+}
+
 function integrationConfig() {
   return {
     clientId: process.env.GOOGLE_INTEGRATION_CLIENT_ID || process.env.GOOGLE_CLIENT_ID,
@@ -113,10 +134,10 @@ export async function createGoogleWorkspaceAuthorizationUrl(adminUserId) {
   return `https://accounts.google.com/o/oauth2/v2/auth?${query}`;
 }
 
-async function postToken(values) {
+async function postToken(values, { timeoutMs = null } = {}) {
   const config = assertConfigured();
   const body = new URLSearchParams({ client_id: config.clientId, client_secret: config.clientSecret, ...values });
-  const response = await fetch(TOKEN_API, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body });
+  const response = await fetchWithDeadline(TOKEN_API, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body }, timeoutMs);
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error('Google authorization token exchange failed');
   return data;
@@ -161,12 +182,12 @@ export async function completeGoogleWorkspaceAuthorization(adminUserId, code, st
   return { email: profile.email };
 }
 
-async function accessToken() {
+async function accessToken({ timeoutMs = null } = {}) {
   if (cachedAccessToken && cachedAccessTokenExpiresAt > Date.now()) return cachedAccessToken;
   const connection = await getConnection();
   if (!connection) throw new Error('Connect a Google account before using Drive, Sheets, or Gmail');
   const refreshToken = decryptToken(connection.encrypted_refresh_token);
-  const tokens = await postToken({ refresh_token: refreshToken, grant_type: 'refresh_token' });
+  const tokens = await postToken({ refresh_token: refreshToken, grant_type: 'refresh_token' }, { timeoutMs });
   if (!tokens.access_token) throw new Error('Google did not return an access token');
   cachedAccessToken = tokens.access_token;
   cachedAccessTokenExpiresAt = Date.now() + Math.max(0, Number(tokens.expires_in || 3600) - 90) * 1000;
@@ -174,11 +195,12 @@ async function accessToken() {
 }
 
 async function googleRequest(url, options = {}) {
-  const token = await accessToken();
-  const response = await fetch(url, {
-    ...options,
-    headers: { authorization: `Bearer ${token}`, ...(options.body && !(options.body instanceof Buffer) ? { 'content-type': 'application/json' } : {}), ...options.headers },
-  });
+  const { timeoutMs = null, ...fetchOptions } = options;
+  const token = await accessToken({ timeoutMs });
+  const response = await fetchWithDeadline(url, {
+    ...fetchOptions,
+    headers: { authorization: `Bearer ${token}`, ...(fetchOptions.body && !(fetchOptions.body instanceof Buffer) ? { 'content-type': 'application/json' } : {}), ...fetchOptions.headers },
+  }, timeoutMs);
   if (!response.ok) {
     const error = new Error(`Google API request failed (${response.status})`);
     error.statusCode = response.status === 404 ? 404 : 502;
@@ -456,10 +478,10 @@ export async function organizeExistingGoogleDrivePaymentSlips() {
   return { total: initial.rowCount, moved, uploaded, skipped, failed, failures: failureDetails };
 }
 
-export async function downloadGoogleDriveFile(fileId) {
+export async function downloadGoogleDriveFile(fileId, { timeoutMs = null } = {}) {
   if (!fileId) throw Object.assign(new Error('Payment slip is no longer available in Drive'), { statusCode: 404 });
-  const token = await accessToken();
-  const response = await fetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}?alt=media`, { headers: { authorization: `Bearer ${token}` } });
+  const token = await accessToken({ timeoutMs });
+  const response = await fetchWithDeadline(`${DRIVE_API}/files/${encodeURIComponent(fileId)}?alt=media`, { headers: { authorization: `Bearer ${token}` } }, timeoutMs);
   if (response.status === 404 || response.status === 410) throw Object.assign(new Error('Payment slip is no longer available in Drive'), { statusCode: 404 });
   if (!response.ok) throw Object.assign(new Error(`Google Drive download failed (${response.status})`), { statusCode: 502 });
   const buffer = Buffer.from(await response.arrayBuffer());

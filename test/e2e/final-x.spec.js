@@ -14,6 +14,7 @@ test('BBB Final medal holder sees the Final X invitation and opens the correct p
     const sourceRoundId = `${fixture.roundId}-source`;
     await db.query(`INSERT INTO exam_rounds(id,competition_id,title,year,round_type,open_date,close_date)
       VALUES($1,'bbb','BBB Final','2569','FINAL',current_date-20,current_date-10)`, [sourceRoundId]);
+    await db.query("UPDATE applications SET source='final' WHERE id=$1", [fixture.heatApplicationId]);
     await db.query("UPDATE application_items SET exam_round_id=$1,center_id='center-final-overseas' WHERE application_id=$2", [sourceRoundId, fixture.heatApplicationId]);
     await db.query("UPDATE exam_rounds SET round_type='FINAL_X' WHERE id=$1", [fixture.roundId]);
     await db.query("UPDATE results SET award='GOLD AWARD' WHERE application_item_id IN (SELECT id FROM application_items WHERE application_id=$1)", [fixture.heatApplicationId]);

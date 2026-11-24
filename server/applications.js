@@ -318,9 +318,32 @@ async function resolveDraft(client, candidate, ownerId, finalGrantToken = null, 
           AND fg.token_hash=$6 AND fg.verified_user_id=$3
           AND fg.expires_at>now() AND fg.claimed_at IS NULL
         WHERE fi.final_exam_round_id=$1 AND heat_application.id=$2
-          AND ((heat_application.source='self' AND heat_application.owner_user_id=$3)
+          AND ((heat_round.round_type='HEAT' AND heat_application.source='self' AND heat_application.owner_user_id=$3)
+            OR (heat_round.round_type='FINAL' AND heat_application.source IN ('final','self') AND heat_application.owner_user_id=$3)
             OR (heat_application.source='school' AND fg.id IS NOT NULL))
-          AND heat_round.year=$7 AND ((heat_round.round_type='HEAT' AND $8::text='FINAL')
+          AND (
+            NOT EXISTS (
+              SELECT 1 FROM result_import_batches rb_any
+              WHERE rb_any.exam_round_id=heat_item.exam_round_id AND rb_any.status='published'
+            )
+            OR EXISTS (
+              SELECT 1 FROM result_import_batches rb_active
+              WHERE rb_active.id=res.published_batch_id AND rb_active.status='published'
+            )
+            OR (
+              res.published_batch_id IS NULL
+              AND EXISTS (
+                SELECT 1 FROM result_import_rows ir_active
+                JOIN result_import_batches rb_active ON rb_active.id=ir_active.batch_id AND rb_active.status='published'
+                WHERE ir_active.application_item_id=res.application_item_id
+              )
+            )
+          )
+          AND heat_round.year=$7 AND (
+            (heat_round.round_type='HEAT' AND $8::text='FINAL' AND (
+              (heat_round.competition_id='bbb' AND upper(trim(res.award)) ~ '^(1ST|2ND|3RD)( AWARD)?$')
+              OR (heat_round.competition_id<>'bbb' AND upper(trim(res.award)) ~ '^(GOLD|SILVER|BRONZE)( (MEDAL|AWARD))?$')
+            ))
             OR (heat_round.round_type='FINAL' AND $8::text='FINAL_X' AND heat_round.competition_id='bbb'
               AND upper(trim(res.award)) ~ '^(GOLD|SILVER|BRONZE)( (MEDAL|AWARD))?$'))
           AND heat_round.competition_id=$4 AND heat_item.grade_id=$5 AND fi.claimed_application_id IS NULL
@@ -600,7 +623,161 @@ async function loadReviewEmailApplications(client, applicationId, schoolBatchId 
   }));
 }
 
+async function verifySlipStorageReadable(slip, missingMessage = 'ไม่พบไฟล์หลักฐานการชำระเงินฉบับล่าสุด จึงไม่สามารถอนุมัติได้') {
+  if (slip.drive_file_id) {
+    let bytes;
+    try {
+      bytes = await downloadGoogleDriveFile(slip.drive_file_id);
+    } catch (error) {
+      if (error?.statusCode === 404 || error?.status === 404 || error?.statusCode === 410) {
+        throw invalid(missingMessage, 409);
+      }
+      throw error;
+    }
+    if (!bytes || !bytes.length) throw invalid(missingMessage, 409);
+    return;
+  }
+  if (!slip.has_content_bytes) throw invalid(missingMessage, 409);
+}
+
+export async function loadAdminPaymentSlip(slipId, adminUserId) {
+  const result = await getPool().query(`SELECT id,payment_id,version,file_name,mime_type,content_bytes,drive_file_id
+    FROM payment_slips WHERE id=$1 ORDER BY version DESC,uploaded_at DESC LIMIT 1`, [slipId]);
+  const slip = result.rows[0];
+  if (!slip) return null;
+  let content = null;
+  if (slip.drive_file_id) {
+    try {
+      content = await downloadGoogleDriveFile(slip.drive_file_id);
+    } catch (error) {
+      if (error?.statusCode === 404 || error?.status === 404 || error?.statusCode === 410) return null;
+      throw error;
+    }
+  } else {
+    content = slip.content_bytes;
+  }
+  if (!content || !content.length) return null;
+  if (adminUserId) {
+    // Loading the preview records that this admin opened the slip, NOT that they confirmed inspection.
+    await getPool().query(`INSERT INTO payment_slip_inspections(payment_slip_id,payment_id,slip_version,inspector_user_id,inspected_at)
+      VALUES($1,$2,$3,$4,now())
+      ON CONFLICT (payment_slip_id,inspector_user_id) DO UPDATE SET
+        payment_id=excluded.payment_id,
+        slip_version=excluded.slip_version,
+        inspected_at=now()`, [slip.id, slip.payment_id, slip.version, adminUserId]);
+  }
+  return {
+    id: slip.id,
+    paymentId: slip.payment_id,
+    version: slip.version,
+    fileName: slip.file_name,
+    mimeType: slip.mime_type,
+    content,
+  };
+}
+
+export async function confirmAdminPaymentSlipInspection(slipId, { paymentId, slipVersion } = {}, adminUserId) {
+  if (!slipId || !paymentId || !Number.isInteger(slipVersion) || slipVersion < 1) {
+    throw invalid('ข้อมูลสลิปสำหรับยืนยันการตรวจไม่ครบถ้วน', 409);
+  }
+  // Phase 1 (outside DB lock): verify the admin already loaded this slip and the underlying file is still readable.
+  const precheck = await getPool().query(`SELECT ps.id,ps.payment_id,ps.version,ps.drive_file_id,
+      ps.content_bytes IS NOT NULL AS has_content_bytes,
+      ins.inspected_at
+    FROM payment_slips ps
+    LEFT JOIN payment_slip_inspections ins
+      ON ins.payment_slip_id=ps.id AND ins.payment_id=ps.payment_id
+      AND ins.slip_version=ps.version AND ins.inspector_user_id=$4
+    WHERE ps.id=$1 AND ps.payment_id=$2 AND ps.version=$3`, [slipId, paymentId, slipVersion, adminUserId]);
+  if (!precheck.rowCount) throw invalid('ไม่พบหลักฐานการชำระเงินฉบับที่ระบุ หรือสลิปมีการเปลี่ยนแปลงแล้ว', 409);
+  const candidateSlip = precheck.rows[0];
+  if (!candidateSlip.inspected_at) {
+    throw invalid('โปรดเปิดดูไฟล์หลักฐานการชำระเงินก่อนกดยืนยันการตรวจ', 409);
+  }
+  await verifySlipStorageReadable(candidateSlip, 'ไม่พบไฟล์หลักฐานการชำระเงินใน Google Drive จึงไม่สามารถยืนยันการตรวจได้');
+
+  // Phase 2 (short atomic transaction, zero Drive I/O): verify this slip is still the latest version and record explicit confirmation.
+  return transaction(async (client) => {
+    const payment = await client.query('SELECT id,status FROM payments WHERE id=$1 FOR UPDATE', [paymentId]);
+    if (!payment.rowCount) throw invalid('Payment record not found', 409);
+    const latest = await client.query(`SELECT id,payment_id,version,drive_file_id,
+        content_bytes IS NOT NULL AS has_content_bytes
+      FROM payment_slips WHERE payment_id=$1 ORDER BY version DESC,uploaded_at DESC,id DESC LIMIT 1 FOR UPDATE`, [paymentId]);
+    if (!latest.rowCount) throw invalid('Payment slip not found', 409);
+    const latestSlip = latest.rows[0];
+    if (latestSlip.id !== slipId || Number(latestSlip.version) !== Number(slipVersion) || latestSlip.drive_file_id !== candidateSlip.drive_file_id) {
+      throw invalid('หลักฐานการชำระเงินมีการเปลี่ยนแปลงเป็นฉบับใหม่แล้ว โปรดโหลดสลิปฉบับล่าสุดก่อนยืนยันการตรวจ', 409);
+    }
+    if (!latestSlip.drive_file_id && !latestSlip.has_content_bytes) {
+      throw invalid('ไม่พบไฟล์หลักฐานการชำระเงินฉบับล่าสุด', 409);
+    }
+    const confirmed = await client.query(`UPDATE payment_slip_inspections
+      SET confirmed_at=now()
+      WHERE payment_slip_id=$1 AND payment_id=$2 AND slip_version=$3 AND inspector_user_id=$4
+      RETURNING inspected_at,confirmed_at`, [latestSlip.id, paymentId, latestSlip.version, adminUserId]);
+    if (!confirmed.rowCount) throw invalid('โปรดเปิดดูไฟล์หลักฐานการชำระเงินก่อนกดยืนยันการตรวจ', 409);
+    return {
+      confirmed: true,
+      paymentId,
+      slipId: latestSlip.id,
+      slipVersion: latestSlip.version,
+      inspectedAt: confirmed.rows[0].inspected_at,
+      confirmedAt: confirmed.rows[0].confirmed_at,
+    };
+  });
+}
+
 export async function reviewApplication(applicationId, review, adminUserId) {
+  let verifiedSlipSnapshot = null;
+  if (review.decision === 'approve') {
+    if (!review.paymentId || !review.slipId || !Number.isInteger(review.slipVersion) || review.slipVersion < 1) {
+      throw invalid('โปรดเปิดดูและกดยืนยันการตรวจหลักฐานการชำระเงินฉบับล่าสุดก่อนอนุมัติ', 409);
+    }
+    // Phase 1 (outside DB lock): validate explicit inspection confirmation & verify the file is still readable from Drive with deadline.
+    const precheck = await getPool().query(`SELECT a.status AS application_status,a.school_batch_id,
+        p.id AS payment_id,p.status AS payment_status,
+        latest.id AS latest_slip_id,latest.version AS latest_slip_version,
+        latest.drive_file_id,latest.content_bytes IS NOT NULL AS has_content_bytes,
+        ins.inspected_at,ins.confirmed_at
+      FROM applications a
+      LEFT JOIN payments p ON p.id=$2 AND (p.application_id=a.id OR (a.school_batch_id IS NOT NULL AND p.school_batch_id=a.school_batch_id))
+      LEFT JOIN LATERAL (
+        SELECT ps.id,ps.version,ps.drive_file_id,ps.content_bytes
+        FROM payment_slips ps WHERE ps.payment_id=p.id
+        ORDER BY ps.version DESC,ps.uploaded_at DESC,ps.id DESC LIMIT 1
+      ) latest ON true
+      LEFT JOIN payment_slip_inspections ins
+        ON ins.payment_slip_id=latest.id AND ins.payment_id=p.id
+        AND ins.slip_version=latest.version AND ins.inspector_user_id=$3
+      WHERE a.id=$1`, [applicationId, review.paymentId, adminUserId]);
+    if (!precheck.rowCount) throw invalid('Application not found', 404);
+    const row = precheck.rows[0];
+    if (!['pending', 'approved'].includes(row.application_status)) {
+      throw invalid('Application is not awaiting review or is blocked by a slip issue', 409);
+    }
+    if (!row.payment_id) throw invalid('Payment record not found', 409);
+    if (row.application_status === 'approved' && row.payment_status !== 'pending') {
+      throw invalid('ไม่พบรายการชำระเงินที่อยู่ระหว่างตรวจสอบ', 409);
+    }
+    if (row.payment_status === 'slip_issue') {
+      throw invalid('โปรดรอหลักฐานการชำระเงินฉบับใหม่ก่อนอนุมัติใบสมัคร', 409);
+    }
+    if (!row.latest_slip_id) throw invalid('Payment slip not found', 409);
+    if (row.latest_slip_id !== review.slipId || Number(row.latest_slip_version) !== Number(review.slipVersion)) {
+      throw invalid('หลักฐานการชำระเงินมีการเปลี่ยนแปลงเป็นฉบับใหม่แล้ว โปรดโหลดและยืนยันการตรวจสลิปฉบับล่าสุดก่อนอนุมัติ', 409);
+    }
+    if (!row.inspected_at || !row.confirmed_at) {
+      throw invalid('โปรดเปิดดูและกดยืนยันการตรวจหลักฐานการชำระเงินฉบับล่าสุดก่อนอนุมัติ', 409);
+    }
+    await verifySlipStorageReadable(row, 'ไม่พบไฟล์หลักฐานการชำระเงินฉบับล่าสุดใน Google Drive จึงไม่สามารถอนุมัติได้');
+    verifiedSlipSnapshot = {
+      paymentId: row.payment_id,
+      slipId: row.latest_slip_id,
+      slipVersion: Number(row.latest_slip_version),
+      driveFileId: row.drive_file_id || null,
+    };
+  }
+
   return transaction(async (client) => {
     const priorResult = await client.query(`SELECT a.*,ap.contact_email,ap.first_name_en,ap.middle_name_en,ap.last_name_en,
         ap.first_name_th,ap.last_name_th,ap.school_name AS applicant_school_name,
@@ -675,18 +852,46 @@ export async function reviewApplication(applicationId, review, adminUserId) {
     }
     if (review.decision !== 'approve') throw invalid('Unsupported review decision');
     if (!['pending','approved'].includes(prior.status)) throw invalid('Application is not awaiting review or is blocked by a slip issue', 409);
+    if (!review.paymentId || !review.slipId || !Number.isInteger(review.slipVersion) || review.slipVersion < 1) {
+      throw invalid('โปรดเปิดตรวจสอบหลักฐานการชำระเงินฉบับล่าสุดก่อนอนุมัติ', 409);
+    }
     const paymentResult = await client.query(`SELECT * FROM payments WHERE (application_id=$1 OR ($2::uuid IS NOT NULL AND school_batch_id=$2))
-      AND ($3::uuid IS NULL OR id=$3) ORDER BY created_at DESC LIMIT 1 FOR UPDATE`, [applicationId, prior.school_batch_id, review.paymentId || null]);
+      AND id=$3 FOR UPDATE`, [applicationId, prior.school_batch_id, review.paymentId]);
     if (!paymentResult.rowCount) throw invalid('Payment record not found', 409);
     const payment = paymentResult.rows[0];
-    const slipResult = await client.query('SELECT 1 FROM payment_slips WHERE payment_id=$1 LIMIT 1', [payment.id]);
+    const slipResult = await client.query(`SELECT id,payment_id,version,file_name,mime_type,drive_file_id,
+        content_bytes IS NOT NULL AS has_content_bytes
+      FROM payment_slips WHERE payment_id=$1 ORDER BY version DESC,uploaded_at DESC,id DESC LIMIT 1 FOR UPDATE`, [payment.id]);
     if (!slipResult.rowCount) throw invalid('Payment slip not found', 409);
+    const latestSlip = slipResult.rows[0];
+    if (latestSlip.id !== review.slipId || Number(latestSlip.version) !== Number(review.slipVersion)
+      || (latestSlip.drive_file_id || null) !== verifiedSlipSnapshot.driveFileId) {
+      throw invalid('หลักฐานการชำระเงินมีการเปลี่ยนแปลงเป็นฉบับใหม่แล้ว โปรดโหลดและยืนยันการตรวจสลิปฉบับล่าสุดก่อนอนุมัติ', 409);
+    }
+    if (!latestSlip.drive_file_id && !latestSlip.has_content_bytes) {
+      throw invalid('ไม่พบไฟล์หลักฐานการชำระเงินฉบับล่าสุด จึงยังไม่สามารถอนุมัติได้', 409);
+    }
+    const inspectionResult = await client.query(`SELECT inspected_at,confirmed_at FROM payment_slip_inspections
+      WHERE payment_slip_id=$1 AND payment_id=$2 AND slip_version=$3 AND inspector_user_id=$4 AND confirmed_at IS NOT NULL`, [
+      latestSlip.id, payment.id, latestSlip.version, adminUserId,
+    ]);
+    if (!inspectionResult.rowCount) {
+      throw invalid('โปรดเปิดดูและกดยืนยันการตรวจหลักฐานการชำระเงินฉบับล่าสุดก่อนอนุมัติ', 409);
+    }
+    const slipAudit = {
+      paymentId: payment.id,
+      slipId: latestSlip.id,
+      slipVersion: latestSlip.version,
+      inspectedAt: inspectionResult.rows[0].inspected_at,
+      confirmedAt: inspectionResult.rows[0].confirmed_at,
+      reviewerUserId: adminUserId,
+    };
     if (prior.status === 'approved') {
       if (payment.status !== 'pending') throw invalid('ไม่พบรายการชำระเงินที่อยู่ระหว่างตรวจสอบ', 409);
       await client.query("UPDATE payments SET payment_account_id=NULL,confirmed_satang=NULL,confirmed_transfer_at=NULL,confirmed_account_number=NULL,confirmed_by=$1,confirmed_at=now(),status='confirmed' WHERE id=$2", [adminUserId,payment.id]);
       await client.query(`INSERT INTO audit_logs(actor_user_id,entity_type,entity_id,action,before_data,after_data)
-        VALUES($1,'payment',$2,'confirm_additional_payment',$3,$4)`, [adminUserId,payment.id,{ status: payment.status, expectedSatang: payment.expected_satang },{ status: 'confirmed', applicationId }]);
-      return { id: applicationId, status: 'approved', paymentId: payment.id, paymentOnly: true };
+        VALUES($1,'payment',$2,'confirm_additional_payment',$3,$4)`, [adminUserId,payment.id,{ status: payment.status, expectedSatang: payment.expected_satang },{ status: 'confirmed', applicationId, ...slipAudit }]);
+      return { id: applicationId, status: 'approved', paymentId: payment.id, slipId: latestSlip.id, slipVersion: latestSlip.version, paymentOnly: true };
     }
     if (payment.status === 'slip_issue') throw invalid('โปรดรอหลักฐานการชำระเงินฉบับใหม่ก่อนอนุมัติใบสมัคร', 409);
     if (payment.status !== 'confirmed') {
@@ -699,7 +904,7 @@ export async function reviewApplication(applicationId, review, adminUserId) {
       const nextStatus = Number(state.rows[0].total) === Number(state.rows[0].approved) ? 'approved' : 'partially_approved';
       await client.query('UPDATE school_batches SET status=$1 WHERE id=$2', [nextStatus, prior.school_batch_id]);
     }
-    await client.query('INSERT INTO audit_logs(actor_user_id,entity_type,entity_id,action,before_data,after_data) VALUES($1,$2,$3,$4,$5,$6)', [adminUserId, 'application', applicationId, 'approve', prior, { status: 'approved', paymentId: payment.id }]);
+    await client.query('INSERT INTO audit_logs(actor_user_id,entity_type,entity_id,action,before_data,after_data) VALUES($1,$2,$3,$4,$5,$6)', [adminUserId, 'application', applicationId, 'approve', prior, { status: 'approved', ...slipAudit }]);
     const emailApplications = await loadReviewEmailApplications(client, applicationId);
     const emailApplicant = emailApplications[0]?.applicant || {};
     const emailItems = emailApplications[0]?.items || [];
@@ -730,7 +935,7 @@ export async function reviewApplication(applicationId, review, adminUserId) {
     for (const item of items.rows) {
       await enqueueIntegrationJob(client, 'sheets.sync_item', { applicationItemId: item.id }, `sheets-item:${item.id}:v${approved.rows[0].version}`);
     }
-    return { id: applicationId, status: 'approved', paymentId: payment.id };
+    return { id: applicationId, status: 'approved', paymentId: payment.id, slipId: latestSlip.id, slipVersion: latestSlip.version };
   });
 }
 
@@ -1404,13 +1609,13 @@ async function queryApplications({ userId = null, userEmail = null, excludeDraft
       pay.id AS payment_id, pay.status AS payment_status, pay.payment_account_id,
       pay.expected_satang, pay.confirmed_satang, pay.confirmed_transfer_at, pay.confirmed_account_number,
       pa.category AS payment_account_type, pa.bank_name, pa.account_name, pa.account_number,
-      slip.id AS slip_id, slip.file_name AS slip_file_name, slip.mime_type AS slip_mime_type,
+      slip.id AS slip_id, slip.version AS slip_version, slip.file_name AS slip_file_name, slip.mime_type AS slip_mime_type,
       (SELECT coalesce(json_agg(json_build_object('id',p.id,'status',p.status,'expectedSatang',p.expected_satang,'createdAt',p.created_at,
-        'slip',CASE WHEN latest_slip.id IS NULL THEN NULL ELSE json_build_object('id',latest_slip.id,'name',latest_slip.file_name,
+        'slip',CASE WHEN latest_slip.id IS NULL THEN NULL ELSE json_build_object('id',latest_slip.id,'version',latest_slip.version,'name',latest_slip.file_name,
           'type',latest_slip.mime_type,'url','/api/admin/payment-slips/'||latest_slip.id::text) END)
         ORDER BY p.created_at DESC),'[]'::json)
-        FROM payments p LEFT JOIN LATERAL (SELECT ps.id,ps.file_name,ps.mime_type FROM payment_slips ps
-          WHERE ps.payment_id=p.id ORDER BY ps.version DESC,ps.uploaded_at DESC LIMIT 1) latest_slip ON true
+        FROM payments p LEFT JOIN LATERAL (SELECT ps.id,ps.version,ps.file_name,ps.mime_type FROM payment_slips ps
+          WHERE ps.payment_id=p.id ORDER BY ps.version DESC,ps.uploaded_at DESC,ps.id DESC LIMIT 1) latest_slip ON true
         WHERE p.application_id=a.id OR (a.school_batch_id IS NOT NULL AND p.school_batch_id=a.school_batch_id)) AS payment_records
     FROM applications a
     JOIN applicants ap ON ap.id=a.applicant_id
@@ -1423,7 +1628,7 @@ async function queryApplications({ userId = null, userEmail = null, excludeDraft
     LEFT JOIN LATERAL (SELECT p.* FROM payments p WHERE p.application_id=a.id OR (a.school_batch_id IS NOT NULL AND p.school_batch_id=a.school_batch_id) ORDER BY p.created_at DESC LIMIT 1) pay ON true
     LEFT JOIN certificate_photos cp ON cp.application_item_id=ai.id
     LEFT JOIN payment_accounts pa ON pa.id=pay.payment_account_id
-    LEFT JOIN LATERAL (SELECT ps.id, ps.file_name, ps.mime_type FROM payment_slips ps WHERE ps.payment_id=pay.id ORDER BY ps.version DESC, ps.uploaded_at DESC LIMIT 1) slip ON true
+    LEFT JOIN LATERAL (SELECT ps.id, ps.version, ps.file_name, ps.mime_type FROM payment_slips ps WHERE ps.payment_id=pay.id ORDER BY ps.version DESC, ps.uploaded_at DESC, ps.id DESC LIMIT 1) slip ON true
     LEFT JOIN LATERAL (SELECT min(r2.edit_close_date) AS edit_deadline,
       bool_and(r2.edit_close_date IS NOT NULL AND (now() AT TIME ZONE 'Asia/Bangkok')::date <= r2.edit_close_date) AS editable
       FROM application_items ai2 JOIN exam_rounds r2 ON r2.id=ai2.exam_round_id WHERE ai2.application_id=a.id) edit_rule ON true
@@ -1471,7 +1676,7 @@ async function queryApplications({ userId = null, userEmail = null, excludeDraft
           expectedAmount: money(payment.expectedSatang), createdAt: payment.createdAt?.toISOString?.() || payment.createdAt,
           slipFile: payment.slip || null })),
         slipFileName: row.slip_file_name || '',
-        slipFile: row.slip_id ? { id: row.slip_id, name: row.slip_file_name, type: row.slip_mime_type, url: `/api/admin/payment-slips/${row.slip_id}` } : null,
+        slipFile: row.slip_id ? { id: row.slip_id, version: Number(row.slip_version || 1), name: row.slip_file_name, type: row.slip_mime_type, url: `/api/admin/payment-slips/${row.slip_id}` } : null,
         candidate: [row.first_name_en, row.middle_name_en, row.last_name_en].filter(Boolean).join(' '),
         nameParts: { firstName: row.first_name_en, middleName: row.middle_name_en || '', lastName: row.last_name_en },
         school: row.school_name,
@@ -1688,8 +1893,11 @@ export async function getPublicApplicationForEdit(candidateName, phoneLast4, app
       AND ($3::uuid IS NULL OR a.id=$3)
       AND lower(regexp_replace(trim(concat_ws(' ',ap.first_name_en,NULLIF(ap.middle_name_en,''),ap.last_name_en)),'[[:space:]]+',' ','g'))=$1
       AND right(regexp_replace(ap.contact_phone,'[^0-9]','','g'),4)=$2
-    ORDER BY a.submitted_at DESC LIMIT 1`, [normalizedName, normalizedLastFour, applicationId]);
+    ORDER BY a.submitted_at DESC LIMIT 2`, [normalizedName, normalizedLastFour, applicationId]);
   if (!matched.rowCount) throw invalid('ไม่พบข้อมูลที่ตรงกัน โปรดตรวจสอบชื่อภาษาอังกฤษและหมายเลขโทรศัพท์ 4 หลักท้าย', 403);
+  if (!applicationId && matched.rowCount > 1) {
+    throw invalid('พบใบสมัครที่ตรงกันมากกว่า 1 รายการ ไม่สามารถแยกใบสมัครได้ กรุณาติดต่อเจ้าหน้าที่ OCEC', 409);
+  }
   const applications = await queryApplications({ applicationId: matched.rows[0].id });
   if (!applications[0]) throw invalid('ไม่พบใบสมัคร', 404);
   return publicEditApplication(applications[0]);

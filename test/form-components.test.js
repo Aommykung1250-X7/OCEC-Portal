@@ -85,5 +85,13 @@ test('payment account cards show only active accounts enabled for application fo
   assert.match(markup, /Kasikorn/);
   assert.match(markup, /123-4/);
   assert.doesNotMatch(markup, /Hidden Bank|Another Bank/);
-  assert.match(renderToStaticMarkup(React.createElement(PaymentAccountCards, { accounts: [] })), /ยังไม่มีบัญชีรับโอน/);
+  const emptyMarkup = renderToStaticMarkup(React.createElement(PaymentAccountCards, { accounts: [] }));
+  assert.match(emptyMarkup, /payment-account-empty/);
+  assert.doesNotMatch(emptyMarkup, /bank-payment-card|ACCOUNT NO\./);
+  assert.match(emptyMarkup, /ไม่มีบัญชีรับโอน/);
+  const hiddenOnlyMarkup = renderToStaticMarkup(React.createElement(PaymentAccountCards, { accounts: [
+    { id: 'inactive', bankName: 'Hidden Bank', accountName: 'Hidden', accountNumber: '000', active: false, showInForm: true },
+  ] }));
+  assert.match(hiddenOnlyMarkup, /payment-account-empty/);
+  assert.doesNotMatch(hiddenOnlyMarkup, /Hidden Bank|000/);
 });

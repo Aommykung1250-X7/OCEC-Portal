@@ -1,5 +1,7 @@
 # OCEC Portal production runbook
 
+> **Authoritative Business Rules (OCEC-21):** For reconciled business rules (email transport, slip inspection binding, Final/Final X eligibility, and result snapshots), refer to [docs/business-rules-registry.md](../business-rules-registry.md).
+
 This guide covers the production setup for the current Portal backend. Portal uses its own PostgreSQL database. Gmail, Drive, Sheets, and the Portal worker run through the Google account connected in the admin screen. The worker loop runs inside the Portal API process, so the first Railway deployment needs one Portal service and one Portal PostgreSQL service; OCEC-Cert services and its database stay separate.
 
 ## Required environment

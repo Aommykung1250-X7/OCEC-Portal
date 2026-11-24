@@ -5,7 +5,8 @@ import { decodeCenterPosterUpload } from '../server/centerPoster.js';
 
 const pngSignature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 const jpegSample = readFileSync(new URL('./fixtures/center-poster-sample.jpg', import.meta.url));
-const pngSample = readFileSync(new URL('../public/paper-based-centers-poster.png', import.meta.url));
+const pngSample = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
+const fallbackPoster = readFileSync(new URL('../public/paper-based-centers-poster.png', import.meta.url));
 
 test('accepts structurally valid PNG and JPEG uploads and preserves their bytes', () => {
   for (const [mimeType, content] of [['image/png', pngSample], ['image/jpeg', jpegSample]]) {
@@ -51,12 +52,17 @@ test('rejects malformed base64 and empty image data', () => {
 });
 
 test('accepts a complete poster within the 5 MiB limit', () => {
+  assert.ok(pngSample.length <= 5 * 1024 * 1024);
   const decoded = decodeCenterPosterUpload({ mimeType: 'image/png', dataBase64: pngSample.toString('base64') });
   assert.deepEqual(decoded, pngSample);
 });
 
-test('rejects a poster larger than the 5 MiB limit', () => {
-  const content = Buffer.alloc((5 * 1024 * 1024) + 1);
-  pngSignature.copy(content);
-  assert.throws(() => decodeCenterPosterUpload({ mimeType: 'image/png', dataBase64: content.toString('base64') }));
+test('serves the bundled fallback poster as a PNG while rejecting uploads over the 5 MiB boundary', () => {
+  assert.ok(fallbackPoster.subarray(0, 8).equals(pngSignature), 'bundled fallback poster must be a PNG file');
+  const oversized = Buffer.alloc((5 * 1024 * 1024) + 1);
+  pngSignature.copy(oversized);
+  assert.throws(() => decodeCenterPosterUpload({ mimeType: 'image/png', dataBase64: oversized.toString('base64') }), { statusCode: 400 });
+  if (fallbackPoster.length > 5 * 1024 * 1024) {
+    assert.throws(() => decodeCenterPosterUpload({ mimeType: 'image/png', dataBase64: fallbackPoster.toString('base64') }), { statusCode: 400 });
+  }
 });

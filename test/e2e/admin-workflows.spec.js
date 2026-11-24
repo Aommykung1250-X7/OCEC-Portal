@@ -91,7 +91,15 @@ test('review queue keeps a long list of pending and approved applications inside
   await adminPage(page, fixtures[0].id);
 
   for (const fixture of fixtures.slice(0, 2)) {
-    const response = await page.request.patch(`/api/admin/applications/${fixture.id}/review`, { data: { decision: 'approve' } });
+    const slipResponse = await page.request.get(`/api/admin/payment-slips/${fixture.slipId}`);
+    expect(slipResponse.ok()).toBeTruthy();
+    const confirmResponse = await page.request.post(`/api/admin/payment-slips/${fixture.slipId}/confirm-inspection`, {
+      data: { paymentId: fixture.paymentId, slipVersion: fixture.slipVersion },
+    });
+    expect(confirmResponse.ok()).toBeTruthy();
+    const response = await page.request.patch(`/api/admin/applications/${fixture.id}/review`, {
+      data: { decision: 'approve', paymentId: fixture.paymentId, slipId: fixture.slipId, slipVersion: fixture.slipVersion },
+    });
     expect(response.ok()).toBeTruthy();
   }
 
@@ -165,6 +173,8 @@ test('approve action shows success only after API response', async ({ page }) =>
   const fixture = await createReviewFixture();
   await adminPage(page, fixture.id);
   const approve = page.getByRole('button', { name: 'อนุมัติใบสมัคร', exact: true });
+  await expect(approve).toBeDisabled();
+  await page.getByRole('button', { name: 'ยืนยันว่าตรวจหลักฐานการชำระเงินแล้ว' }).click();
   await expect(approve).toBeEnabled();
   await page.route(`**/api/admin/applications/${fixture.id}/review`, async (route) => {
     if (route.request().method() === 'PATCH') return route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'approval blocked by test' }) });

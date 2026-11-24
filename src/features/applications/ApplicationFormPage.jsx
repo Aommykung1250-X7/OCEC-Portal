@@ -52,6 +52,7 @@ export function ApplicationFormPage({ kind, prefill, applicationMode, allowedRou
   const [form, setForm] = useState(() => ({
     source: applicationMode === "guest" ? "guest" : "self",
     firstName: prefill?.studentInformation?.firstName || prefill?.candidate?.split(" ")[0] || "",
+    middleName: prefill?.studentInformation?.middleName || "",
     lastName: prefill?.studentInformation?.lastName || prefill?.candidate?.split(" ").slice(1).join(" ") || "",
     thaiFirstName: prefill?.studentInformation?.thaiFirstName || "",
     thaiLastName: prefill?.studentInformation?.thaiLastName || "",

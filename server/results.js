@@ -67,10 +67,31 @@ async function readResultBatch(client, batchId) {
 
 export async function listAdminResultWorkflows() {
   const batches = await getPool().query(`SELECT DISTINCT ON (exam_round_id) id,exam_round_id
-    FROM result_import_batches ORDER BY exam_round_id,created_at DESC`);
+    FROM result_import_batches
+    WHERE status IN ('published','draft')
+    ORDER BY exam_round_id, CASE status WHEN 'published' THEN 0 ELSE 1 END, created_at DESC`);
   const workflows = {};
   for (const batch of batches.rows) workflows[batch.exam_round_id] = await readResultBatch(getPool(), batch.id);
   return workflows;
+}
+
+async function lockExamRoundResults(client, examRoundId) {
+  await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`result:${examRoundId}`]);
+  const round = await client.query(`SELECT r.id,r.competition_id,r.round_type,r.year,r.title,
+      c.short_name,c.name AS competition_name
+    FROM exam_rounds r JOIN competitions c ON c.id=r.competition_id
+    WHERE r.id=$1 AND r.active=true FOR UPDATE OF r`, [examRoundId]);
+  if (!round.rowCount) throw fail('ไม่พบรายการสอบรอบนี้', 404);
+  return round.rows[0];
+}
+
+async function hasPublishedResultsForRound(client, examRoundId) {
+  const publishedBatch = await client.query("SELECT 1 FROM result_import_batches WHERE exam_round_id=$1 AND status='published' LIMIT 1", [examRoundId]);
+  if (publishedBatch.rowCount) return true;
+  const publishedRows = await client.query(`SELECT 1 FROM results res
+    JOIN application_items ai ON ai.id=res.application_item_id
+    WHERE ai.exam_round_id=$1 AND res.published_at IS NOT NULL LIMIT 1`, [examRoundId]);
+  return Boolean(publishedRows.rowCount);
 }
 
 export async function importResultRows(examRoundId, fileName, inputRows, adminId) {
@@ -84,10 +105,8 @@ export async function importResultRows(examRoundId, fileName, inputRows, adminId
   }));
   if (rows.some((row) => !row.candidateNo || !row.grade || !row.school || !row.candidate || !row.award)) throw fail('ทุกแถวต้องมีข้อมูล CANDIDATE NO, GRADE, SCHOOL NAME, CANDIDATE NAME และ AWARD');
   return transaction(async (client) => {
-    const round = await client.query(`SELECT id,competition_id,round_type FROM exam_rounds WHERE id=$1 AND active=true FOR UPDATE`, [examRoundId]);
-    if (!round.rowCount) throw fail('ไม่พบรายการสอบรอบนี้', 404);
-    const existingPublished = await client.query("SELECT 1 FROM result_import_batches WHERE exam_round_id=$1 AND status='published' LIMIT 1", [examRoundId]);
-    if (existingPublished.rowCount) throw fail('รอบสอบนี้ประกาศผลแล้วและปิดการแก้ไขข้อมูล', 409);
+    await lockExamRoundResults(client, examRoundId);
+    if (await hasPublishedResultsForRound(client, examRoundId)) throw fail('รอบสอบนี้ประกาศผลแล้วและปิดการแก้ไขข้อมูล', 409);
     await client.query("DELETE FROM result_import_batches WHERE exam_round_id=$1 AND status='draft'", [examRoundId]);
     const batch = await client.query(`INSERT INTO result_import_batches(exam_round_id,file_name,imported_by)
       VALUES($1,$2,$3) RETURNING id`, [examRoundId, clean(fileName, 255) || 'results.xlsx', adminId]);
@@ -127,12 +146,17 @@ export async function importResultRows(examRoundId, fileName, inputRows, adminId
 
 export async function resolveResultImportRow(rowId, action, applicationItemId, adminId) {
   return transaction(async (client) => {
+    const roundLookup = await client.query(`SELECT b.exam_round_id
+      FROM result_import_rows ir JOIN result_import_batches b ON b.id=ir.batch_id
+      WHERE ir.id=$1`, [rowId]);
+    if (!roundLookup.rowCount) throw fail('ไม่พบแถวผลสอบ', 404);
+    await lockExamRoundResults(client, roundLookup.rows[0].exam_round_id);
     const found = await client.query(`SELECT ir.*,b.exam_round_id,b.status AS batch_status,r.competition_id
       FROM result_import_rows ir JOIN result_import_batches b ON b.id=ir.batch_id
       JOIN exam_rounds r ON r.id=b.exam_round_id WHERE ir.id=$1 FOR UPDATE OF ir,b`, [rowId]);
     if (!found.rowCount) throw fail('ไม่พบแถวผลสอบ', 404);
     const row = found.rows[0];
-    if (row.batch_status !== 'draft') throw fail('ประกาศผลแล้ว จึงไม่สามารถแก้ไขข้อมูลได้', 409);
+    if (row.batch_status !== 'draft' || await hasPublishedResultsForRound(client, row.exam_round_id)) throw fail('ประกาศผลแล้ว จึงไม่สามารถแก้ไขข้อมูลได้', 409);
     let itemId = row.application_item_id;
     if (action === 'manual_match') {
       const item = await client.query(`SELECT ai.id,ai.exam_round_id FROM application_items ai JOIN applications a ON a.id=ai.application_id
@@ -160,49 +184,98 @@ export async function resolveResultImportRow(rowId, action, applicationItemId, a
 
 export async function publishResultBatch(examRoundId, adminId) {
   return transaction(async (client) => {
-    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`result:${examRoundId}`]);
-    const batchResult = await client.query(`SELECT b.*,r.competition_id,r.round_type,r.year FROM result_import_batches b
-      JOIN exam_rounds r ON r.id=b.exam_round_id WHERE b.exam_round_id=$1 AND b.status='draft'
+    const round = await lockExamRoundResults(client, examRoundId);
+    if (await hasPublishedResultsForRound(client, examRoundId)) throw fail('ประกาศผลรอบนี้แล้ว', 409);
+    const batchResult = await client.query(`SELECT b.* FROM result_import_batches b
+      WHERE b.exam_round_id=$1 AND b.status='draft'
       ORDER BY b.created_at DESC LIMIT 1 FOR UPDATE OF b`, [examRoundId]);
-    if (!batchResult.rowCount) {
-      const published = await client.query("SELECT 1 FROM result_import_batches WHERE exam_round_id=$1 AND status='published'", [examRoundId]);
-      if (published.rowCount) throw fail('ประกาศผลรอบนี้แล้ว', 409);
-      throw fail('ยังไม่มีผลสอบฉบับร่าง', 409);
-    }
+    if (!batchResult.rowCount) throw fail('ยังไม่มีผลสอบฉบับร่าง', 409);
     const batch = batchResult.rows[0];
-    const rows = await client.query('SELECT * FROM result_import_rows WHERE batch_id=$1 ORDER BY row_number FOR UPDATE', [batch.id]);
+    const rows = await client.query(`SELECT ir.*,
+        g.sort_order AS grade_sort_order,
+        concat_ws(' ', nullif(ap.first_name_th, ''), nullif(ap.last_name_th, '')) AS candidate_name_th
+      FROM result_import_rows ir
+      LEFT JOIN application_items ai ON ai.id=ir.application_item_id
+      LEFT JOIN applications a ON a.id=ai.application_id
+      LEFT JOIN applicants ap ON ap.id=a.applicant_id
+      LEFT JOIN grade_catalog g ON g.id=ai.grade_id
+      WHERE ir.batch_id=$1 ORDER BY ir.row_number FOR UPDATE OF ir`, [batch.id]);
     const unresolved = rows.rows.filter((row) => row.match_status !== 'matched' || !row.application_item_id);
     if (!rows.rowCount || unresolved.length) throw fail(`แก้รายการจับคู่ไม่สำเร็จให้ครบก่อนประกาศ (${unresolved.length} รายการ)`, 409);
     const itemIds = rows.rows.map((row) => row.application_item_id);
     if (new Set(itemIds).size !== itemIds.length) throw fail('พบใบสมัครซ้ำในผลสอบ โปรดแก้ไขก่อนประกาศผล', 409);
+    await client.query("UPDATE result_import_batches SET status='published',published_by=$1,published_at=now() WHERE id=$2", [adminId, batch.id]);
+    await client.query("DELETE FROM result_import_batches WHERE exam_round_id=$1 AND status='draft' AND id<>$2", [examRoundId, batch.id]);
     const eligibleRows = [];
     for (const row of rows.rows) {
-      const eligible = isFinalEligible(row.award, batch.competition_id, batch.round_type);
-      await client.query(`INSERT INTO results(application_item_id,award,eligible_for_final,published_at,published_by)
-        VALUES($1,$2,$3,now(),$4) ON CONFLICT(application_item_id) DO UPDATE SET
-          award=excluded.award,eligible_for_final=excluded.eligible_for_final,published_at=excluded.published_at,published_by=excluded.published_by`,
-      [row.application_item_id,row.award,eligible,adminId]);
+      const eligible = isFinalEligible(row.award, round.competition_id, round.round_type);
+      await client.query(`INSERT INTO results(
+          application_item_id,award,eligible_for_final,published_at,published_by,
+          published_batch_id,snapshot_exam_round_id,snapshot_competition_id,
+          snapshot_competition_short_name,snapshot_competition_name,snapshot_competition_title,
+          snapshot_year,snapshot_round_type,snapshot_candidate_no,snapshot_grade,
+          snapshot_grade_sort_order,snapshot_school_name,snapshot_candidate_name,
+          snapshot_candidate_name_th,snapshot_needs_review
+        ) VALUES($1,$2,$3,now(),$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,false)
+        ON CONFLICT(application_item_id) DO UPDATE SET
+          award=excluded.award,
+          eligible_for_final=excluded.eligible_for_final,
+          published_at=excluded.published_at,
+          published_by=excluded.published_by,
+          published_batch_id=excluded.published_batch_id,
+          snapshot_exam_round_id=excluded.snapshot_exam_round_id,
+          snapshot_competition_id=excluded.snapshot_competition_id,
+          snapshot_competition_short_name=excluded.snapshot_competition_short_name,
+          snapshot_competition_name=excluded.snapshot_competition_name,
+          snapshot_competition_title=excluded.snapshot_competition_title,
+          snapshot_year=excluded.snapshot_year,
+          snapshot_round_type=excluded.snapshot_round_type,
+          snapshot_candidate_no=excluded.snapshot_candidate_no,
+          snapshot_grade=excluded.snapshot_grade,
+          snapshot_grade_sort_order=excluded.snapshot_grade_sort_order,
+          snapshot_school_name=excluded.snapshot_school_name,
+          snapshot_candidate_name=excluded.snapshot_candidate_name,
+          snapshot_candidate_name_th=excluded.snapshot_candidate_name_th,
+          snapshot_needs_review=false`, [
+        row.application_item_id,
+        row.award,
+        eligible,
+        adminId,
+        batch.id,
+        round.id,
+        round.competition_id,
+        round.short_name,
+        round.competition_name,
+        round.title,
+        round.year,
+        round.round_type,
+        row.candidate_no,
+        row.grade,
+        row.grade_sort_order ?? 999,
+        row.school_name,
+        row.candidate_name,
+        row.candidate_name_th || '',
+      ]);
       if (eligible) eligibleRows.push(row.application_item_id);
     }
-    await client.query("UPDATE result_import_batches SET status='published',published_by=$1,published_at=now() WHERE id=$2", [adminId,batch.id]);
     await client.query(`INSERT INTO audit_logs(actor_user_id,entity_type,entity_id,action,after_data)
-      VALUES($1,'exam_round',$2,'publish_results',$3)`, [adminId,examRoundId,{ batchId: batch.id, rows: rows.rowCount, eligibleForFinal: eligibleRows.length }]);
+      VALUES($1,'exam_round',$2,'publish_results',$3)`, [adminId, examRoundId, { batchId: batch.id, rows: rows.rowCount, eligibleForFinal: eligibleRows.length }]);
     let openedFinalRounds = 0;
-    const nextRoundType = nextExamRoundType(batch.competition_id, batch.round_type);
+    const nextRoundType = nextExamRoundType(round.competition_id, round.round_type);
     if (nextRoundType && eligibleRows.length) {
       const finals = await client.query(`UPDATE exam_rounds final SET is_open=(NOT final.final_manually_closed AND final.open_date IS NOT NULL AND final.close_date IS NOT NULL
           AND (now() AT TIME ZONE 'Asia/Bangkok')::date BETWEEN final.open_date AND final.close_date),updated_at=now()
         WHERE final.active=true AND final.competition_id=$1 AND final.year=$2 AND final.round_type=$3
           AND final.close_date IS NOT NULL
           AND (now() AT TIME ZONE 'Asia/Bangkok')::date<=final.close_date
-        RETURNING final.id,final.is_open`, [batch.competition_id,batch.year,nextRoundType]);
+        RETURNING final.id,final.is_open`, [round.competition_id, round.year, nextRoundType]);
       openedFinalRounds = finals.rows.filter((final) => final.is_open).length;
       for (const heatItemId of eligibleRows) {
         for (const final of finals.rows) await client.query(`INSERT INTO final_invitations(heat_application_item_id,final_exam_round_id)
-          VALUES($1,$2) ON CONFLICT(heat_application_item_id,final_exam_round_id) DO NOTHING`, [heatItemId,final.id]);
+          VALUES($1,$2) ON CONFLICT(heat_application_item_id,final_exam_round_id) DO NOTHING`, [heatItemId, final.id]);
       }
     }
-    return { published: true, rows: rows.rowCount, eligibleForFinal: eligibleRows.length, openedFinalRounds };
+    return { published: true, batchId: batch.id, rows: rows.rowCount, eligibleForFinal: eligibleRows.length, openedFinalRounds };
   });
 }
 
@@ -215,32 +288,61 @@ function yearFilterValues(year) {
   return [...new Set([String(num), counterpart])];
 }
 
+const activePublishedResultGuard = `res.published_at IS NOT NULL AND (
+  NOT EXISTS (
+    SELECT 1 FROM result_import_batches rb_any
+    WHERE rb_any.exam_round_id=ai.exam_round_id AND rb_any.status='published'
+  )
+  OR EXISTS (
+    SELECT 1 FROM result_import_batches rb_active
+    WHERE rb_active.id=res.published_batch_id AND rb_active.status='published'
+  )
+  OR (
+    res.published_batch_id IS NULL
+    AND EXISTS (
+      SELECT 1 FROM result_import_rows ir_active
+      JOIN result_import_batches rb_active ON rb_active.id=ir_active.batch_id AND rb_active.status='published'
+      WHERE ir_active.application_item_id=res.application_item_id
+    )
+  )
+)`;
+
 export async function listPublishedResults(filters = {}) {
-  const conditions = ['res.published_at IS NOT NULL'];
+  const competitionIdExpr = 'coalesce(res.snapshot_competition_id, r.competition_id)';
+  const yearExpr = 'coalesce(res.snapshot_year, r.year)';
+  const roundTypeExpr = 'coalesce(res.snapshot_round_type, r.round_type)';
+  const gradeExpr = 'coalesce(res.snapshot_grade, g.label)';
+  const gradeSortExpr = 'coalesce(res.snapshot_grade_sort_order, g.sort_order)';
+  const candidateNoExpr = "coalesce(res.snapshot_candidate_no, ai.exam_number, '')";
+  const candidateNameExpr = "coalesce(res.snapshot_candidate_name, concat_ws(' ', ap.first_name_en, nullif(ap.middle_name_en, ''), ap.last_name_en))";
+  const candidateNameThExpr = "coalesce(res.snapshot_candidate_name_th, concat_ws(' ', nullif(ap.first_name_th, ''), nullif(ap.last_name_th, '')))";
+  const schoolNameExpr = "coalesce(res.snapshot_school_name, ap.school_name, '')";
+
+  const conditions = [activePublishedResultGuard];
   const params = [];
 
   const competitionId = clean(filters.competitionId, 80).toLowerCase();
   if (competitionId && competitionId !== 'all') {
     params.push(competitionId);
-    conditions.push(`r.competition_id=$${params.length}`);
+    conditions.push(`${competitionIdExpr}=$${params.length}`);
   }
 
   const years = yearFilterValues(filters.year);
   if (years) {
     params.push(years);
-    conditions.push(`r.year=ANY($${params.length}::text[])`);
+    conditions.push(`${yearExpr}=ANY($${params.length}::text[])`);
   }
 
   const roundType = clean(filters.roundType, 32).toUpperCase();
   if (roundType && roundType !== 'ALL') {
     params.push(roundType);
-    conditions.push(`r.round_type=$${params.length}`);
+    conditions.push(`${roundTypeExpr}=$${params.length}`);
   }
 
   const grade = clean(filters.grade, 120);
   if (grade && grade.toLowerCase() !== 'all') {
     params.push(grade);
-    conditions.push(`g.label=$${params.length}`);
+    conditions.push(`${gradeExpr}=$${params.length}`);
   }
 
   const q = clean(filters.q, 255);
@@ -248,10 +350,10 @@ export async function listPublishedResults(filters = {}) {
     params.push(`%${q}%`);
     const idx = params.length;
     conditions.push(`(
-      coalesce(ai.exam_number, '') ILIKE $${idx}
-      OR concat_ws(' ', ap.first_name_en, nullif(ap.middle_name_en, ''), ap.last_name_en) ILIKE $${idx}
-      OR concat_ws(' ', nullif(ap.first_name_th, ''), nullif(ap.last_name_th, '')) ILIKE $${idx}
-      OR coalesce(ap.school_name, '') ILIKE $${idx}
+      ${candidateNoExpr} ILIKE $${idx}
+      OR ${candidateNameExpr} ILIKE $${idx}
+      OR ${candidateNameThExpr} ILIKE $${idx}
+      OR ${schoolNameExpr} ILIKE $${idx}
     )`);
   }
 
@@ -267,17 +369,24 @@ export async function listPublishedResults(filters = {}) {
     limitClause += ` OFFSET $${params.length}`;
   }
 
-  const result = await getPool().query(`SELECT a.id AS application_id,ai.id AS application_item_id,ai.exam_number AS candidate_no,
-      g.label AS grade,g.sort_order AS grade_sort_order,ap.school_name,
-      concat_ws(' ',ap.first_name_en,nullif(ap.middle_name_en,''),ap.last_name_en) AS candidate_name,
-      concat_ws(' ',nullif(ap.first_name_th,''),nullif(ap.last_name_th,'')) AS candidate_name_th,
-      res.award,res.eligible_for_final,res.published_at,r.id AS target_id,r.year,r.round_type,r.title AS competition_title,
-      r.competition_id,c.short_name,c.name AS competition_name
+  const result = await getPool().query(`SELECT a.id AS application_id,ai.id AS application_item_id,
+      ${candidateNoExpr} AS candidate_no,
+      ${gradeExpr} AS grade,${gradeSortExpr} AS grade_sort_order,
+      ${schoolNameExpr} AS school_name,
+      ${candidateNameExpr} AS candidate_name,
+      ${candidateNameThExpr} AS candidate_name_th,
+      res.award,res.eligible_for_final,res.published_at,
+      coalesce(res.snapshot_exam_round_id, r.id) AS target_id,
+      ${yearExpr} AS year,${roundTypeExpr} AS round_type,
+      coalesce(res.snapshot_competition_title, r.title) AS competition_title,
+      ${competitionIdExpr} AS competition_id,
+      coalesce(res.snapshot_competition_short_name, c.short_name) AS short_name,
+      coalesce(res.snapshot_competition_name, c.name) AS competition_name
     FROM results res JOIN application_items ai ON ai.id=res.application_item_id JOIN applications a ON a.id=ai.application_id
     JOIN applicants ap ON ap.id=a.applicant_id JOIN grade_catalog g ON g.id=ai.grade_id JOIN exam_rounds r ON r.id=ai.exam_round_id
     JOIN competitions c ON c.id=r.competition_id
     WHERE ${conditions.join(' AND ')}
-    ORDER BY res.published_at DESC,g.sort_order,ap.last_name_en,ap.first_name_en${limitClause}`, params);
+    ORDER BY res.published_at DESC,${gradeSortExpr},${candidateNameExpr},res.id${limitClause}`, params);
 
   return result.rows.map((row) => ({
     applicationId: row.application_id,
@@ -307,18 +416,25 @@ export async function listPublishedResults(filters = {}) {
 
 export async function listPublishedResultFilters() {
   const [targetsRes, gradesRes] = await Promise.all([
-    getPool().query(`SELECT r.id AS target_id,r.competition_id,c.short_name,c.name AS competition_name,
-        r.title AS competition_title,r.year,r.round_type,MAX(res.published_at) AS published_at,COUNT(*)::int AS result_count
+    getPool().query(`SELECT coalesce(res.snapshot_exam_round_id, r.id) AS target_id,
+        coalesce(res.snapshot_competition_id, r.competition_id) AS competition_id,
+        coalesce(res.snapshot_competition_short_name, c.short_name) AS short_name,
+        coalesce(res.snapshot_competition_name, c.name) AS competition_name,
+        coalesce(res.snapshot_competition_title, r.title) AS competition_title,
+        coalesce(res.snapshot_year, r.year) AS year,
+        coalesce(res.snapshot_round_type, r.round_type) AS round_type,
+        MAX(res.published_at) AS published_at,COUNT(*)::int AS result_count
       FROM results res JOIN application_items ai ON ai.id=res.application_item_id
       JOIN exam_rounds r ON r.id=ai.exam_round_id JOIN competitions c ON c.id=r.competition_id
-      WHERE res.published_at IS NOT NULL
-      GROUP BY r.id,r.competition_id,c.short_name,c.name,r.title,r.year,r.round_type
-      ORDER BY MAX(res.published_at) DESC,r.year DESC,c.short_name`),
-    getPool().query(`SELECT DISTINCT g.label,g.sort_order
+      WHERE ${activePublishedResultGuard}
+      GROUP BY 1,2,3,4,5,6,7
+      ORDER BY MAX(res.published_at) DESC,6 DESC,3`),
+    getPool().query(`SELECT DISTINCT coalesce(res.snapshot_grade, g.label) AS label,
+        coalesce(res.snapshot_grade_sort_order, g.sort_order) AS sort_order
       FROM results res JOIN application_items ai ON ai.id=res.application_item_id
       JOIN grade_catalog g ON g.id=ai.grade_id
-      WHERE res.published_at IS NOT NULL
-      ORDER BY g.sort_order,g.label`),
+      WHERE ${activePublishedResultGuard}
+      ORDER BY 2,1`),
   ]);
 
   const targets = targetsRes.rows.map((row) => ({

@@ -5,6 +5,35 @@ const normalizeName = (value) => String(value || '').normalize('NFKC').trim().re
 const hash = (value) => createHash('sha256').update(value).digest('hex');
 const grantCookieName = 'ocec_final_verification';
 const genericError = () => Object.assign(new Error('ไม่สามารถยืนยันสิทธิ์ Final ได้'), { statusCode: 403 });
+const ambiguousError = () => Object.assign(new Error('พบข้อมูลผู้สมัครตรงกันหลายรายการ ไม่สามารถแยกใบสมัครได้ กรุณาติดต่อเจ้าหน้าที่ OCEC'), { statusCode: 403 });
+
+const activePublishedBatchClause = `(
+  NOT EXISTS (
+    SELECT 1 FROM result_import_batches rb_any
+    WHERE rb_any.exam_round_id=heat_item.exam_round_id AND rb_any.status='published'
+  )
+  OR EXISTS (
+    SELECT 1 FROM result_import_batches rb_active
+    WHERE rb_active.id=res.published_batch_id AND rb_active.status='published'
+  )
+  OR (
+    res.published_batch_id IS NULL
+    AND EXISTS (
+      SELECT 1 FROM result_import_rows ir_active
+      JOIN result_import_batches rb_active ON rb_active.id=ir_active.batch_id AND rb_active.status='published'
+      WHERE ir_active.application_item_id=res.application_item_id
+    )
+  )
+)`;
+
+const eligibleAwardClause = `(
+  (heat_round.round_type='HEAT' AND final_round.round_type='FINAL' AND (
+    (heat_round.competition_id='bbb' AND upper(trim(res.award)) ~ '^(1ST|2ND|3RD)( AWARD)?$')
+    OR (heat_round.competition_id<>'bbb' AND upper(trim(res.award)) ~ '^(GOLD|SILVER|BRONZE)( (MEDAL|AWARD))?$')
+  ))
+  OR (heat_round.round_type='FINAL' AND final_round.round_type='FINAL_X' AND final_round.competition_id='bbb'
+    AND upper(trim(res.award)) ~ '^(GOLD|SILVER|BRONZE)( (MEDAL|AWARD))?$')
+)`;
 
 export function finalGrantTokenFromRequest(request) {
   const raw = request.headers.cookie?.split(';').map((part) => part.trim()).find((part) => part.startsWith(`${grantCookieName}=`));
@@ -20,9 +49,10 @@ export function finalGrantHash(token) { return token ? hash(token) : null; }
 
 const eligibleInvitations = `SELECT fi.id AS invitation_id, fi.heat_application_item_id, fi.final_exam_round_id,
     heat_application.id AS heat_application_id, heat_application.owner_user_id, heat_application.source AS heat_source,
+    heat_application.submitted_at AS heat_submitted_at,
     heat_item.exam_number AS source_exam_number, heat_item.grade_id, heat_item.format, heat_item.center_id, heat_item.online_exam_email,
     ap.first_name_en, ap.middle_name_en, ap.last_name_en, ap.first_name_th, ap.last_name_th,
-    ap.date_of_birth, ap.school_name, ap.contact_email, ap.contact_phone, ap.address,
+    ap.gender, ap.certificate_school_name, ap.date_of_birth, ap.school_name, ap.contact_email, ap.contact_phone, ap.address,
     final_round.title AS competition, final_round.year, final_round.round_type,
     c.id AS competition_id, c.short_name
   FROM final_invitations fi
@@ -34,9 +64,8 @@ const eligibleInvitations = `SELECT fi.id AS invitation_id, fi.heat_application_
   JOIN exam_rounds heat_round ON heat_round.id=heat_item.exam_round_id
   JOIN competitions c ON c.id=final_round.competition_id
   WHERE fi.claimed_application_id IS NULL AND final_round.active=true
-    AND ((heat_round.round_type='HEAT' AND final_round.round_type='FINAL')
-      OR (heat_round.round_type='FINAL' AND final_round.round_type='FINAL_X' AND final_round.competition_id='bbb'
-        AND upper(trim(res.award)) ~ '^(GOLD|SILVER|BRONZE)( (MEDAL|AWARD))?$'))
+    AND ${activePublishedBatchClause}
+    AND ${eligibleAwardClause}
     AND heat_round.year=final_round.year AND final_round.final_manually_closed=false
     AND (now() AT TIME ZONE 'Asia/Bangkok')::date BETWEEN final_round.open_date AND final_round.close_date
     AND heat_round.competition_id=final_round.competition_id`;
@@ -47,7 +76,7 @@ export async function searchSchoolFinalEligibility(candidateName) {
   await ensureFinalXInvitations();
   const result = await getPool().query(`${eligibleInvitations} AND heat_application.source='school'
     AND lower(regexp_replace(trim(concat_ws(' ',ap.first_name_en,nullif(ap.middle_name_en,''),ap.last_name_en)), '[[:space:]]+', ' ', 'g'))=$1
-    ORDER BY final_round.year,final_round.title`, [name]);
+    ORDER BY final_round.year,final_round.title,heat_application.submitted_at DESC`, [name]);
   const seen = new Set();
   return result.rows.filter((row) => {
     if (seen.has(row.final_exam_round_id)) return false;
@@ -63,7 +92,9 @@ export async function createFinalVerificationGrant({ candidateName, finalRoundId
   const matches = await getPool().query(`${eligibleInvitations} AND heat_application.source='school'
     AND final_round.id=$2
     AND lower(regexp_replace(trim(concat_ws(' ',ap.first_name_en,nullif(ap.middle_name_en,''),ap.last_name_en)), '[[:space:]]+', ' ', 'g'))=$1
-    AND right(regexp_replace(ap.contact_phone, '[^0-9]', '', 'g'),4)=$3`, [name, finalRoundId, phoneLast4]);
+    AND right(regexp_replace(ap.contact_phone, '[^0-9]', '', 'g'),4)=$3
+    ORDER BY heat_application.submitted_at DESC`, [name, finalRoundId, phoneLast4]);
+  if (matches.rowCount > 1) throw ambiguousError();
   if (matches.rowCount !== 1) throw genericError();
   const row = matches.rows[0];
   const token = randomBytes(32).toString('base64url');
@@ -92,7 +123,9 @@ function toChoice(row) {
     schoolGrant: row.heat_source === 'school',
     applicant: {
       firstNameEn: row.first_name_en, middleNameEn: row.middle_name_en, lastNameEn: row.last_name_en,
-      firstNameTh: row.first_name_th || '', lastNameTh: row.last_name_th || '', dateOfBirth: row.date_of_birth,
+      firstNameTh: row.first_name_th || '', lastNameTh: row.last_name_th || '',
+      gender: row.gender || '', certificateSchoolName: row.certificate_school_name || '',
+      dateOfBirth: row.date_of_birth,
       schoolName: row.school_name, contactEmail: row.contact_email, contactPhone: row.contact_phone,
       address: row.address || {},
     },
@@ -106,16 +139,18 @@ function toChoice(row) {
 
 export async function listFinalEligibilityForUser(userId, token) {
   await ensureFinalXInvitations();
-  const owned = await getPool().query(`${eligibleInvitations} AND heat_application.source='self'
+  const owned = await getPool().query(`${eligibleInvitations}
+    AND ((heat_round.round_type='HEAT' AND heat_application.source='self')
+      OR (heat_round.round_type='FINAL' AND heat_application.source IN ('final','self')))
     AND heat_application.owner_user_id=$1
-    ORDER BY final_round.year,final_round.title`, [userId]);
+    ORDER BY final_round.year,final_round.title,heat_application.submitted_at DESC,heat_application.id`, [userId]);
   let school = [];
   if (token) {
     const verified = await getPool().query(`${eligibleInvitations} AND heat_application.source='school'
       AND fi.id=(SELECT fg.final_invitation_id FROM final_verification_grants fg
         WHERE fg.token_hash=$2 AND fg.verified_user_id=$1
           AND fg.expires_at>now() AND fg.claimed_at IS NULL)
-      ORDER BY final_round.year,final_round.title`, [userId, hash(token)]);
+      ORDER BY final_round.year,final_round.title,heat_application.submitted_at DESC`, [userId, hash(token)]);
     school = verified.rows;
   }
   return [...owned.rows, ...school].map(toChoice);
@@ -130,5 +165,14 @@ export async function ensureFinalXInvitations(db = getPool()) {
       AND target.round_type='FINAL_X' AND target.active=true
     WHERE source.competition_id='bbb' AND source.round_type='FINAL' AND res.published_at IS NOT NULL
       AND res.eligible_for_final=true AND upper(trim(res.award)) ~ '^(GOLD|SILVER|BRONZE)( (MEDAL|AWARD))?$'
+      AND (
+        NOT EXISTS (SELECT 1 FROM result_import_batches rb_any WHERE rb_any.exam_round_id=ai.exam_round_id AND rb_any.status='published')
+        OR EXISTS (SELECT 1 FROM result_import_batches rb_active WHERE rb_active.id=res.published_batch_id AND rb_active.status='published')
+        OR (res.published_batch_id IS NULL AND EXISTS (
+          SELECT 1 FROM result_import_rows ir_active
+          JOIN result_import_batches rb_active ON rb_active.id=ir_active.batch_id AND rb_active.status='published'
+          WHERE ir_active.application_item_id=res.application_item_id
+        ))
+      )
     ON CONFLICT(heat_application_item_id,final_exam_round_id) DO NOTHING`);
 }

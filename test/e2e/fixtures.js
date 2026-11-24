@@ -33,7 +33,7 @@ export async function closeFixtures() {
   pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 }
 
-export async function createReviewFixture() {
+export async function createReviewFixture({ mimeType = 'image/png' } = {}) {
   const suffix = randomBytes(5).toString('hex');
   const firstName = `Review${suffix}`;
   const owner = await pool.query(`INSERT INTO users(google_sub,email,display_name)
@@ -47,8 +47,13 @@ export async function createReviewFixture() {
   await pool.query(`INSERT INTO application_items(application_id,exam_round_id,grade_id,format,center_id,fee_satang,snapshot,duplicate_key)
     VALUES($1,'bbb-heat-2569',$2,'paper',$3,75500,'{}',$4)`, [application.rows[0].id, grade.rows[0].id, center.rows[0].id, `review-${suffix}`]);
   const payment = await pool.query(`INSERT INTO payments(application_id,expected_satang,status) VALUES($1,75500,'pending') RETURNING id`, [application.rows[0].id]);
-  await pool.query(`INSERT INTO payment_slips(payment_id,file_name,mime_type,content_bytes) VALUES($1,'review.png','image/png',$2)`, [payment.rows[0].id, Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0])]);
-  return { id: application.rows[0].id, name: `${firstName} Student`, firstName, email: `review-${suffix}@example.test`, paymentId: payment.rows[0].id };
+  const isPdf = mimeType === 'application/pdf';
+  const fileName = isPdf ? 'review.pdf' : 'review.png';
+  const contentBytes = isPdf
+    ? Buffer.from('%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n', 'ascii')
+    : Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
+  const slip = await pool.query(`INSERT INTO payment_slips(payment_id,file_name,mime_type,content_bytes,version) VALUES($1,$2,$3,$4,1) RETURNING id,version`, [payment.rows[0].id, fileName, mimeType, contentBytes]);
+  return { id: application.rows[0].id, name: `${firstName} Student`, firstName, email: `review-${suffix}@example.test`, paymentId: payment.rows[0].id, slipId: slip.rows[0].id, slipVersion: slip.rows[0].version };
 }
 
 export async function createPastPaperFixture() {

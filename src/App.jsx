@@ -1567,16 +1567,24 @@ function App() {
     return result;
   }
 
-  async function approveApplication(id, paymentId = null) {
+  async function approveApplication(id, paymentId = null, slipId = null, slipVersion = null) {
     const item = applications.find((entry) => entry.id === id);
     if (BACKEND_ENABLED) {
       try {
         const response = await fetch(`/api/admin/applications/${encodeURIComponent(id)}/review`, {
           method: 'PATCH', credentials: 'same-origin', headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ decision: 'approve', ...(paymentId ? { paymentId } : {}) }),
+          body: JSON.stringify({
+            decision: 'approve',
+            ...(paymentId ? { paymentId } : {}),
+            ...(slipId ? { slipId } : {}),
+            ...(Number.isInteger(slipVersion) && slipVersion >= 1 ? { slipVersion } : {}),
+          }),
         });
         const result = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(result.error || 'อนุมัติใบสมัครไม่สำเร็จ');
+        if (!response.ok) {
+          if (response.status === 409) await refreshApplicationsAfterAdminMutation();
+          throw new Error(result.error || 'อนุมัติใบสมัครไม่สำเร็จ');
+        }
         const refreshWarning = await refreshApplicationsAfterAdminMutation();
         notify((result.paymentOnly ? 'ยืนยันยอดชำระเพิ่มแล้ว' : result.waitingPayments ? 'Portal API ยังใช้เงื่อนไขอนุมัติเวอร์ชันเก่า · กรุณารีสตาร์ต API แล้วดำเนินการอีกครั้ง' : 'อนุมัติใบสมัครแล้ว') + refreshWarning);
         return;
@@ -1762,6 +1770,7 @@ function App() {
       studentInformation: {
         firstName: applicant.firstNameEn, middleName: applicant.middleNameEn || "", lastName: applicant.lastNameEn,
         thaiFirstName: applicant.firstNameTh || "", thaiLastName: applicant.lastNameTh || "",
+        gender: applicant.gender || "", certificateSchoolName: applicant.certificateSchoolName || "",
         dateOfBirth: applicant.dateOfBirth, phone: applicant.contactPhone, email: applicant.contactEmail,
         address1: applicant.address?.address1 || "", address2: applicant.address?.address2 || "",
         city: applicant.address?.city || "", province: applicant.address?.province || "", postalCode: applicant.address?.postalCode || "",

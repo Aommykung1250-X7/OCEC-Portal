@@ -8,8 +8,8 @@ import { dirname, join } from 'node:path';
 import { getPool, transaction } from './db.js';
 import { archiveExamRound, loadCatalog, saveCatalogSnapshot, savePaymentAccountsSnapshot, updateExamRound } from './catalog.js';
 import { registerAuthRoutes, requireAdmin, requireUser } from './auth.js';
-import { createApplicationAdminNote, createIndividualDraft, createSchoolDraft, deleteApplicationAdminNote, downloadCertificatePhoto, getPublicApplicationForEdit, getSlipReplacementStatus, listAllApplications, listApplicationAdminNotes, listMyApplications, removeCertificatePhoto, replacePaymentSlip, reviewApplication, searchPublicApplicationStatuses, submitIndividualApplication, submitSchoolBatch, updateAdminApplication, updateApplicationAdminNote, updateOwnedApplicationProfile, updatePublicApplicationProfile, uploadCertificatePhoto } from './applications.js';
-import { addFilteredApplicationsToMockSheet, completeGoogleWorkspaceAuthorization, createGoogleWorkspaceAuthorizationUrl, downloadGoogleDriveFile, googleWorkspaceStatus, initializeGoogleDriveFolders, organizeExistingGoogleDrivePaymentSlips } from './googleWorkspace.js';
+import { confirmAdminPaymentSlipInspection, createApplicationAdminNote, createIndividualDraft, createSchoolDraft, deleteApplicationAdminNote, downloadCertificatePhoto, getPublicApplicationForEdit, getSlipReplacementStatus, listAllApplications, listApplicationAdminNotes, listMyApplications, loadAdminPaymentSlip, removeCertificatePhoto, replacePaymentSlip, reviewApplication, searchPublicApplicationStatuses, submitIndividualApplication, submitSchoolBatch, updateAdminApplication, updateApplicationAdminNote, updateOwnedApplicationProfile, updatePublicApplicationProfile, uploadCertificatePhoto } from './applications.js';
+import { addFilteredApplicationsToMockSheet, completeGoogleWorkspaceAuthorization, createGoogleWorkspaceAuthorizationUrl, googleWorkspaceStatus, initializeGoogleDriveFolders, organizeExistingGoogleDrivePaymentSlips } from './googleWorkspace.js';
 import { enqueueIntegrationJob, integrationQueueStatus, retryIntegrationJob } from './integrationQueue.js';
 import { applyFinalIds, generateExamNumbers, getFinalIdImport, importFinalIds, importResultRows, listAdminResultWorkflows, listPublishedResultFilters, listPublishedResults, publishResultBatch, resolveFinalIdImportRow, resolveResultImportRow } from './results.js';
 import { createFinalVerificationGrant, finalGrantCookie, finalGrantTokenFromRequest, listFinalEligibilityForUser, searchSchoolFinalEligibility } from './finalEligibility.js';
@@ -54,7 +54,8 @@ app.setErrorHandler((error, request, reply) => {
   request.log.error(error);
   if (error.code === 'GOOGLE_WORKSPACE_NOT_CONNECTED') return reply.code(503).send({ error: error.message });
   const validation = error.validation || error.code === 'FST_ERR_VALIDATION';
-  const status = validation ? 400 : error.code === '23503' || error.code === '23514' ? 400 : error.code === '23505' ? 409 : error.statusCode && error.statusCode < 500 ? error.statusCode : 500;
+  const upstreamStatus = [502, 503, 504].includes(error.statusCode) ? error.statusCode : null;
+  const status = validation ? 400 : error.code === '23503' || error.code === '23514' ? 400 : error.code === '23505' ? 409 : upstreamStatus || (error.statusCode && error.statusCode < 500 ? error.statusCode : 500);
   return reply.code(status).send({ error: status === 500 ? 'Internal server error' : error.message, ...(status === 409 && error.existingApplicationId ? { existingApplicationId: error.existingApplicationId } : {}) });
 });
 
@@ -369,23 +370,34 @@ app.patch('/api/admin/applications/:id', { preHandler: requireAdmin, schema: {
   } },
 } }, async (request) => ({ result: await updateAdminApplication(request.params.id, request.body, request.user.id) }));
 app.get('/api/admin/payment-slips/:id', { preHandler: requireAdmin, schema: { params: { type: 'object', required: ['id'], properties: { id: { type: 'string', format: 'uuid' } } } } }, async (request, reply) => {
-  const result = await getPool().query('SELECT file_name,mime_type,content_bytes,drive_file_id FROM payment_slips WHERE id=$1 ORDER BY version DESC,uploaded_at DESC LIMIT 1', [request.params.id]);
-  const slip = result.rows[0];
-  if (!slip) return reply.code(404).send({ error: 'Payment slip not found' });
-  const content = slip.drive_file_id ? await downloadGoogleDriveFile(slip.drive_file_id) : slip.content_bytes;
-  if (!content) return reply.code(404).send({ error: 'Payment slip is no longer available in Google Drive' });
-  const asciiName = slip.file_name.replace(/[^\x20-\x7e]|["\\]/g, '_').slice(0, 160) || 'payment-slip';
-  const encodedName = encodeURIComponent(slip.file_name).replace(/['()*]/g, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`);
-  return reply.header('Content-Type', slip.mime_type)
+  const slip = await loadAdminPaymentSlip(request.params.id, request.user.id);
+  if (!slip) return reply.code(404).send({ error: 'Payment slip is not available' });
+  const asciiName = slip.fileName.replace(/[^\x20-\x7e]|["\\]/g, '_').slice(0, 160) || 'payment-slip';
+  const encodedName = encodeURIComponent(slip.fileName).replace(/['()*]/g, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`);
+  return reply.header('Content-Type', slip.mimeType)
     .header('Content-Disposition', `inline; filename="${asciiName}"; filename*=UTF-8''${encodedName}`)
     .header('Cache-Control', 'private, no-store')
     .header('X-Content-Type-Options', 'nosniff')
-    .send(content);
+    .header('X-Payment-Id', slip.paymentId)
+    .header('X-Payment-Slip-Id', slip.id)
+    .header('X-Payment-Slip-Version', String(slip.version))
+    .send(slip.content);
 });
+app.post('/api/admin/payment-slips/:id/confirm-inspection', { preHandler: requireAdmin, schema: {
+  params: { type: 'object', required: ['id'], properties: { id: { type: 'string', format: 'uuid' } } },
+  body: { type: 'object', additionalProperties: false, required: ['paymentId', 'slipVersion'], properties: {
+    paymentId: { type: 'string', format: 'uuid' },
+    slipVersion: { type: 'integer', minimum: 1 },
+  } },
+} }, async (request) => confirmAdminPaymentSlipInspection(request.params.id, request.body, request.user.id));
 app.patch('/api/admin/applications/:id/review', { preHandler: requireAdmin, schema: {
   params: { type: 'object', required: ['id'], properties: { id: { type: 'string', format: 'uuid' } } },
   body: { type: 'object', additionalProperties: false, required: ['decision'], properties: {
-    decision: { type: 'string', enum: ['approve', 'slip_issue', 'reject'] }, reason: { type: 'string', maxLength: 240 }, paymentId: { type: 'string', format: 'uuid' },
+    decision: { type: 'string', enum: ['approve', 'slip_issue', 'reject'] },
+    reason: { type: 'string', maxLength: 240 },
+    paymentId: { type: 'string', format: 'uuid' },
+    slipId: { type: 'string', format: 'uuid' },
+    slipVersion: { type: 'integer', minimum: 1 },
   } },
 } }, async (request) => reviewApplication(request.params.id, request.body, request.user.id));
 

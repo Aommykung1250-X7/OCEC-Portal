@@ -31,7 +31,15 @@ export async function installMockGoogleWorkspace() {
   };
   await getPool().query(`INSERT INTO google_workspace_connection(singleton,account_email,encrypted_refresh_token,granted_scopes,
     drive_root_folder_id,slip_root_folder_id,certificate_photo_root_folder_id,spreadsheet_root_folder_id)
-    VALUES(true,'workspace@ocec.test',$1,$2,'mock-root','mock-slip-root','mock-photo-root','mock-sheet-root')`,
+    VALUES(true,'workspace@ocec.test',$1,$2,'mock-root','mock-slip-root','mock-photo-root','mock-sheet-root')
+    ON CONFLICT (singleton) DO UPDATE SET
+      account_email=excluded.account_email,
+      encrypted_refresh_token=excluded.encrypted_refresh_token,
+      granted_scopes=excluded.granted_scopes,
+      drive_root_folder_id=excluded.drive_root_folder_id,
+      slip_root_folder_id=excluded.slip_root_folder_id,
+      certificate_photo_root_folder_id=excluded.certificate_photo_root_folder_id,
+      spreadsheet_root_folder_id=excluded.spreadsheet_root_folder_id`,
   [encryptedToken('mock-refresh-token'), [
     'openid', 'email', 'https://www.googleapis.com/auth/drive.file',
     'https://www.googleapis.com/auth/gmail.send', 'https://www.googleapis.com/auth/spreadsheets',

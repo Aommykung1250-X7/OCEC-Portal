@@ -31,9 +31,10 @@ export function DemoTransferSlip({ application, amount, className = "" }) {
   );
 }
 
-export function ReviewSlipDialog({ application, amount, fileName, dataUrl, fileType, backendEnabled, onClose }) {
+export function ReviewSlipDialog({ application, amount, fileName, dataUrl, fileType, backendEnabled, loading = false, loadError = "", slipConfirmed = false, confirmingSlip = false, onConfirmSlip = null, onClose }) {
   const dialogRef = useRef(null);
   const title = `หลักฐานการชำระเงินโอนเงินของ ${application.candidate}`;
+  const documentLoaded = !backendEnabled || (!loading && !loadError && Boolean(dataUrl));
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -48,12 +49,27 @@ export function ReviewSlipDialog({ application, amount, fileName, dataUrl, fileT
     <dialog ref={dialogRef} className="review-slip-dialog fixed inset-0 m-auto hidden h-fit w-[calc(100vw-32px)] max-h-[92dvh] max-w-[920px] overflow-hidden rounded-[14px] border border-[#e3e6ed] bg-white p-[14px] text-[#334761] shadow-[0_22px_80px_rgba(23,36,59,0.24)] open:grid max-[540px]:w-[calc(100vw-20px)] max-[540px]:p-[10px] backdrop:bg-[rgba(20,30,49,0.72)]" aria-label={title} onClose={onClose} onClick={(event) => { if (event.target === dialogRef.current) closeDialog(); }}>
       <div className="review-slip-dialog-head flex items-center justify-between gap-3 border-b border-[#e8ebf1] pb-[10px]">
         <div className="grid min-w-0 gap-[3px]"><strong className="text-[15px]">หลักฐานการชำระเงินโอนเงิน</strong><small className="truncate text-[12px] text-[#77869b]">{fileName}</small></div>
-        <button type="button" className="review-slip-dialog-close grid h-11 w-11 flex-none place-items-center rounded-[9px] border border-[#e3e6ed] bg-white text-[#435570] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#7773c2]" aria-label="ปิดภาพหลักฐานการชำระเงิน" onClick={closeDialog}><Icon name="close" size={17} /></button>
+        <div className="flex items-center gap-2">
+          {onConfirmSlip ? (
+            slipConfirmed ? (
+              <span className="inline-flex items-center gap-1 rounded-lg border border-[#b9e4c9] bg-[#eefaf2] px-2.5 py-1.5 text-xs font-semibold text-[#1f6b3b]">
+                <Icon name="check" size={14} />ยืนยันการตรวจแล้ว
+              </span>
+            ) : (
+              <Button type="button" className="min-h-10 px-3 text-xs" icon="check" disabled={confirmingSlip || !documentLoaded} onClick={async () => { if (await onConfirmSlip()) closeDialog(); }}>
+                {confirmingSlip ? "กำลังยืนยัน…" : "ยืนยันว่าตรวจสลิปแล้ว"}
+              </Button>
+            )
+          ) : null}
+          <button type="button" className="review-slip-dialog-close grid h-11 w-11 flex-none place-items-center rounded-[9px] border border-[#e3e6ed] bg-white text-[#435570] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#7773c2]" aria-label="ปิดภาพหลักฐานการชำระเงิน" onClick={closeDialog}><Icon name="close" size={17} /></button>
+        </div>
       </div>
       <div className="review-slip-dialog-content grid max-h-[calc(92dvh-78px)] place-items-center overflow-auto pt-[10px] max-[540px]:max-h-[calc(92dvh-70px)]">
-        {dataUrl && fileType.startsWith("image/") ? <img className="review-slip-dialog-image h-auto w-auto max-h-[calc(92dvh-105px)] max-w-full object-contain" src={dataUrl} alt={title} />
-          : dataUrl && fileType === "application/pdf" ? <iframe className="review-slip-dialog-pdf h-[calc(92dvh-100px)] w-[min(100%,880px)] rounded-[7px] border-0 bg-white" src={dataUrl} title={title} />
-            : backendEnabled ? <div className="review-slip-empty"><Icon name="info" /><strong>ไม่พบไฟล์หลักฐานการชำระเงินใน Portal</strong><small>ตรวจสอบข้อมูลไฟล์บน Google Drive หรืออัปโหลดหลักฐานการชำระเงินใหม่</small></div> : <DemoTransferSlip application={application} amount={amount} className="h-[min(78dvh,780px)] w-auto max-w-full object-contain" />}
+        {loading ? <div className="review-slip-empty"><Icon name="clock" /><strong>กำลังเปิดไฟล์หลักฐานการชำระเงิน…</strong><small>โปรดรอให้เอกสารโหลดเสร็จก่อนกดยืนยันการตรวจ</small></div>
+          : loadError ? <div className="review-slip-empty"><Icon name="info" /><strong>ไม่สามารถเปิดไฟล์หลักฐานการชำระเงินได้</strong><small>{loadError}</small></div>
+            : dataUrl && fileType.startsWith("image/") ? <img className="review-slip-dialog-image h-auto w-auto max-h-[calc(92dvh-105px)] max-w-full object-contain" src={dataUrl} alt={title} />
+              : dataUrl && fileType === "application/pdf" ? <iframe className="review-slip-dialog-pdf h-[calc(92dvh-100px)] w-[min(100%,880px)] rounded-[7px] border-0 bg-white" src={dataUrl} title={title} />
+                : backendEnabled ? <div className="review-slip-empty"><Icon name="info" /><strong>ไม่พบไฟล์หลักฐานการชำระเงินใน Portal</strong><small>ตรวจสอบข้อมูลไฟล์บน Google Drive หรืออัปโหลดหลักฐานการชำระเงินใหม่</small></div> : <DemoTransferSlip application={application} amount={amount} className="h-[min(78dvh,780px)] w-auto max-w-full object-contain" />}
       </div>
     </dialog>
   );
