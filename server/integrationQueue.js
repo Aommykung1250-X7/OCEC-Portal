@@ -47,7 +47,10 @@ export async function integrationQueueStatus() {
   ]);
   return {
     counts: counts.rows,
-    jobs: jobs.rows.map((job) => ({ ...job, last_error: job.last_error ? String(job.last_error).slice(0, 300) : null })),
+    jobs: jobs.rows.map((job) => {
+      const lastError = job.last_error ? String(job.last_error).slice(0, 300) : null;
+      return { ...job, last_error: lastError, manualReviewRequired: Boolean(lastError?.startsWith('MANUAL_REVIEW_REQUIRED:')) };
+    }),
     sheets: sheets.rows[0] || { approved_items: 0, synced_items: 0 },
     workbooks: workbooks.rows,
   };

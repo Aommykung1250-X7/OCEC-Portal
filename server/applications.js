@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { getPool, transaction } from './db.js';
-import { assertApplicationAccess, VERIFIED_DELEGATION_EXISTS_SQL } from './applicationAccess.js';
+import { assertApplicationAccess, ACCOUNT_APPLICATION_ACCESS_SQL } from './applicationAccess.js';
 import { finalGrantHash, ensureFinalXInvitations } from './finalEligibility.js';
 import { deleteGoogleDriveFile, downloadGoogleDriveFile, uploadGoogleDriveFile } from './googleWorkspace.js';
 import { encryptQueuedEmailText, enqueueIntegrationJob } from './integrationQueue.js';
@@ -1660,7 +1660,7 @@ async function queryApplications({ userId = null, excludeDrafts = false, applica
       'at',al.created_at,'changes',al.after_data->'changes') ORDER BY al.created_at DESC),'[]'::json) AS change_history
       FROM audit_logs al LEFT JOIN users u ON u.id=al.actor_user_id
       WHERE al.entity_type='application' AND al.entity_id=a.id::text AND al.action IN ('edit_profile','admin_edit')) edit_history ON true
-    WHERE ($1::uuid IS NULL OR a.owner_user_id=$1 OR ${VERIFIED_DELEGATION_EXISTS_SQL})
+    WHERE ${ACCOUNT_APPLICATION_ACCESS_SQL}
       AND (NOT $2::boolean OR a.status <> 'draft')
       AND ($3::uuid IS NULL OR a.id=$3)
     ORDER BY a.submitted_at DESC, r.year DESC, c.short_name`, [userId, excludeDrafts, applicationId]);

@@ -28,10 +28,16 @@ export function parseCatalogRevision(rawValue) {
   return parsed;
 }
 
-async function assertAndBumpCatalogRevision(client, { expectedRevision = null, expectedRevisionSource = 'body', actorId = null } = {}) {
+async function assertAndBumpCatalogRevision(client, { expectedRevision = null, expectedRevisionSource = 'body', actorId = null, requireRevision = false } = {}) {
   await client.query('INSERT INTO catalog_revisions(singleton, revision) VALUES(true, 1) ON CONFLICT (singleton) DO NOTHING');
   const currentResult = await client.query('SELECT revision FROM catalog_revisions WHERE singleton=true FOR UPDATE');
   const currentRevision = Number(currentResult.rows[0]?.revision || 1);
+  if (requireRevision && expectedRevision == null) {
+    const error = fail('ต้องระบุเลขเวอร์ชันแค็ตตาล็อก (If-Match หรือ expectedRevision) ก่อนบันทึก', 428);
+    error.code = 'CATALOG_REVISION_REQUIRED';
+    error.currentRevision = currentRevision;
+    throw error;
+  }
   if (expectedRevision != null && Number(expectedRevision) !== currentRevision) {
     const error = fail('ข้อมูลแค็ตตาล็อกมีการเปลี่ยนแปลงโดยผู้ดูแลระบบท่านอื่น โปรดโหลดข้อมูลล่าสุดใหม่ก่อนบันทึก', expectedRevisionSource === 'if-match' ? 412 : 409);
     error.code = 'CATALOG_REVISION_CONFLICT';
@@ -42,22 +48,25 @@ async function assertAndBumpCatalogRevision(client, { expectedRevision = null, e
   return Number(bumped.rows[0].revision);
 }
 
-export async function loadCatalog() {
-  const [rounds, grades, centers, links, pastPapers, accounts, competitions, centerPoster, shirtImages, revisionResult] = await Promise.all([
-    getPool().query('SELECT * FROM exam_rounds WHERE active=true ORDER BY year DESC, title'),
-    getPool().query('SELECT * FROM grade_catalog WHERE active=true ORDER BY sort_order, label'),
-    getPool().query('SELECT * FROM exam_centers ORDER BY code'),
-    getPool().query(`SELECT exam_round_id, grade_id, NULL::text AS center_id FROM exam_round_grades
-      UNION ALL
-      SELECT rc.exam_round_id, NULL::text, rc.center_id FROM exam_round_centers rc
-      JOIN exam_centers ec ON ec.id=rc.center_id WHERE ec.code <> '500'`),
-    getPool().query('SELECT * FROM past_papers WHERE archived=false ORDER BY group_name, id'),
-    getPool().query('SELECT * FROM payment_accounts WHERE active=true ORDER BY id'),
-    getPool().query('SELECT * FROM competitions ORDER BY id'),
-    getPool().query("SELECT to_char(updated_at AT TIME ZONE 'UTC', 'YYYYMMDDHH24MISSUS') AS version FROM application_center_poster WHERE id=1"),
-    getPool().query("SELECT kind,to_char(updated_at AT TIME ZONE 'UTC', 'YYYYMMDDHH24MISSUS') AS version FROM final_shirt_images"),
-    getPool().query('SELECT revision FROM catalog_revisions WHERE singleton=true'),
-  ]);
+/**
+ * Read all catalog tables and `catalog_revisions` sequentially on ONE client
+ * so callers inside a REPEATABLE READ or write transaction always get a
+ * consistent data + revision snapshot.
+ */
+async function loadCatalogWithClient(client) {
+  const rounds = await client.query('SELECT * FROM exam_rounds WHERE active=true ORDER BY year DESC, title');
+  const grades = await client.query('SELECT * FROM grade_catalog WHERE active=true ORDER BY sort_order, label');
+  const centers = await client.query('SELECT * FROM exam_centers ORDER BY code');
+  const links = await client.query(`SELECT exam_round_id, grade_id, NULL::text AS center_id FROM exam_round_grades
+    UNION ALL
+    SELECT rc.exam_round_id, NULL::text, rc.center_id FROM exam_round_centers rc
+    JOIN exam_centers ec ON ec.id=rc.center_id WHERE ec.code <> '500'`);
+  const pastPapers = await client.query('SELECT * FROM past_papers WHERE archived=false ORDER BY group_name, id');
+  const accounts = await client.query('SELECT * FROM payment_accounts WHERE active=true ORDER BY id');
+  const competitions = await client.query('SELECT * FROM competitions ORDER BY id');
+  const centerPoster = await client.query("SELECT to_char(updated_at AT TIME ZONE 'UTC', 'YYYYMMDDHH24MISSUS') AS version FROM application_center_poster WHERE id=1");
+  const shirtImages = await client.query("SELECT kind,to_char(updated_at AT TIME ZONE 'UTC', 'YYYYMMDDHH24MISSUS') AS version FROM final_shirt_images");
+  const revisionResult = await client.query('SELECT revision FROM catalog_revisions WHERE singleton=true');
   const gradeById = new Map(grades.rows.map((grade) => [grade.id, grade.label]));
   const gradeOrder = new Map(grades.rows.map((grade, index) => [grade.label, index]));
   const today = bangkokToday();
@@ -88,6 +97,21 @@ export async function loadCatalog() {
     finalShirtImages: Object.fromEntries(shirtImages.rows.map(row => [row.kind,row.version])),
     revision: Number(revisionResult.rows[0]?.revision || 1),
   };
+}
+
+export async function loadCatalog() {
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY');
+    const snapshot = await loadCatalogWithClient(client);
+    await client.query('COMMIT');
+    return snapshot;
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 const fail = (message, statusCode = 400) => Object.assign(new Error(message), { statusCode });
@@ -137,7 +161,7 @@ export function normalizePaymentAccounts(paymentAccounts) {
 
 async function persistPaymentAccounts(accounts, actorId, action, revisionOptions = {}) {
   return transaction(async (client) => {
-    const nextRevision = await assertAndBumpCatalogRevision(client, { ...revisionOptions, actorId });
+    await assertAndBumpCatalogRevision(client, { ...revisionOptions, actorId });
     const before = await catalogAuditSnapshot(client);
     await client.query('UPDATE payment_accounts SET active=false');
     for (const account of accounts) await client.query(`INSERT INTO payment_accounts(id,bank_name,account_name,account_number,category,show_in_form,active)
@@ -147,16 +171,15 @@ async function persistPaymentAccounts(accounts, actorId, action, revisionOptions
     const after = await catalogAuditSnapshot(client);
     await client.query(`INSERT INTO audit_logs(actor_user_id,entity_type,entity_id,action,before_data,after_data)
       VALUES($1,'catalog','payment-accounts',$2,$3,$4)`, [actorId, action, before, after]);
-    return nextRevision;
+    const catalog = await loadCatalogWithClient(client);
+    return { paymentAccounts: catalog.paymentAccounts, revision: catalog.revision };
   });
 }
 
 /** Persist just the payment-account selection, independent from unrelated catalog validation. */
 export async function savePaymentAccountsSnapshot(paymentAccounts, actorId, revisionOptions = {}) {
   const accounts = normalizePaymentAccounts(paymentAccounts);
-  const revision = await persistPaymentAccounts(accounts, actorId, 'payment_accounts_replace', revisionOptions);
-  const catalog = await loadCatalog();
-  return { paymentAccounts: catalog.paymentAccounts, revision };
+  return persistPaymentAccounts(accounts, actorId, 'payment_accounts_replace', revisionOptions);
 }
 
 function normalizeGeneralCatalogSections(snapshot) {
@@ -227,10 +250,11 @@ function normalizeGeneralCatalogSections(snapshot) {
 export async function saveGeneralCatalogOptions(snapshot, actorId, revisionOptions = {}) {
   const { duplicateGradeIds, grades, centers, competitions, papers } = normalizeGeneralCatalogSections(snapshot);
   const expectedRevision = revisionOptions.expectedRevision ?? parseCatalogRevision(snapshot?.expectedRevision ?? snapshot?.revision);
-  await transaction(async (client) => {
+  return transaction(async (client) => {
     await assertAndBumpCatalogRevision(client, {
       expectedRevision,
       expectedRevisionSource: revisionOptions.expectedRevisionSource || 'body',
+      requireRevision: revisionOptions.requireRevision === true,
       actorId,
     });
     if (duplicateGradeIds.length) {
@@ -302,8 +326,8 @@ export async function saveGeneralCatalogOptions(snapshot, actorId, revisionOptio
     const after = await catalogAuditSnapshot(client);
     await client.query(`INSERT INTO audit_logs(actor_user_id,entity_type,entity_id,action,before_data,after_data)
       VALUES($1,'catalog','options','options_replace',$2,$3)`, [actorId, before, after]);
+    return loadCatalogWithClient(client);
   });
-  return loadCatalog();
 }
 
 /** Create one or more new exam rounds independently of general catalog or payment account snapshots. */
@@ -329,8 +353,8 @@ export async function createExamRounds(examsInput, actorId, revisionOptions = {}
     return Math.round(amount * 100);
   };
 
-  const revision = await transaction(async (client) => {
-    const nextRevision = await assertAndBumpCatalogRevision(client, { ...revisionOptions, actorId });
+  return transaction(async (client) => {
+    await assertAndBumpCatalogRevision(client, { ...revisionOptions, actorId });
     const gradesResult = await client.query('SELECT id, label FROM grade_catalog WHERE active=true');
     const gradeIdByLabel = new Map(gradesResult.rows.map((row) => [row.label.toLocaleLowerCase(), row.id]));
     const centersResult = await client.query("SELECT id FROM exam_centers WHERE active=true AND code <> '500'");
@@ -396,10 +420,9 @@ export async function createExamRounds(examsInput, actorId, revisionOptions = {}
       await client.query(`INSERT INTO audit_logs(actor_user_id,entity_type,entity_id,action,after_data)
         VALUES($1,'exam_round',$2,'create',$3)`, [actorId, id, { id, competitionId, title, year, roundType: type }]);
     }
-    return nextRevision;
+    const catalog = await loadCatalogWithClient(client);
+    return { exams: catalog.exams, revision: catalog.revision };
   });
-  const catalog = await loadCatalog();
-  return { exams: catalog.exams, revision };
 }
 
 async function catalogAuditSnapshot(client) {
@@ -479,10 +502,11 @@ export async function saveCatalogSnapshot(snapshot, actorId, revisionOptions = {
   });
   const accounts = normalizePaymentAccounts(snapshot.paymentAccounts);
 
-  await transaction(async (client) => {
+  return transaction(async (client) => {
     await assertAndBumpCatalogRevision(client, {
       expectedRevision,
       expectedRevisionSource: revisionOptions.expectedRevisionSource || 'body',
+      requireRevision: revisionOptions.requireRevision === true,
       actorId,
     });
     if (duplicateGradeIds.length) {
@@ -568,8 +592,8 @@ export async function saveCatalogSnapshot(snapshot, actorId, revisionOptions = {
     const after = await catalogAuditSnapshot(client);
     await client.query(`INSERT INTO audit_logs(actor_user_id,entity_type,entity_id,action,before_data,after_data)
       VALUES($1,'catalog','all','replace',$2,$3)`, [actorId, before, after]);
+    return loadCatalogWithClient(client);
   });
-  return loadCatalog();
 }
 
 export async function archiveExamRound(id, actorId, revisionOptions = {}) {
@@ -687,6 +711,11 @@ export async function updateExamRound(id, patch, actorId, revisionOptions = {}) 
     }
     const after = await client.query('SELECT * FROM exam_rounds WHERE id=$1', [id]);
     await client.query('INSERT INTO audit_logs(actor_user_id, entity_type, entity_id, action, before_data, after_data) VALUES($1,$2,$3,$4,$5,$6)', [actorId, 'exam_round', id, 'update', prior.rows[0], after.rows[0]]);
-    return after.rows[0];
+    const catalog = await loadCatalogWithClient(client);
+    return {
+      ...after.rows[0],
+      exam: catalog.exams.find((exam) => exam.id === id) || null,
+      revision: catalog.revision,
+    };
   });
 }

@@ -58,7 +58,7 @@ export async function ensureApplicationSheetLayout(request,spreadsheetId,title) 
   if (!sheet) throw new Error(`Application worksheet not found: ${title}`);
   const head=await request(`${url}/values/${range(title,'A1:AK1')}`);
   const headers=head.values?.[0]||[];
-  if (same(headers,APPLICATION_HEADERS)) return sheet;
+  if (headers.length >= APPLICATION_HEADERS.length && same(headers.slice(0, APPLICATION_HEADERS.length), APPLICATION_HEADERS)) return sheet;
   const requests=[];
   if (headers.length) {
     const legacy = same(headers,LEGACY_APPLICATION_HEADERS);
@@ -118,78 +118,97 @@ export async function readApplicationSheetRows(request,spreadsheetId,title) {
   return values;
 }
 
-/**
- * Clear a single application item row by its developer metadata (`ocecApplicationItemId`),
- * using Google Sheets `values:batchClearByDataFilter` directly and deleting the row's
- * developer metadata afterward so repeated executions are safe no-ops.
- */
-export async function clearApplicationSheetRowByItemId(request, spreadsheetId, title, itemId, { expectedSheetId = null } = {}) {
-  const normalizedItemId = String(itemId || '').trim();
-  if (!normalizedItemId) throw new Error('Application Item ID is required to clear a Google Sheets row');
-  const sheet = await ensureApplicationSheetLayout(request, spreadsheetId, title);
-  if (expectedSheetId != null && Number(sheet.sheetId) !== Number(expectedSheetId)) {
-    throw new Error(`Google Sheets target mismatch for item ${normalizedItemId}: expected sheetId ${expectedSheetId}, found ${sheet.sheetId} (${title})`);
-  }
-  const url = base(spreadsheetId);
-  const lookup = {
-    metadataKey: APPLICATION_ITEM_METADATA_KEY,
-    metadataValue: normalizedItemId,
-    locationType: 'ROW',
-    visibility: 'DOCUMENT',
-  };
-  const found = await request(`${url}/developerMetadata:search`, post({ dataFilters: [{ developerMetadataLookup: lookup }] }));
-  const matched = (found.matchedDeveloperMetadata || []).map((entry) => entry.developerMetadata).filter((meta) => meta?.location?.dimensionRange);
-  const sameSheet = matched.filter((meta) => meta.location.dimensionRange.sheetId === sheet.sheetId);
-  const otherSheet = matched.filter((meta) => meta.location.dimensionRange.sheetId !== sheet.sheetId);
-
-  if (sameSheet.length > 1) {
-    throw new Error(`Duplicate application row metadata for ${normalizedItemId}; clear stopped`);
-  }
-  if (!sameSheet.length && otherSheet.length) {
-    throw new Error(`Application item ${normalizedItemId} metadata found on unexpected sheetId ${otherSheet[0].location.dimensionRange.sheetId} instead of ${sheet.sheetId}; clear stopped`);
-  }
-  if (!sameSheet.length) {
-    return { cleared: false, alreadyCleared: true, itemId: normalizedItemId, sheetId: sheet.sheetId };
-  }
-
-  const target = sameSheet[0];
-  const rowNumber = target.location.dimensionRange.startIndex + 1;
-  await request(`${url}/values:batchClearByDataFilter`, post({
-    dataFilters: [{ developerMetadataLookup: lookup }],
-  }));
-  await request(`${url}:batchUpdate`, post({
-    requests: [{
-      deleteDeveloperMetadata: {
-        dataFilter: {
-          developerMetadataLookup: {
-            ...lookup,
-            ...(target.metadataId != null ? { metadataId: target.metadataId } : {}),
-          },
-        },
-      },
-    }],
-  }));
-  return { cleared: true, alreadyCleared: false, itemId: normalizedItemId, sheetId: sheet.sheetId, rowNumber };
+function manualReviewError(message) {
+  const error = new Error(message);
+  error.manualReviewRequired = true;
+  return error;
 }
 
 /**
- * Inspect a specific row index for legacy `sheets.clear_row` jobs that predate
- * storing `applicationItemId` in the outbox payload.
+ * Clear ONLY the Portal-managed columns (`0..APPLICATION_HEADERS.length`, A:Z)
+ * on the single verified target row identified by developer metadata
+ * (`ocecApplicationItemId`), preserving any staff-added columns (`AA+`).
+ *
+ * Uses one atomic `spreadsheets.batchUpdate` (`updateCells` with explicit
+ * `GridRange` + `deleteDeveloperMetadata`) so repeated executions are safe no-ops.
+ * Stops with `manualReviewRequired = true` on any duplicate metadata (same-tab or
+ * cross-tab), target mismatch, or unsafe metadata location.
  */
-export async function inspectSheetRowForLegacyClear(request, spreadsheetId, title, rowNumber) {
+export async function clearApplicationSheetRowByItemId(request, spreadsheetId, title, itemId, { expectedSheetId = null } = {}) {
+  const normalizedItemId = String(itemId || '').trim();
+  if (!normalizedItemId) throw manualReviewError('Application Item ID is required to clear a Google Sheets row');
   const sheet = await ensureApplicationSheetLayout(request, spreadsheetId, title);
+  if (expectedSheetId != null && Number(sheet.sheetId) !== Number(expectedSheetId)) {
+    throw manualReviewError(`Google Sheets target mismatch for item ${normalizedItemId}: expected sheetId ${expectedSheetId}, found ${sheet.sheetId} (${title})`);
+  }
   const url = base(spreadsheetId);
-  const found = await request(`${url}/developerMetadata:search`, post({
-    dataFilters: [{ developerMetadataLookup: { metadataKey: APPLICATION_ITEM_METADATA_KEY, locationType: 'ROW', visibility: 'DOCUMENT' } }],
+  const searchLookup = {
+    metadataKey: APPLICATION_ITEM_METADATA_KEY,
+    metadataValue: normalizedItemId,
+    visibility: 'DOCUMENT',
+  };
+  const found = await request(`${url}/developerMetadata:search`, post({ dataFilters: [{ developerMetadataLookup: searchLookup }] }));
+  const matched = (found.matchedDeveloperMetadata || []).map((entry) => entry.developerMetadata).filter(Boolean);
+
+  if (matched.length > 1) {
+    const sheetIds = matched.map((meta) => meta?.location?.dimensionRange?.sheetId ?? 'unknown');
+    throw manualReviewError(`Duplicate application row metadata for ${normalizedItemId} found in ${matched.length} locations (sheetIds: ${sheetIds.join(', ')}); clear stopped`);
+  }
+  if (!matched.length) {
+    return { cleared: false, alreadyCleared: true, itemId: normalizedItemId, sheetId: sheet.sheetId };
+  }
+
+  const target = matched[0];
+  const dimRange = target?.location?.dimensionRange;
+  if (
+    !dimRange
+    || dimRange.dimension !== 'ROWS'
+    || !Number.isInteger(dimRange.startIndex)
+    || dimRange.startIndex < 1
+    || dimRange.endIndex !== dimRange.startIndex + 1
+  ) {
+    throw manualReviewError(`Unsafe metadata range for item ${normalizedItemId}; clear stopped`);
+  }
+  if (Number(dimRange.sheetId) !== Number(sheet.sheetId)) {
+    throw manualReviewError(`Application item ${normalizedItemId} metadata found on unexpected sheetId ${dimRange.sheetId} instead of ${sheet.sheetId}; clear stopped`);
+  }
+
+  const rowNumber = dimRange.startIndex + 1;
+  await request(`${url}:batchUpdate`, post({
+    requests: [
+      {
+        updateCells: {
+          range: {
+            sheetId: sheet.sheetId,
+            startRowIndex: dimRange.startIndex,
+            endRowIndex: dimRange.startIndex + 1,
+            startColumnIndex: 0,
+            endColumnIndex: APPLICATION_HEADERS.length,
+          },
+          fields: 'userEnteredValue',
+        },
+      },
+      {
+        deleteDeveloperMetadata: {
+          dataFilter: {
+            developerMetadataLookup: {
+              metadataKey: APPLICATION_ITEM_METADATA_KEY,
+              metadataValue: normalizedItemId,
+              locationType: 'ROW',
+              visibility: 'DOCUMENT',
+              ...(target.metadataId != null ? { metadataId: target.metadataId } : {}),
+            },
+          },
+        },
+      },
+    ],
   }));
-  const rowIndex = Number(rowNumber) - 1;
-  const metadataValues = (found.matchedDeveloperMetadata || [])
-    .map((entry) => entry.developerMetadata)
-    .filter((meta) => meta?.location?.dimensionRange?.sheetId === sheet.sheetId && meta.location.dimensionRange.startIndex === rowIndex)
-    .map((meta) => String(meta.metadataValue || '').trim())
-    .filter(Boolean);
-  const valuesResult = await request(`${url}/values/${range(title, `A${rowNumber}:Z${rowNumber}`)}`);
-  const cells = valuesResult.values?.[0] || [];
-  const hasNonEmptyValues = cells.some((cell) => String(cell ?? '').trim() !== '');
-  return { sheet, metadataValues, hasNonEmptyValues };
+  return {
+    cleared: true,
+    alreadyCleared: false,
+    itemId: normalizedItemId,
+    sheetId: sheet.sheetId,
+    rowNumber,
+    clearedColumnCount: APPLICATION_HEADERS.length,
+  };
 }

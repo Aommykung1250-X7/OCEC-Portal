@@ -1,4 +1,4 @@
-import { APPLICATION_HEADERS, APPLICATION_HEADERS_WITH_MIDDLE, LEGACY_APPLICATION_HEADERS, applicationValuesFromPrevious, applicationValuesFromLegacy, clearApplicationSheetRowByItemId, ensureApplicationSheetLayout, inspectSheetRowForLegacyClear, writeApplicationSheetRow, readApplicationSheetRows } from './applicationSheetLayout.js';
+import { APPLICATION_HEADERS, APPLICATION_HEADERS_WITH_MIDDLE, LEGACY_APPLICATION_HEADERS, applicationValuesFromPrevious, applicationValuesFromLegacy, clearApplicationSheetRowByItemId, ensureApplicationSheetLayout, writeApplicationSheetRow, readApplicationSheetRows } from './applicationSheetLayout.js';
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 import { getPool } from './db.js';
 import { paymentSlipDisplayName, paymentSlipFileName, paymentSlipFileNameBase, paymentSlipFolderName, paymentSlipYear } from './paymentSlipFiles.js';
@@ -708,6 +708,12 @@ export async function syncGoogleWorkspaceSheetItem(applicationItemId) {
   return { applicationItemId, ...result };
 }
 
+function manualReviewError(message) {
+  const error = new Error(message);
+  error.manualReviewRequired = true;
+  return error;
+}
+
 export async function clearGoogleWorkspaceSheetRow(jobOrExamRoundId, legacyRowNumber = null) {
   const payload = jobOrExamRoundId && typeof jobOrExamRoundId === 'object'
     ? jobOrExamRoundId
@@ -720,28 +726,28 @@ export async function clearGoogleWorkspaceSheetRow(jobOrExamRoundId, legacyRowNu
   const expectedAcademicYear = payload.academicYear ? String(payload.academicYear).trim() : null;
   const legacyRow = payload.spreadsheetRow ?? payload.legacySpreadsheetRow ?? null;
 
-  if (!examRoundId) throw new Error('Exam round ID is required to clear a Google Sheets row');
+  if (!examRoundId) throw manualReviewError('Exam round ID is required to clear a Google Sheets row');
   const location = await getPool().query(`SELECT t.sheet_id, t.title, s.drive_file_id, s.academic_year, s.spreadsheet_url
     FROM google_workspace_sheet_tabs t JOIN google_workspace_spreadsheets s ON s.academic_year=t.academic_year
     WHERE t.exam_round_id=$1`, [examRoundId]);
   if (!location.rowCount) {
     if (expectedSpreadsheetId || expectedSheetTitle || expectedAcademicYear) {
-      throw new Error(`Google Sheets target mismatch for round ${examRoundId}: tab is no longer registered`);
+      throw manualReviewError(`Google Sheets target mismatch for round ${examRoundId}: tab is no longer registered`);
     }
     return { skipped: true, reason: 'Exam round does not have a Google Sheets tab' };
   }
   const tab = location.rows[0];
   if (expectedSpreadsheetId && expectedSpreadsheetId !== tab.drive_file_id) {
-    throw new Error(`Google Sheets target mismatch for round ${examRoundId}: expected spreadsheet ${expectedSpreadsheetId}, found ${tab.drive_file_id}`);
+    throw manualReviewError(`Google Sheets target mismatch for round ${examRoundId}: expected spreadsheet ${expectedSpreadsheetId}, found ${tab.drive_file_id}`);
   }
   if (expectedSheetId != null && Number.isFinite(expectedSheetId) && Number(tab.sheet_id) !== expectedSheetId) {
-    throw new Error(`Google Sheets target mismatch for round ${examRoundId}: expected sheetId ${expectedSheetId}, found ${tab.sheet_id}`);
+    throw manualReviewError(`Google Sheets target mismatch for round ${examRoundId}: expected sheetId ${expectedSheetId}, found ${tab.sheet_id}`);
   }
   if (expectedSheetTitle && expectedSheetTitle !== tab.title) {
-    throw new Error(`Google Sheets target mismatch for round ${examRoundId}: expected tab ${expectedSheetTitle}, found ${tab.title}`);
+    throw manualReviewError(`Google Sheets target mismatch for round ${examRoundId}: expected tab ${expectedSheetTitle}, found ${tab.title}`);
   }
   if (expectedAcademicYear && expectedAcademicYear !== tab.academic_year) {
-    throw new Error(`Google Sheets target mismatch for round ${examRoundId}: expected academic year ${expectedAcademicYear}, found ${tab.academic_year}`);
+    throw manualReviewError(`Google Sheets target mismatch for round ${examRoundId}: expected academic year ${expectedAcademicYear}, found ${tab.academic_year}`);
   }
 
   return withSheetYearLock(tab.academic_year, async () => {
@@ -749,25 +755,24 @@ export async function clearGoogleWorkspaceSheetRow(jobOrExamRoundId, legacyRowNu
     if (!targetItemId) {
       const rowNumber = Number(legacyRow);
       if (!Number.isInteger(rowNumber) || rowNumber < 2) {
-        throw new Error('Legacy Google Sheets clear job requires a valid spreadsheet row number or applicationItemId');
+        throw manualReviewError('Legacy Google Sheets clear job lacks a valid applicationItemId or spreadsheetRow');
       }
-      const inspected = await inspectSheetRowForLegacyClear(googleRequest, tab.drive_file_id, tab.title, rowNumber);
-      if (inspected.metadataValues.length > 1) {
-        throw new Error(`Duplicate application row metadata on legacy row ${rowNumber}; clear stopped`);
+      // Only continue a legacy row-only job when reliable DB tracking uniquely identifies the Application Item ID.
+      const tracked = await getPool().query(
+        `SELECT r.application_item_id, a.status AS application_status
+         FROM google_workspace_sheet_rows r
+         LEFT JOIN application_items ai ON ai.id = r.application_item_id
+         LEFT JOIN applications a ON a.id = ai.application_id
+         WHERE r.exam_round_id = $1 AND r.spreadsheet_row = $2`,
+        [examRoundId, rowNumber],
+      );
+      if (tracked.rowCount !== 1) {
+        throw manualReviewError(`Legacy clear job for round ${examRoundId} row ${rowNumber} cannot reliably resolve Application Item ID; manual inspection required`);
       }
-      if (inspected.metadataValues.length === 1) {
-        const candidateItemId = inspected.metadataValues[0];
-        const stillExists = await getPool().query('SELECT 1 FROM application_items WHERE id=$1', [candidateItemId]);
-        if (stillExists.rowCount) {
-          throw new Error(`Legacy clear job stopped: row ${rowNumber} currently belongs to active application item ${candidateItemId}`);
-        }
-        targetItemId = candidateItemId;
-      } else {
-        if (!inspected.hasNonEmptyValues) {
-          return { cleared: false, alreadyCleared: true, legacy: true, examRoundId, spreadsheetRow: rowNumber, spreadsheetUrl: tab.spreadsheet_url };
-        }
-        throw new Error(`Legacy clear job stopped: row ${rowNumber} contains data without verifiable application item metadata`);
+      if (tracked.rows[0].application_status === 'approved') {
+        throw manualReviewError(`Legacy clear job for round ${examRoundId} row ${rowNumber} points to active approved item ${tracked.rows[0].application_item_id}; manual inspection required`);
       }
+      targetItemId = tracked.rows[0].application_item_id;
     }
 
     const outcome = await clearApplicationSheetRowByItemId(

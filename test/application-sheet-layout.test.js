@@ -44,10 +44,21 @@ function mockSheet(headers=LEGACY_APPLICATION_HEADERS) {
           state.metadata=state.metadata.filter(m=>!(m.metadataKey===lookup.metadataKey && m.metadataValue===lookup.metadataValue));
         }
         if(req.updateCells) {
-          const {rowIndex}=req.updateCells.start;
-          const values=req.updateCells.rows[0].values.map(c=>c.userEnteredValue.stringValue??c.userEnteredValue.numberValue);
-          if(rowIndex===0) state.headers=values;
-          else { const row=state.rows[rowIndex-1] ||= []; row.splice(req.updateCells.start.columnIndex,values.length,...values); }
+          if (req.updateCells.range && !req.updateCells.rows) {
+            const { sheetId, startRowIndex, endRowIndex, startColumnIndex, endColumnIndex } = req.updateCells.range;
+            if (sheetId === 7) {
+              for (let r = startRowIndex; r < endRowIndex; r += 1) {
+                const row = state.rows[r - 1];
+                if (!row) continue;
+                for (let c = startColumnIndex; c < Math.min(endColumnIndex, row.length); c += 1) row[c] = '';
+              }
+            }
+          } else {
+            const {rowIndex}=req.updateCells.start;
+            const values=req.updateCells.rows[0].values.map(c=>c.userEnteredValue.stringValue??c.userEnteredValue.numberValue);
+            if(rowIndex===0) state.headers=values;
+            else { const row=state.rows[rowIndex-1] ||= []; row.splice(req.updateCells.start.columnIndex,values.length,...values); }
+          }
         }
       }
       return {};
@@ -127,12 +138,16 @@ test('Mock source reads and application updates follow row metadata after sortin
   assert.deepEqual(state.rows[0],second);
 });
 
-test('clearApplicationSheetRowByItemId clears only the moved target row, stops on duplicate metadata or wrong sheet, and is idempotent',async()=>{
+test('clearApplicationSheetRowByItemId clears only Portal columns on the moved target row, preserves staff columns, stops on same-tab or cross-tab duplicates, and is idempotent',async()=>{
   const {state,request}=mockSheet();
   const first=APPLICATION_HEADERS.map(()=> 'First applicant');
   const second=APPLICATION_HEADERS.map(()=> 'Second applicant');
   await writeApplicationSheetRow(request,'workbook','BBB - Heat 2026','item-1',first);
   await writeApplicationSheetRow(request,'workbook','BBB - Heat 2026','item-2',second);
+  // Staff adds extra custom columns (AA, AB) to header and rows
+  state.headers.push('Staff Note', 'Checked By');
+  state.rows[0].push('Keep note 1', 'Officer A');
+  state.rows[1].push('Keep note 2', 'Officer B');
   // Sort and insert a row above so item-1 moves from row 2 to row 4
   state.rows.reverse();
   for(const metadata of state.metadata) {
@@ -140,24 +155,42 @@ test('clearApplicationSheetRowByItemId clears only the moved target row, stops o
     location.startIndex=location.startIndex===1?2:1;
     location.endIndex=location.startIndex+1;
   }
-  state.rows.unshift(APPLICATION_HEADERS.map(()=> 'Inserted row'));
+  state.rows.unshift([...APPLICATION_HEADERS.map(()=> 'Inserted row'), 'Inserted staff col', 'Officer Z']);
   for(const metadata of state.metadata) {
     metadata.location.dimensionRange.startIndex+=1;
     metadata.location.dimensionRange.endIndex+=1;
   }
   await assert.rejects(clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-1',{expectedSheetId:99}),/target mismatch/);
   const cleared=await clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-1',{expectedSheetId:7});
-  assert.deepEqual(cleared,{cleared:true,alreadyCleared:false,itemId:'item-1',sheetId:7,rowNumber:4});
-  assert.ok(state.rows[2].every(cell=>cell===''));
-  assert.deepEqual(state.rows[1],second);
+  assert.deepEqual(cleared,{cleared:true,alreadyCleared:false,itemId:'item-1',sheetId:7,rowNumber:4,clearedColumnCount:26});
+  // Portal columns A:Z cleared, staff columns AA:AB preserved!
+  assert.ok(state.rows[2].slice(0,26).every(cell=>cell===''));
+  assert.deepEqual(state.rows[2].slice(26),['Keep note 1','Officer A']);
+  assert.deepEqual(state.rows[1].slice(0,26),second);
+  assert.deepEqual(state.rows[1].slice(26),['Keep note 2','Officer B']);
   assert.equal(state.rows[0][0],'Inserted row');
   // Re-run is an idempotent no-op
   const repeat=await clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-1',{expectedSheetId:7});
   assert.deepEqual(repeat,{cleared:false,alreadyCleared:true,itemId:'item-1',sheetId:7});
-  assert.deepEqual(state.rows[1],second);
-  // Duplicate metadata stops before clearing
+  assert.deepEqual(state.rows[1].slice(0,26),second);
+  assert.deepEqual(state.rows[2].slice(26),['Keep note 1','Officer A']);
+  // Cross-tab duplicate metadata (same item-2 on sheetId 7 AND sheetId 88) stops before clearing!
   const meta2=state.metadata.find(m=>m.metadataValue==='item-2');
+  state.metadata.push({
+    ...meta2,
+    location:{dimensionRange:{...meta2.location.dimensionRange,sheetId:88}},
+  });
+  await assert.rejects(
+    clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-2',{expectedSheetId:7}),
+    (err)=>err.manualReviewRequired===true && /Duplicate application row metadata/.test(err.message),
+  );
+  assert.deepEqual(state.rows[1].slice(0,26),second);
+  // Same-tab duplicate metadata also stops before clearing
+  state.metadata.pop();
   state.metadata.push({...meta2});
-  await assert.rejects(clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-2',{expectedSheetId:7}),/Duplicate application row metadata/);
-  assert.deepEqual(state.rows[1],second);
+  await assert.rejects(
+    clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-2',{expectedSheetId:7}),
+    (err)=>err.manualReviewRequired===true && /Duplicate application row metadata/.test(err.message),
+  );
+  assert.deepEqual(state.rows[1].slice(0,26),second);
 });

@@ -48,10 +48,16 @@ export async function processIntegrationJob() {
     await execute(job);
     await getPool().query(`UPDATE integration_jobs SET status='completed',locked_at=NULL,completed_at=now(),last_error=NULL,updated_at=now() WHERE id=$1`, [job.id]);
   } catch (error) {
-    const delay = RETRY_DELAYS_SECONDS[Math.min(job.attempts - 1, RETRY_DELAYS_SECONDS.length - 1)];
-    await getPool().query(`UPDATE integration_jobs SET status='failed',locked_at=NULL,
-      next_attempt_at=now()+($2::integer * interval '1 second'),last_error=$3,updated_at=now() WHERE id=$1`,
-    [job.id, delay, String(error?.message || 'Integration request failed').slice(0, 500)]);
+    if (error?.manualReviewRequired) {
+      await getPool().query(`UPDATE integration_jobs SET status='failed',attempts=8,locked_at=NULL,
+        next_attempt_at=now(),last_error=$2,updated_at=now() WHERE id=$1`,
+      [job.id, `MANUAL_REVIEW_REQUIRED: ${String(error?.message || 'Manual inspection required')}`.slice(0, 500)]);
+    } else {
+      const delay = RETRY_DELAYS_SECONDS[Math.min(job.attempts - 1, RETRY_DELAYS_SECONDS.length - 1)];
+      await getPool().query(`UPDATE integration_jobs SET status='failed',locked_at=NULL,
+        next_attempt_at=now()+($2::integer * interval '1 second'),last_error=$3,updated_at=now() WHERE id=$1`,
+      [job.id, delay, String(error?.message || 'Integration request failed').slice(0, 500)]);
+    }
   }
   return true;
 }

@@ -1326,7 +1326,7 @@ function App() {
       body: JSON.stringify({ manualClosed, expectedRevision: catalogRevision }),
     });
     const result = await response.json().catch(() => ({}));
-    if (response.status === 409 || response.status === 412) {
+    if (response.status === 409 || response.status === 412 || response.status === 428) {
       const message = result.error || 'ข้อมูลมีการเปลี่ยนแปลงโดยผู้ดูแลระบบท่านอื่น โปรดโหลดข้อมูลล่าสุดก่อนบันทึกใหม่';
       setCatalogSaveState({ status: 'conflict', error: message, examId: id });
       throw new Error(message);
@@ -1363,7 +1363,7 @@ function App() {
         body: JSON.stringify({ paymentAccounts: normalizedPaymentAccounts, expectedRevision: catalogRevision }),
       });
       const result = await response.json().catch(() => ({}));
-      if (response.status === 409 || response.status === 412) {
+      if (response.status === 409 || response.status === 412 || response.status === 428) {
         const message = result.error || "ข้อมูลบัญชีรับเงินหรือแค็ตตาล็อกมีการเปลี่ยนแปลงแล้ว โปรดโหลดข้อมูลล่าสุดใหม่";
         lastFailedCatalogSignatureRef.current = attemptedSignature;
         setCatalogSaveState({ status: "conflict", error: message });
@@ -1407,7 +1407,7 @@ function App() {
         body: JSON.stringify({ competitions: competitionCatalog, grades, centers: centerCatalog, pastPapers: pastPaperCatalog, expectedRevision: catalogRevision }),
       });
       const result = await response.json().catch(() => ({}));
-      if (response.status === 409 || response.status === 412) {
+      if (response.status === 409 || response.status === 412 || response.status === 428) {
         const message = result.error || "ข้อมูลแค็ตตาล็อกมีการเปลี่ยนแปลงโดยผู้ดูแลระบบท่านอื่น โปรดโหลดข้อมูลล่าสุดใหม่";
         lastFailedCatalogSignatureRef.current = attemptedSignature;
         setCatalogSaveState({ status: "conflict", error: message });
@@ -1479,7 +1479,7 @@ function App() {
         method: "PATCH", credentials: "same-origin", headers: catalogIfMatchHeader(), body: JSON.stringify(patch),
       });
       const result = await response.json().catch(() => ({}));
-      if (response.status === 409 || response.status === 412) {
+      if (response.status === 409 || response.status === 412 || response.status === 428) {
         const message = result.error || "ข้อมูลรอบสอบหรือแค็ตตาล็อกมีการเปลี่ยนแปลงแล้ว โปรดโหลดข้อมูลล่าสุดใหม่";
         setCatalogSaveState({ status: "conflict", error: message, examId: id });
         notify(message);
@@ -1514,7 +1514,7 @@ function App() {
         body: JSON.stringify({ exams: newExams, expectedRevision: catalogRevision }),
       });
       const result = await response.json().catch(() => ({}));
-      if (response.status === 409 || response.status === 412) {
+      if (response.status === 409 || response.status === 412 || response.status === 428) {
         const message = result.error || "ข้อมูลแค็ตตาล็อกมีการเปลี่ยนแปลงแล้ว โปรดโหลดข้อมูลล่าสุดใหม่";
         setCatalogSaveState({ status: "conflict", error: message });
         notify(message);
@@ -1547,7 +1547,7 @@ function App() {
         method: 'DELETE', credentials: 'same-origin', headers: { 'If-Match': `"catalog-rev-${catalogRevision}"` },
       });
       const result = await response.json().catch(() => ({}));
-      if (response.status === 409 || response.status === 412) {
+      if (response.status === 409 || response.status === 412 || response.status === 428) {
         const message = result.error || "ข้อมูลแค็ตตาล็อกมีการเปลี่ยนแปลงแล้ว โปรดโหลดข้อมูลล่าสุดใหม่";
         setCatalogSaveState({ status: "conflict", error: message });
         notify(message);

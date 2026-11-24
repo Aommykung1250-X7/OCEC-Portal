@@ -69,12 +69,13 @@ export function createLoggerOptions(overrides = {}) {
   };
 }
 
-function extractCatalogRevision(request) {
+function extractCatalogRevision(request, { required = false } = {}) {
   const ifMatch = request.headers?.['if-match'];
   if (ifMatch !== undefined && String(ifMatch).trim() !== '') {
     return {
       expectedRevision: parseCatalogRevision(ifMatch),
       expectedRevisionSource: 'if-match',
+      requireRevision: required,
     };
   }
   const bodyRev = request.body?.expectedRevision ?? request.body?.revision;
@@ -82,12 +83,13 @@ function extractCatalogRevision(request) {
     return {
       expectedRevision: parseCatalogRevision(bodyRev),
       expectedRevisionSource: 'body',
+      requireRevision: required,
     };
   }
-  return { expectedRevision: null, expectedRevisionSource: 'body' };
+  return { expectedRevision: null, expectedRevisionSource: 'if-match', requireRevision: required };
 }
 
-export function buildApp({ logger = createLoggerOptions() } = {}) {
+export function buildApp({ logger = createLoggerOptions(), authDeps = {} } = {}) {
   const app = Fastify({ logger, bodyLimit: 16 * 1024 * 1024, trustProxy: true });
 
   const publicLookupAttempts = new Map();
@@ -121,7 +123,13 @@ export function buildApp({ logger = createLoggerOptions() } = {}) {
   }
 
   app.setErrorHandler((error, request, reply) => {
-    request.log.error({ err: { message: error?.message, code: error?.code, statusCode: error?.statusCode }, route: request.routeOptions?.url || sanitizeRequestPath(request.url), requestId: request.id }, 'Request failed');
+    const route = request.routeOptions?.url || sanitizeRequestPath(request.url);
+    const isSensitiveRoute = route.startsWith('/api/auth/') || route.startsWith('/api/admin/google-workspace/') || route.startsWith('/api/slip-replacements/');
+    if (isSensitiveRoute) {
+      request.log.error({ errorCategory: error?.code || 'AUTH_OR_TOKEN_ROUTE_ERROR', statusCode: error?.statusCode || 500, route, requestId: request.id }, 'Sensitive request failed');
+    } else {
+      request.log.error({ err: { message: error?.message, code: error?.code, statusCode: error?.statusCode }, route, requestId: request.id }, 'Request failed');
+    }
     if (error.code === 'GOOGLE_WORKSPACE_NOT_CONNECTED') return reply.code(503).send({ error: error.message });
     const validation = error.validation || error.code === 'FST_ERR_VALIDATION';
     const upstreamStatus = [502, 503, 504].includes(error.statusCode) ? error.statusCode : null;
@@ -129,7 +137,7 @@ export function buildApp({ logger = createLoggerOptions() } = {}) {
     return reply.code(status).send({
       error: status === 500 ? 'Internal server error' : error.message,
       ...(status === 409 && error.existingApplicationId ? { existingApplicationId: error.existingApplicationId } : {}),
-      ...(error.code === 'CATALOG_REVISION_CONFLICT' ? { code: error.code, currentRevision: error.currentRevision } : {}),
+      ...(['CATALOG_REVISION_CONFLICT', 'CATALOG_REVISION_REQUIRED'].includes(error.code) ? { code: error.code, currentRevision: error.currentRevision } : {}),
     });
   });
 
@@ -149,7 +157,7 @@ export function buildApp({ logger = createLoggerOptions() } = {}) {
     }
   });
 
-  registerAuthRoutes(app);
+  registerAuthRoutes(app, authDeps);
 
   const sensitiveNoStore = async (_request, reply) => {
     reply.header('Cache-Control', 'no-store').header('Referrer-Policy', 'no-referrer');
@@ -223,19 +231,19 @@ export function buildApp({ logger = createLoggerOptions() } = {}) {
     return reply.header('ETag', formatCatalogEtag(catalog.revision)).header('Cache-Control', 'no-cache').send(catalog);
   });
   app.put('/api/admin/catalog', { preHandler: requireAdmin }, async (request, reply) => {
-    const catalog = await saveCatalogSnapshot(request.body, request.user.id, extractCatalogRevision(request));
+    const catalog = await saveCatalogSnapshot(request.body, request.user.id, extractCatalogRevision(request, { required: true }));
     return reply.header('ETag', formatCatalogEtag(catalog.revision)).send({ catalog });
   });
   app.put('/api/admin/catalog/options', { preHandler: requireAdmin }, async (request, reply) => {
-    const catalog = await saveGeneralCatalogOptions(request.body, request.user.id, extractCatalogRevision(request));
+    const catalog = await saveGeneralCatalogOptions(request.body, request.user.id, extractCatalogRevision(request, { required: true }));
     return reply.header('ETag', formatCatalogEtag(catalog.revision)).send({ catalog });
   });
   app.put('/api/admin/payment-accounts', { preHandler: requireAdmin }, async (request, reply) => {
-    const saved = await savePaymentAccountsSnapshot(request.body?.paymentAccounts, request.user.id, extractCatalogRevision(request));
+    const saved = await savePaymentAccountsSnapshot(request.body?.paymentAccounts, request.user.id, extractCatalogRevision(request, { required: true }));
     return reply.header('ETag', formatCatalogEtag(saved.revision)).send(saved);
   });
   app.post('/api/admin/exams', { preHandler: requireAdmin }, async (request, reply) => {
-    const created = await createExamRounds(request.body?.exams, request.user.id, extractCatalogRevision(request));
+    const created = await createExamRounds(request.body?.exams, request.user.id, extractCatalogRevision(request, { required: true }));
     return reply.code(201).header('ETag', formatCatalogEtag(created.revision)).send(created);
   });
 
@@ -490,16 +498,15 @@ export function buildApp({ logger = createLoggerOptions() } = {}) {
 
   app.patch('/api/admin/exams/:id', { preHandler: requireAdmin, schema: { params: { type: 'object', required: ['id'], properties: { id: { type: 'string', minLength: 1 } } }, body: { type: 'object', additionalProperties: false, minProperties: 1, properties: { expectedRevision: { type: 'integer', minimum: 1 }, title: { type: 'string', minLength: 1 }, openDate: { type: ['string','null'], format: 'date' }, closeDate: { type: ['string','null'], format: 'date' }, editCloseDate: { type: ['string','null'], format: 'date' }, examDate: { type: ['string','null'], format: 'date' }, finalConfirmCloseDate: { type: ['string','null'], format: 'date' }, examStartTime: { type: ['string','null'], pattern: '^([01]\\d|2[0-3]):[0-5]\\d$' }, examEndTime: { type: ['string','null'], pattern: '^([01]\\d|2[0-3]):[0-5]\\d$' }, manualClosed: { type: 'boolean' }, finalManuallyClosed: { type: 'boolean' }, isOpen: { type: 'boolean' }, accent: { type: ['string','null'] }, logoDataUrl: { type: 'string', maxLength: 7000000 }, description: { type: 'string' }, packagePrices:finalPackagePriceSchema,guestPrice:{type:'number',minimum:0}, prices: { type: 'object', additionalProperties: false, properties: { paperBased: { type: 'number', minimum: 0 }, onlineExam: { type: 'number', minimum: 0 } } }, gradeOptions: { type: 'array', uniqueItems: true, items: { type: 'string' } }, centerIds: { type: 'array', uniqueItems: true, items: { type: 'string' } } } } } }, async (request, reply) => {
     const { expectedRevision: _ignored, ...patch } = request.body;
-    const updated = await updateExamRound(request.params.id, patch, request.user.id, extractCatalogRevision(request));
+    const updated = await updateExamRound(request.params.id, patch, request.user.id, extractCatalogRevision(request, { required: true }));
     if (!updated) return reply.code(404).send({ error: 'Exam round not found' });
-    const catalog = await loadCatalog();
-    return reply.header('ETag', formatCatalogEtag(catalog.revision)).send({
-      exam: catalog.exams.find((exam) => exam.id === request.params.id),
-      revision: catalog.revision,
+    return reply.header('ETag', formatCatalogEtag(updated.revision)).send({
+      exam: updated.exam,
+      revision: updated.revision,
     });
   });
   app.delete('/api/admin/exams/:id', { preHandler: requireAdmin, schema: { params: { type: 'object', required: ['id'], properties: { id: { type: 'string', minLength: 1 } } } } }, async (request, reply) => {
-    const archived = await archiveExamRound(request.params.id, request.user.id, extractCatalogRevision(request));
+    const archived = await archiveExamRound(request.params.id, request.user.id, extractCatalogRevision(request, { required: true }));
     if (!archived) return reply.code(404).send({ error: 'Exam round not found' });
     return reply.header('ETag', formatCatalogEtag(archived.revision)).send({ ok: true, revision: archived.revision });
   });

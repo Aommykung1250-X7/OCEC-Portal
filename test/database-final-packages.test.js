@@ -90,7 +90,8 @@ else {
   });
   test('package settings save by round and never reprice submitted snapshots or use format prices',async()=>{
     const f=await fixture();
-    const patched=await app.inject({method:'PATCH',url:`/api/admin/exams/${f.targetId}`,headers:{cookie:adminCookie},payload:{packagePrices:{onsite:4800,onsite_ceremony:8300},guestPrice:4700,prices:{paperBased:1,onlineExam:2}}});
+    const initialCatalog=await app.inject({method:'GET',url:'/api/catalog'});
+    const patched=await app.inject({method:'PATCH',url:`/api/admin/exams/${f.targetId}`,headers:{cookie:adminCookie,'if-match':initialCatalog.headers.etag},payload:{packagePrices:{onsite:4800,onsite_ceremony:8300},guestPrice:4700,prices:{paperBased:1,onlineExam:2}}});
     assert.equal(patched.statusCode,200,patched.body);
     const catalog=await loadCatalog();
     assert.deepEqual(catalog.exams.find(r=>r.id===f.targetId).packagePrices,{onsite:4800,onsite_ceremony:8300});

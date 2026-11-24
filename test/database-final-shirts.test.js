@@ -62,10 +62,10 @@ if (!testUrl) {
     assert.ok((await getPool().query("SELECT 1 FROM audit_logs WHERE entity_id=$1 AND action='update_shirt_sizes'", [applicationId])).rowCount);
   });
 
-  test('strangers and unverified matching-email users are forbidden; owner, verified delegated user, and admin can save', async () => {
+  test('strangers, unverified matching-email users, and Final-grant-only users are forbidden; owner and admin can save', async () => {
     assert.equal((await save([entry(0,'M')], strangerCookie)).statusCode,403);
     assert.equal((await save([entry(0,'M')], childCookie)).statusCode,403);
-    // Grant verifiable delegation (final_verification_grants bound to child user) -> now permitted
+    // Even with a live bound final_verification_grants record, non-owner CANNOT edit shirt sizes on another owner's application (OCEC-12)
     const heatRoundId = `shirt-heat-${suffix}`;
     await getPool().query("INSERT INTO exam_rounds(id,competition_id,title,year,round_type,open_date,close_date) VALUES($1,'bbb','Shirt Heat','2569','HEAT',current_date-30,current_date-20)", [heatRoundId]);
     const heatItemId = (await getPool().query(`INSERT INTO application_items(application_id,exam_round_id,grade_id,format,center_id,fee_satang,snapshot,duplicate_key)
@@ -73,7 +73,7 @@ if (!testUrl) {
     const invId = (await getPool().query('INSERT INTO final_invitations(heat_application_item_id,final_exam_round_id) VALUES($1,$2) RETURNING id', [heatItemId, items[0].roundId])).rows[0].id;
     await getPool().query(`INSERT INTO final_verification_grants(token_hash,final_invitation_id,heat_application_id,heat_application_item_id,verified_user_id,expires_at)
       VALUES($1,$2,$3,$4,$5,now()+interval '1 hour')`, [createHash('sha256').update(`grant-${suffix}`).digest('hex'), invId, applicationId, heatItemId, child]);
-    assert.equal((await save([entry(0,'M')], childCookie)).statusCode,200);
+    assert.equal((await save([entry(0,'M')], childCookie)).statusCode,403);
     await getPool().query('DELETE FROM final_verification_grants WHERE heat_application_id=$1', [applicationId]);
     await getPool().query('DELETE FROM final_invitations WHERE id=$1', [invId]);
     await getPool().query('DELETE FROM application_items WHERE id=$1', [heatItemId]);

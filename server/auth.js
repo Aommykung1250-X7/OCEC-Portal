@@ -106,8 +106,13 @@ export async function requireAdmin(request, reply) {
   request.user = user;
 }
 
-export function registerAuthRoutes(app) {
+export function registerAuthRoutes(app, deps = {}) {
   if (mockOAuth() && process.env.NODE_ENV !== 'test') throw new Error('Mock Google OAuth is available only in test mode');
+  const fetchToken = deps.fetchImpl || ((...args) => globalThis.fetch(...args));
+  const verifyGoogleIdToken = deps.verifyIdTokenImpl || (async (idToken, audience) => {
+    const ticket = await new OAuth2Client().verifyIdToken({ idToken, audience });
+    return ticket.getPayload();
+  });
   app.get('/api/auth/google/start', async (request, reply) => {
     applySensitiveAuthHeaders(reply);
     if (!oauthReady()) return reply.code(503).send({ error: 'Google Login is not configured' });
@@ -146,12 +151,34 @@ export function registerAuthRoutes(app) {
       profile = mockProfiles[code] ? { ...mockProfiles[code], nonce: request.query?.testNonce === 'wrong' ? 'invalid-nonce' : attempt.rows[0].nonce } : null;
     } else {
       const values = new URLSearchParams({ code, client_id: process.env.GOOGLE_CLIENT_ID, client_secret: process.env.GOOGLE_CLIENT_SECRET, redirect_uri: process.env.GOOGLE_REDIRECT_URI, grant_type: 'authorization_code', code_verifier: attempt.rows[0].code_verifier });
-      const response = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: values });
-      if (!response.ok) return reply.code(502).send({ error: 'Google token exchange failed' });
-      const tokens = await response.json();
-      if (!tokens.id_token) return reply.code(502).send({ error: 'Google ID token missing' });
-      const ticket = await new OAuth2Client().verifyIdToken({ idToken: tokens.id_token, audience: process.env.GOOGLE_CLIENT_ID });
-      profile = ticket.getPayload();
+      let response;
+      try {
+        response = await fetchToken('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: values });
+      } catch {
+        request.log.warn({ event: 'google_oauth_error', errorCategory: 'google_token_exchange_network_error', requestId: request.id }, 'Google OAuth token exchange failed');
+        return reply.code(502).send({ error: 'ไม่สามารถเชื่อมต่อกับ Google เพื่อยืนยันตัวตนได้ กรุณาลองเข้าสู่ระบบอีกครั้ง' });
+      }
+      if (!response?.ok) {
+        request.log.warn({ event: 'google_oauth_error', errorCategory: 'google_token_exchange_http_error', upstreamStatus: Number(response?.status || 0), requestId: request.id }, 'Google OAuth token exchange rejected');
+        return reply.code(502).send({ error: 'การแลกโทเคนกับ Google ไม่สำเร็จ กรุณาลองเข้าสู่ระบบอีกครั้ง' });
+      }
+      let tokens;
+      try {
+        tokens = await response.json();
+      } catch {
+        request.log.warn({ event: 'google_oauth_error', errorCategory: 'google_token_response_invalid', requestId: request.id }, 'Google OAuth token response could not be parsed');
+        return reply.code(502).send({ error: 'ข้อมูลตอบกลับจาก Google ไม่สมบูรณ์ กรุณาลองเข้าสู่ระบบอีกครั้ง' });
+      }
+      if (!tokens?.id_token) {
+        request.log.warn({ event: 'google_oauth_error', errorCategory: 'google_id_token_missing', requestId: request.id }, 'Google OAuth ID token missing');
+        return reply.code(502).send({ error: 'ข้อมูลยืนยันตัวตนจาก Google ไม่ครบถ้วน กรุณาลองเข้าสู่ระบบอีกครั้ง' });
+      }
+      try {
+        profile = await verifyGoogleIdToken(tokens.id_token, process.env.GOOGLE_CLIENT_ID);
+      } catch {
+        request.log.warn({ event: 'google_oauth_error', errorCategory: 'google_id_token_verification_failed', requestId: request.id }, 'Google ID token verification failed');
+        return reply.code(403).send({ error: 'ไม่สามารถตรวจสอบตัวตนจาก Google ได้ กรุณาลองเข้าสู่ระบบอีกครั้ง' });
+      }
     }
     if (!profile?.sub || !profile.email || !profile.email_verified || profile.nonce !== attempt.rows[0].nonce) return reply.code(403).send({ error: 'Google identity verification failed' });
     const isAdmin = isConfiguredAdmin(profile.email);
