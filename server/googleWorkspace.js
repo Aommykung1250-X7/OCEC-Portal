@@ -763,7 +763,10 @@ export async function clearGoogleWorkspaceSheetRow(jobOrExamRoundId, legacyRowNu
       tab.drive_file_id,
       tab.title,
       applicationItemId,
-      { expectedSheetId: expectedSheetId ?? tab.sheet_id },
+      {
+        expectedSheetId: expectedSheetId ?? tab.sheet_id,
+        expectedRowIdentity: payload.expectedRowIdentity || null,
+      },
     );
     await getPool().query('DELETE FROM google_workspace_sheet_rows WHERE application_item_id=$1', [applicationItemId]);
     if (outcome.cleared) {

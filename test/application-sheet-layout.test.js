@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { APPLICATION_HEADERS, APPLICATION_HEADERS_WITH_MIDDLE, LEGACY_APPLICATION_HEADERS, applicationValuesFromPrevious, APPLICATION_ITEM_METADATA_KEY, applicationValuesFromLegacy, clearApplicationSheetRowByItemId, ensureApplicationSheetLayout, writeApplicationSheetRow, readApplicationSheetRows } from '../server/applicationSheetLayout.js';
+import { APPLICATION_HEADERS, APPLICATION_HEADERS_WITH_MIDDLE, LEGACY_APPLICATION_HEADERS, applicationValuesFromPrevious, APPLICATION_ITEM_METADATA_KEY, applicationValuesFromLegacy, clearApplicationSheetRowByItemId, ensureApplicationSheetLayout, verifyApplicationSheetClearTarget, writeApplicationSheetRow, readApplicationSheetRows } from '../server/applicationSheetLayout.js';
 
 function columnLetter(count) {
   let value = count;
@@ -24,22 +24,29 @@ function matchesDeveloperMetadata(meta, lookup = {}) {
   return true;
 }
 
-function mockSheet(headers=LEGACY_APPLICATION_HEADERS) {
+function mockSheet(headers=LEGACY_APPLICATION_HEADERS, { spreadsheetId='workbook', sheetId=7, title='BBB - Heat 2026' } = {}) {
   const state={
+    spreadsheetId,
+    sheetId,
+    title,
     headers:[...headers],
     rows:[Array.from({length:headers.length},(_,i)=>`value-${i}`)],
     metadata:[],
     batches:[],
     nextMetadataId:100,
-    dataFilterUpdates:[],
-    staticClearUpdateCells:[],
+    writeRequests:[],
     onAfterMetadataSearch:null,
   };
   if(headers===LEGACY_APPLICATION_HEADERS) state.rows[0][0]='item-1';
   const request=async(url,options={})=>{
     const path=decodeURIComponent(url);
     const body=options.body?JSON.parse(options.body):{};
-    if(path.includes('?fields=sheets.properties')) return {sheets:[{properties:{sheetId:7,title:'BBB - Heat 2026',gridProperties:{rowCount:2,columnCount:state.headers.length}}}]};
+    if(path.includes('?fields=') && path.includes('sheets.properties')) {
+      return {
+        spreadsheetId:state.spreadsheetId,
+        sheets:[{properties:{sheetId:state.sheetId,title:state.title,gridProperties:{rowCount:2,columnCount:state.headers.length}}}],
+      };
+    }
     if(path.includes('/developerMetadata:search')) {
       const lookup=body.dataFilters?.[0]?.developerMetadataLookup||{};
       const matched=state.metadata.filter(m=>matchesDeveloperMetadata(m,lookup)).map(developerMetadata=>({developerMetadata:structuredClone(developerMetadata)}));
@@ -50,57 +57,45 @@ function mockSheet(headers=LEGACY_APPLICATION_HEADERS) {
       }
       return {matchedDeveloperMetadata:matched};
     }
+    if(path.endsWith('/values:batchGetByDataFilter')) {
+      const valueRanges=[];
+      for(const filter of body.dataFilters||[]) {
+        const lookup=filter.developerMetadataLookup||{};
+        for(const meta of state.metadata) {
+          if(!matchesDeveloperMetadata(meta,lookup)) continue;
+          const dim=meta.location.dimensionRange;
+          if(dim.sheetId!==state.sheetId) continue;
+          const row=state.rows[dim.startIndex-1];
+          if(!row) continue;
+          const rowNumber=dim.startIndex+1;
+          valueRanges.push({
+            dataFilters:[filter],
+            valueRange:{
+              range:`'${state.title}'!A${rowNumber}:${columnLetter(row.length)}${rowNumber}`,
+              majorDimension:'ROWS',
+              values:[structuredClone(row)],
+            },
+          });
+        }
+      }
+      return {spreadsheetId:state.spreadsheetId,valueRanges};
+    }
     if(path.includes('!A1:AK1')) return {values:[state.headers]};
     if(path.endsWith('!A2:AK')) return {values:state.rows};
     if(path.endsWith('!A2:Z')) return {values:state.rows};
     if(path.endsWith('!A2:A')) return {values:state.rows.map(row=>[row[0]])};
     if(path.endsWith('!A:Z')) return {values:[state.headers,...state.rows]};
     if(options.method==='PUT') {
+      state.writeRequests.push({method:'PUT',path,body:structuredClone(body)});
       const row=Number(path.match(/!A(\d+):/)[1])-2;
       state.rows[row]=body.values[0]; return {};
     }
-    if(path.endsWith('/values:batchUpdateByDataFilter')) {
-      state.dataFilterUpdates.push(structuredClone(body));
-      const responses=[];
-      let totalUpdatedRows=0;
-      let totalUpdatedColumns=0;
-      let totalUpdatedCells=0;
-      for(const entry of body.data||[]) {
-        const lookup=entry.dataFilter?.developerMetadataLookup||{};
-        const rowValues=entry.values?.[0]||[];
-        for(const meta of state.metadata) {
-          if(!matchesDeveloperMetadata(meta,lookup)) continue;
-          const dim=meta.location.dimensionRange;
-          if(dim.sheetId!==7) continue;
-          const rowIdx=dim.startIndex-1;
-          const row=state.rows[rowIdx];
-          if(!row) continue;
-          if(rowValues.length>row.length) throw new Error('Values exceed matched range');
-          for(let c=0;c<rowValues.length;c+=1) row[c]=rowValues[c];
-          const rowNumber=dim.startIndex+1;
-          totalUpdatedRows+=1;
-          totalUpdatedColumns=Math.max(totalUpdatedColumns,rowValues.length);
-          totalUpdatedCells+=rowValues.length;
-          responses.push({
-            spreadsheetId:'workbook',
-            updatedRange:`'BBB - Heat 2026'!A${rowNumber}:${columnLetter(rowValues.length)}${rowNumber}`,
-            updatedRows:1,
-            updatedColumns:rowValues.length,
-            updatedCells:rowValues.length,
-            dataFilter:entry.dataFilter,
-          });
-        }
-      }
-      return {
-        spreadsheetId:'workbook',
-        totalUpdatedRows,
-        totalUpdatedColumns,
-        totalUpdatedCells,
-        totalUpdatedSheets:responses.length?1:0,
-        responses,
-      };
+    if(path.endsWith('/values:batchUpdateByDataFilter') || path.endsWith('/values:batchClearByDataFilter')) {
+      state.writeRequests.push({method:options.method||'POST',path,body:structuredClone(body)});
+      throw new Error(`Unexpected write request during fail-closed clear: ${path}`);
     }
     if(path.endsWith(':batchUpdate')) {
+      state.writeRequests.push({method:'POST',path,body:structuredClone(body)});
       state.batches.push(body.requests);
       for(const req of body.requests) {
         if(req.deleteDimension) {
@@ -119,22 +114,10 @@ function mockSheet(headers=LEGACY_APPLICATION_HEADERS) {
           state.metadata=state.metadata.filter(m=>!matchesDeveloperMetadata(m,lookup));
         }
         if(req.updateCells) {
-          if (req.updateCells.range && !req.updateCells.rows) {
-            state.staticClearUpdateCells.push(req.updateCells);
-            const { sheetId, startRowIndex, endRowIndex, startColumnIndex, endColumnIndex } = req.updateCells.range;
-            if (sheetId === 7) {
-              for (let r = startRowIndex; r < endRowIndex; r += 1) {
-                const row = state.rows[r - 1];
-                if (!row) continue;
-                for (let c = startColumnIndex; c < Math.min(endColumnIndex, row.length); c += 1) row[c] = '';
-              }
-            }
-          } else {
-            const {rowIndex}=req.updateCells.start;
-            const values=req.updateCells.rows[0].values.map(c=>c.userEnteredValue.stringValue??c.userEnteredValue.numberValue);
-            if(rowIndex===0) state.headers=values;
-            else { const row=state.rows[rowIndex-1] ||= []; row.splice(req.updateCells.start.columnIndex,values.length,...values); }
-          }
+          const {rowIndex}=req.updateCells.start;
+          const values=req.updateCells.rows[0].values.map(c=>c.userEnteredValue.stringValue??c.userEnteredValue.numberValue);
+          if(rowIndex===0) state.headers=values;
+          else { const row=state.rows[rowIndex-1] ||= []; row.splice(req.updateCells.start.columnIndex,values.length,...values); }
         }
       }
       return {};
@@ -214,107 +197,134 @@ test('Mock source reads and application updates follow row metadata after sortin
   assert.deepEqual(state.rows[0],second);
 });
 
-test('clearApplicationSheetRowByItemId binds clear to Application Item ID at write time even if sorted/inserted after search, preserves staff columns, stops for manual review when unsafe, and is idempotent',async()=>{
+test('verifyApplicationSheetClearTarget and clearApplicationSheetRowByItemId are strictly read-only on target checks, reject same-name/different-sheetId, legacy headers, and Sort-range swapped rows without sending any write, and are idempotent',async()=>{
+  // 1) Same tab title but different sheetId (even with legacy 37-col headers!) -> MANUAL_REVIEW_REQUIRED with ZERO writes!
+  {
+    const {state,request}=mockSheet(LEGACY_APPLICATION_HEADERS,{sheetId:99,title:'BBB - Heat 2026'});
+    await assert.rejects(
+      clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-1',{expectedSheetId:7}),
+      (err)=>err.manualReviewRequired===true && /expected sheetId 7, found 99/.test(err.message),
+    );
+    assert.equal(state.writeRequests.length,0,'same-name/different-sheetId must send ZERO write requests');
+    assert.deepEqual(state.headers,LEGACY_APPLICATION_HEADERS,'legacy headers must NOT be migrated during clear');
+  }
+
+  // 2) Legacy 37-column headers -> MANUAL_REVIEW_REQUIRED with ZERO writes!
+  {
+    const {state,request}=mockSheet(LEGACY_APPLICATION_HEADERS,{sheetId:7,title:'BBB - Heat 2026'});
+    await assert.rejects(
+      verifyApplicationSheetClearTarget(request,'workbook','BBB - Heat 2026',{expectedSheetId:7}),
+      (err)=>err.manualReviewRequired===true && /Legacy 37-column/.test(err.message),
+    );
+    await assert.rejects(
+      clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-1',{expectedSheetId:7}),
+      (err)=>err.manualReviewRequired===true && /Legacy 37-column/.test(err.message),
+    );
+    assert.equal(state.writeRequests.length,0,'legacy 37-col sheet must never be mutated by clear');
+    assert.deepEqual(state.headers,LEGACY_APPLICATION_HEADERS);
+  }
+
+  // 3) Legacy 27-column headers (with middle name) -> MANUAL_REVIEW_REQUIRED with ZERO writes!
+  {
+    const {state,request}=mockSheet(APPLICATION_HEADERS_WITH_MIDDLE,{sheetId:7,title:'BBB - Heat 2026'});
+    await assert.rejects(
+      clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-1',{expectedSheetId:7}),
+      (err)=>err.manualReviewRequired===true && /Legacy 27-column/.test(err.message),
+    );
+    assert.equal(state.writeRequests.length,0,'legacy 27-col sheet must never be mutated by clear');
+    assert.deepEqual(state.headers,APPLICATION_HEADERS_WITH_MIDDLE);
+  }
+
+  // 4) Spreadsheet ID mismatch -> MANUAL_REVIEW_REQUIRED with ZERO writes!
+  {
+    const {state,request}=mockSheet(APPLICATION_HEADERS,{spreadsheetId:'other-workbook',sheetId:7,title:'BBB - Heat 2026'});
+    await assert.rejects(
+      clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-1',{expectedSheetId:7}),
+      (err)=>err.manualReviewRequired===true && /spreadsheet ID mismatch/.test(err.message),
+    );
+    assert.equal(state.writeRequests.length,0);
+  }
+
+  // Setup normal 26-column sheet with staff columns AA:AB and two applicants A (row 2) and B (row 3)
   const {state,request}=mockSheet();
-  const first=APPLICATION_HEADERS.map(()=> 'Applicant A');
-  const second=APPLICATION_HEADERS.map(()=> 'Applicant B');
-  await writeApplicationSheetRow(request,'workbook','BBB - Heat 2026','item-1',first);
-  await writeApplicationSheetRow(request,'workbook','BBB - Heat 2026','item-2',second);
-  // Staff adds extra custom columns (AA, AB) to header and rows
-  state.headers.push('Staff Note', 'Checked By');
-  state.rows[0].push('Keep note A', 'Officer A');
-  state.rows[1].push('Keep note B', 'Officer B');
+  const rowA=APPLICATION_HEADERS.map((_,i)=>i===3?'BBB':i===7?'Primary 1':i===11?'Alice':i===12?'Alpha':i===17?'alice@example.test':i===18?'0811111111':`A-${i}`);
+  const rowB=APPLICATION_HEADERS.map((_,i)=>i===3?'BBB':i===7?'Primary 1':i===11?'Bob':i===12?'Bravo':i===17?'bob@example.test':i===18?'0822222222':`B-${i}`);
+  await writeApplicationSheetRow(request,'workbook','BBB - Heat 2026','item-1',rowA);
+  await writeApplicationSheetRow(request,'workbook','BBB - Heat 2026','item-2',rowB);
+  state.headers.push('Staff Note','Checked By');
+  state.rows[0].push('Keep note A','Officer A');
+  state.rows[1].push('Keep note B','Officer B');
+  state.writeRequests.length=0; // Reset write counter after initial setup
 
-  // Target mismatch stops before any write
+  const identityA={competition:'BBB',grade:'Primary 1',firstNameEn:'Alice',lastNameEn:'Alpha',contactEmail:'alice@example.test',contactPhone:'0811111111'};
+
+  // 5) Sort range swaps row data (B moves into row 2, A moves into row 3) while DeveloperMetadata stays on row 2 ->
+  //    read-only identity check detects Sort range swap BEFORE any write, ZERO writes sent, B + A + AA:AB stay 100% intact!
+  state.onAfterMetadataSearch=()=>{
+    // Swap cell values in-place WITHOUT moving metadata (simulates in-place Sort range!)
+    const tmp=state.rows[0];
+    state.rows[0]=state.rows[1];
+    state.rows[1]=tmp;
+  };
   await assert.rejects(
-    clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-1',{expectedSheetId:99}),
-    (err)=>err.manualReviewRequired===true && /target mismatch/.test(err.message),
+    clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-1',{expectedSheetId:7,expectedRowIdentity:identityA}),
+    (err)=>err.manualReviewRequired===true && /possible Sort range row swap/.test(err.message),
   );
-  assert.equal(state.dataFilterUpdates.length,0);
+  assert.equal(state.writeRequests.length,0,'Sort range row swap must send ZERO write requests');
+  assert.deepEqual(state.rows[0].slice(0,26),rowB,'Applicant B data must stay 100% intact');
+  assert.deepEqual(state.rows[0].slice(26),['Keep note B','Officer B']);
+  assert.deepEqual(state.rows[1].slice(0,26),rowA,'Applicant A data must stay untouched');
+  assert.deepEqual(state.rows[1].slice(26),['Keep note A','Officer A']);
 
-  // Simulate staff sorting AND inserting a row AFTER developerMetadata:search finds item-1 at row 2
-  // and BEFORE the clear write executes: row 2 becomes Inserted, row 3 becomes Applicant B, row 4 becomes Applicant A!
-  let searchSawRow2=false;
-  state.onAfterMetadataSearch=({matched})=>{
-    searchSawRow2=matched.length===1 && matched[0].developerMetadata.location.dimensionRange.startIndex===1;
-    state.rows.reverse();
-    for(const metadata of state.metadata) {
-      const location=metadata.location.dimensionRange;
-      location.startIndex=location.startIndex===1?2:1;
-      location.endIndex=location.startIndex+1;
-    }
+  // Restore row order so A is back on row 2, B on row 3
+  [state.rows[0],state.rows[1]]=[state.rows[1],state.rows[0]];
+
+  // 6) Even when row insertion + sort moves metadata after search, fail-closed stops BEFORE any write -> MANUAL_REVIEW_REQUIRED, ZERO writes!
+  state.onAfterMetadataSearch=()=>{
     state.rows.unshift([...APPLICATION_HEADERS.map(()=> 'Inserted row'), 'Inserted staff col', 'Officer Z']);
     for(const metadata of state.metadata) {
       metadata.location.dimensionRange.startIndex+=1;
       metadata.location.dimensionRange.endIndex+=1;
     }
   };
-
-  const cleared=await clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-1',{expectedSheetId:7});
-  assert.equal(searchSawRow2,true,'search originally located item-1 at row 2 before mid-flight sort/insert');
-  assert.equal(state.staticClearUpdateCells.length,0,'must never clear via static numeric row index');
-  assert.equal(state.dataFilterUpdates.length,1,'must clear via values:batchUpdateByDataFilter');
-  assert.equal(state.dataFilterUpdates[0].valueInputOption,'RAW');
-  assert.equal(state.dataFilterUpdates[0].data[0].dataFilter.developerMetadataLookup.metadataValue,'item-1');
-  assert.equal(state.dataFilterUpdates[0].data[0].values[0].length,APPLICATION_HEADERS.length);
-  assert.deepEqual(cleared,{
-    cleared:true,
-    alreadyCleared:false,
-    itemId:'item-1',
-    sheetId:7,
-    rowNumber:4,
-    clearedColumnCount:26,
-    updatedRange:"'BBB - Heat 2026'!A4:Z4",
-  });
-  // Applicant A's moved row (row 4 = index 2) has ONLY Portal columns A:Z cleared; staff columns AA:AB preserved!
-  assert.ok(state.rows[2].slice(0,26).every(cell=>cell===''));
-  assert.deepEqual(state.rows[2].slice(26),['Keep note A','Officer A']);
-  // Applicant B (now row 3 = index 1) and inserted row (row 2 = index 0) are 100% intact!
-  assert.deepEqual(state.rows[1].slice(0,26),second);
-  assert.deepEqual(state.rows[1].slice(26),['Keep note B','Officer B']);
-  assert.equal(state.rows[0][0],'Inserted row');
-  assert.deepEqual(state.rows[0].slice(26),['Inserted staff col','Officer Z']);
-
-  // Re-run is an idempotent no-op
-  const repeat=await clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-1',{expectedSheetId:7});
-  assert.deepEqual(repeat,{cleared:false,alreadyCleared:true,itemId:'item-1',sheetId:7});
-  assert.equal(state.dataFilterUpdates.length,1);
-  assert.deepEqual(state.rows[1].slice(0,26),second);
-  assert.deepEqual(state.rows[2].slice(26),['Keep note A','Officer A']);
-
-  // Mid-flight unsafe relocation after search (metadata moves to another tab before write) -> manualReviewRequired, B untouched!
-  state.onAfterMetadataSearch=()=>{
-    const liveMeta=state.metadata.find(m=>m.metadataValue==='item-2');
-    liveMeta.location.dimensionRange.sheetId=88;
-  };
   await assert.rejects(
-    clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-2',{expectedSheetId:7}),
-    (err)=>err.manualReviewRequired===true && /could not safely match target row/.test(err.message),
+    clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-1',{expectedSheetId:7,expectedRowIdentity:identityA}),
+    (err)=>err.manualReviewRequired===true && /no write was sent to Google/.test(err.message),
   );
-  assert.deepEqual(state.rows[1].slice(0,26),second,'Applicant B must stay intact when clear cannot match target safely');
-  assert.deepEqual(state.rows[1].slice(26),['Keep note B','Officer B']);
-  // Restore sheetId=7 for duplicate tests
-  state.metadata.find(m=>m.metadataValue==='item-2').location.dimensionRange.sheetId=7;
+  assert.equal(state.writeRequests.length,0,'fail-closed clear must never send unguaranteed writes');
+  assert.deepEqual(state.rows[2].slice(0,26),rowB);
+  assert.deepEqual(state.rows[2].slice(26),['Keep note B','Officer B']);
+  assert.deepEqual(state.rows[1].slice(26),['Keep note A','Officer A']);
+  assert.equal(state.rows[0][0],'Inserted row');
 
-  // Cross-tab duplicate metadata (same item-2 on sheetId 7 AND sheetId 88) stops before clearing!
+  // 7) Cross-tab & same-tab duplicate metadata -> MANUAL_REVIEW_REQUIRED, ZERO writes!
   const meta2=state.metadata.find(m=>m.metadataValue==='item-2');
-  state.metadata.push({
-    ...structuredClone(meta2),
-    metadataId:9001,
-    location:{dimensionRange:{...meta2.location.dimensionRange,sheetId:88}},
-  });
+  state.metadata.push({...structuredClone(meta2),metadataId:9001,location:{dimensionRange:{...meta2.location.dimensionRange,sheetId:88}}});
   await assert.rejects(
     clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-2',{expectedSheetId:7}),
     (err)=>err.manualReviewRequired===true && /Duplicate application row metadata/.test(err.message),
   );
-  assert.deepEqual(state.rows[1].slice(0,26),second);
-
-  // Same-tab duplicate metadata also stops before clearing
+  assert.equal(state.writeRequests.length,0);
   state.metadata.pop();
   state.metadata.push({...structuredClone(meta2),metadataId:9002});
   await assert.rejects(
     clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-2',{expectedSheetId:7}),
     (err)=>err.manualReviewRequired===true && /Duplicate application row metadata/.test(err.message),
   );
-  assert.deepEqual(state.rows[1].slice(0,26),second);
+  assert.equal(state.writeRequests.length,0);
+  state.metadata.pop();
+
+  // 8) Idempotent re-run: when staff has cleared A:Z on row A (preserving staff cols AA:AB), re-run succeeds as no-op with ZERO writes!
+  for(let c=0;c<26;c+=1) state.rows[1][c]='';
+  const alreadyBlank=await clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-1',{expectedSheetId:7,expectedRowIdentity:identityA});
+  assert.deepEqual(alreadyBlank,{cleared:false,alreadyCleared:true,itemId:'item-1',sheetId:7,rowNumber:3});
+  assert.equal(state.writeRequests.length,0);
+  assert.deepEqual(state.rows[1].slice(26),['Keep note A','Officer A']);
+  assert.deepEqual(state.rows[2].slice(0,26),rowB);
+
+  // 9) Idempotent re-run when metadata is already deleted -> alreadyCleared: true, ZERO writes!
+  state.metadata=state.metadata.filter(m=>m.metadataValue!=='item-1');
+  const alreadyGone=await clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-1',{expectedSheetId:7,expectedRowIdentity:identityA});
+  assert.deepEqual(alreadyGone,{cleared:false,alreadyCleared:true,itemId:'item-1',sheetId:7});
+  assert.equal(state.writeRequests.length,0);
 });

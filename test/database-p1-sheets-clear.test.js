@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createCipheriv, randomBytes } from 'node:crypto';
 import test from 'node:test';
-import { APPLICATION_HEADERS, APPLICATION_ITEM_METADATA_KEY } from '../server/applicationSheetLayout.js';
+import { APPLICATION_HEADERS, APPLICATION_HEADERS_WITH_MIDDLE, APPLICATION_ITEM_METADATA_KEY, LEGACY_APPLICATION_HEADERS } from '../server/applicationSheetLayout.js';
 import { createIndividualDraft, updateAdminApplication } from '../server/applications.js';
 import { getPool } from '../server/db.js';
 import { clearGoogleWorkspaceSheetRow, syncGoogleWorkspaceSheetItem } from '../server/googleWorkspace.js';
@@ -50,8 +50,7 @@ function createStatefulSheetsMock() {
     rows: [],
     metadata: [],
     nextMetadataId: 100,
-    dataFilterUpdateRequests: [],
-    staticClearUpdateCellRequests: [],
+    writeRequests: [],
     onAfterMetadataSearch: null,
   };
 
@@ -63,8 +62,9 @@ function createStatefulSheetsMock() {
     const body = typeof options.body === 'string' && options.body.trim().startsWith('{') ? JSON.parse(options.body) : {};
     if (target.hostname === 'sheets.googleapis.com') {
       const path = decodeURIComponent(target.pathname);
-      if (target.searchParams.get('fields') === 'sheets.properties') {
+      if (target.searchParams.get('fields')?.includes('sheets.properties')) {
         return Response.json({
+          spreadsheetId: state.spreadsheetId,
           sheets: [
             { properties: { sheetId: state.sheetId, title: state.sheetTitle, gridProperties: { rowCount: Math.max(100, state.rows.length + 5), columnCount: state.headers.length } } },
             { properties: { sheetId: state.otherSheetId, title: 'Other Tab', gridProperties: { rowCount: 100, columnCount: 28 } } },
@@ -83,63 +83,37 @@ function createStatefulSheetsMock() {
         }
         return Response.json({ matchedDeveloperMetadata: matched });
       }
-      if (path.endsWith('/values:batchUpdateByDataFilter')) {
-        state.dataFilterUpdateRequests.push(structuredClone(body));
-        const responses = [];
-        let totalUpdatedRows = 0;
-        let totalUpdatedColumns = 0;
-        let totalUpdatedCells = 0;
-        for (const entry of body.data || []) {
-          const lookup = entry.dataFilter?.developerMetadataLookup || {};
-          const rowValues = entry.values?.[0] || [];
+      if (path.endsWith('/values:batchGetByDataFilter')) {
+        const valueRanges = [];
+        for (const filter of body.dataFilters || []) {
+          const lookup = filter.developerMetadataLookup || {};
           for (const meta of state.metadata) {
             if (!matchesDeveloperMetadata(meta, lookup)) continue;
             const dim = meta.location.dimensionRange;
             if (dim.sheetId !== state.sheetId) continue;
             const row = state.rows[dim.startIndex - 1];
             if (!row) continue;
-            if (rowValues.length > row.length) throw new Error('Values exceed matched range');
-            for (let col = 0; col < rowValues.length; col += 1) {
-              row[col] = rowValues[col];
-            }
             const rowNumber = dim.startIndex + 1;
-            totalUpdatedRows += 1;
-            totalUpdatedColumns = Math.max(totalUpdatedColumns, rowValues.length);
-            totalUpdatedCells += rowValues.length;
-            responses.push({
-              spreadsheetId: state.spreadsheetId,
-              updatedRange: `'${state.sheetTitle}'!A${rowNumber}:${columnLetter(rowValues.length)}${rowNumber}`,
-              updatedRows: 1,
-              updatedColumns: rowValues.length,
-              updatedCells: rowValues.length,
-              dataFilter: entry.dataFilter,
+            valueRanges.push({
+              dataFilters: [filter],
+              valueRange: {
+                range: `'${state.sheetTitle}'!A${rowNumber}:${columnLetter(row.length)}${rowNumber}`,
+                majorDimension: 'ROWS',
+                values: [structuredClone(row)],
+              },
             });
           }
         }
-        return Response.json({
-          spreadsheetId: state.spreadsheetId,
-          totalUpdatedRows,
-          totalUpdatedColumns,
-          totalUpdatedCells,
-          totalUpdatedSheets: responses.length ? 1 : 0,
-          responses,
-        });
+        return Response.json({ spreadsheetId: state.spreadsheetId, valueRanges });
+      }
+      if (path.endsWith('/values:batchUpdateByDataFilter') || path.endsWith('/values:batchClearByDataFilter')) {
+        state.writeRequests.push({ method: options.method || 'POST', path, body: structuredClone(body) });
+        throw new Error(`Unexpected destructive write request during fail-closed clear: ${path}`);
       }
       if (path.endsWith(':batchUpdate')) {
+        state.writeRequests.push({ method: 'POST', path, body: structuredClone(body) });
         for (const req of body.requests || []) {
-          if (req.updateCells && req.updateCells.range && !req.updateCells.rows) {
-            state.staticClearUpdateCellRequests.push(req.updateCells);
-            const { sheetId, startRowIndex, endRowIndex, startColumnIndex, endColumnIndex } = req.updateCells.range;
-            if (sheetId === state.sheetId) {
-              for (let rowIndex = startRowIndex; rowIndex < endRowIndex; rowIndex += 1) {
-                const row = state.rows[rowIndex - 1];
-                if (!row) continue;
-                for (let col = startColumnIndex; col < Math.min(endColumnIndex, row.length); col += 1) {
-                  row[col] = '';
-                }
-              }
-            }
-          } else if (req.updateCells && req.updateCells.start) {
+          if (req.updateCells && req.updateCells.start) {
             const rowIndex = req.updateCells.start.rowIndex;
             const values = req.updateCells.rows[0].values.map((cell) => cell.userEnteredValue.stringValue ?? cell.userEnteredValue.numberValue ?? '');
             if (rowIndex === 0) state.headers = values;
@@ -170,6 +144,7 @@ function createStatefulSheetsMock() {
         return Response.json({ values: state.rows[rowNum - 2] ? [state.rows[rowNum - 2].slice(0, 26)] : [] });
       }
       if (singleRowMatch && options.method === 'PUT') {
+        state.writeRequests.push({ method: 'PUT', path, body: structuredClone(body) });
         const rowNum = Number(singleRowMatch[1]);
         const existingStaffCols = (state.rows[rowNum - 2] || []).slice(APPLICATION_HEADERS.length);
         state.rows[rowNum - 2] = [...body.values[0], ...existingStaffCols];
@@ -224,7 +199,7 @@ if (!testUrl) {
     await getPool().end();
   });
 
-  test('worker binds clear to Application Item ID at write time even when sorted/inserted after search, preserves B and staff columns, routes unsafe or legacy row-only jobs to manual review, and is idempotent', async () => {
+  test('worker performs read-only target/header/identity checks, stops as MANUAL_REVIEW_REQUIRED with zero Google writes on same-name/different-sheetId, legacy headers, Sort-range row swap, mid-flight row insertion, duplicates, and legacy row-only jobs, and is idempotent once cleared', async () => {
     const db = getPool();
     const runId = randomBytes(4).toString('hex');
     const mock = createStatefulSheetsMock();
@@ -290,7 +265,7 @@ if (!testUrl) {
       mock.state.rows[2][26] = 'Charlie Staff Note';
       mock.state.rows[2][27] = 'Officer 3';
 
-      // Admin removes round1 item from appA (currently at row 2!) -> enqueues metadata-aware sheets.clear_row job
+      // Admin removes round1 item from appA -> enqueues sheets.clear_row with expectedRowIdentity
       await updateAdminApplication(appA.appId, {
         profile: { firstNameEn: `Alpha${runId}`, middleNameEn: '', lastNameEn: 'Tester', schoolName: 'Sheet School', contactEmail: `alpha${runId.toLowerCase()}-${runId}@example.test`, contactPhone: '0812345678', address: {} },
         items: [{ applicationItemId: appA.item2, roundId: round2, gradeId, format: 'paper', centerId }],
@@ -301,84 +276,103 @@ if (!testUrl) {
       assert.equal(clearJob.payload.spreadsheetId, mock.state.spreadsheetId);
       assert.equal(clearJob.payload.sheetId, mock.state.sheetId);
       assert.equal(clearJob.payload.sheetTitle, mock.state.sheetTitle);
+      assert.equal(clearJob.payload.expectedRowIdentity.firstNameEn, `Alpha${runId}`);
+      assert.equal(clearJob.payload.expectedRowIdentity.competition, 'BBB');
+      assert.equal(clearJob.payload.expectedRowIdentity.grade, 'Primary 1');
 
-      // Simulate race: developerMetadata:search locates Alpha at row 2, THEN BEFORE the clear write executes,
-      // staff sorts descending (Charlie -> row 2, Bravo -> row 3, Alpha -> row 4) AND inserts a row at top
-      // (Inserted -> row 2, Charlie -> row 3, Bravo -> row 4, Alpha -> row 5)!
-      let searchFoundRow2 = false;
+      await db.query("UPDATE integration_jobs SET status='completed' WHERE id <> $1", [clearJob.id]);
+      mock.state.writeRequests.length = 0; // Track ONLY writes triggered by clear jobs from here on!
+
+      // 1) Sort range swaps row data IN PLACE (Bravo -> row 2, Alpha -> row 3) while DeveloperMetadata stays on row 2
+      //    right after developerMetadata:search returns row 2 -> detected BEFORE any write -> MANUAL_REVIEW_REQUIRED, 0 writes!
+      let searchSawRow2 = false;
       mock.state.onAfterMetadataSearch = ({ matched }) => {
-        searchFoundRow2 = matched.length === 1 && matched[0].developerMetadata.location.dimensionRange.startIndex === 1;
+        searchSawRow2 = matched.length === 1 && matched[0].developerMetadata.location.dimensionRange.startIndex === 1;
+        // Swap row 2 (Alpha) and row 3 (Bravo) cell values WITHOUT moving DeveloperMetadata!
+        [mock.state.rows[0], mock.state.rows[1]] = [mock.state.rows[1], mock.state.rows[0]];
+      };
+      assert.equal(await processIntegrationJob(), true);
+      const sortSwapJob = (await db.query('SELECT status,attempts,last_error FROM integration_jobs WHERE id=$1', [clearJob.id])).rows[0];
+      assert.equal(searchSawRow2, true);
+      assert.equal(sortSwapJob.status, 'failed');
+      assert.equal(sortSwapJob.attempts, 8, 'manual-review job must not auto-retry');
+      assert.match(sortSwapJob.last_error, /^MANUAL_REVIEW_REQUIRED:/);
+      assert.match(sortSwapJob.last_error, /possible Sort range row swap/);
+      assert.equal(mock.state.writeRequests.length, 0, 'Sort range swap must send ZERO writes to Google');
+      // Bravo (now row 2), Alpha (now row 3), Charlie (row 4), and ALL staff columns AA:AB are 100% intact!
+      assert.equal(mock.state.rows[0][11], `Bravo${runId}`);
+      assert.deepEqual(mock.state.rows[0].slice(APPLICATION_HEADERS.length), ['Bravo Staff Note', 'Officer 2']);
+      assert.equal(mock.state.rows[1][11], `Alpha${runId}`);
+      assert.deepEqual(mock.state.rows[1].slice(APPLICATION_HEADERS.length), ['Alpha Staff Note', 'Officer 1']);
+      assert.equal(mock.state.rows[2][11], `Charlie${runId}`);
+      assert.deepEqual(mock.state.rows[2].slice(APPLICATION_HEADERS.length), ['Charlie Staff Note', 'Officer 3']);
+
+      // Restore Alpha to row 2, Bravo to row 3
+      [mock.state.rows[0], mock.state.rows[1]] = [mock.state.rows[1], mock.state.rows[0]];
+
+      // 2) Same tab title, different sheetId (tab recreated as sheetId 777 with legacy headers) ->
+      //    read-only target check catches it -> MANUAL_REVIEW_REQUIRED, ZERO writes (no migration!)
+      const savedSheetId = mock.state.sheetId;
+      const savedHeaders = [...mock.state.headers];
+      mock.state.sheetId = 777;
+      mock.state.headers = [...LEGACY_APPLICATION_HEADERS];
+      const diffSheetIdJobId = await enqueueIntegrationJob(db, 'sheets.clear_row', clearJob.payload, `same-name-diff-id-${runId}`);
+      await processIntegrationJob();
+      const diffSheetIdJob = (await db.query('SELECT status,attempts,last_error FROM integration_jobs WHERE id=$1', [diffSheetIdJobId])).rows[0];
+      assert.equal(diffSheetIdJob.status, 'failed');
+      assert.equal(diffSheetIdJob.attempts, 8);
+      assert.match(diffSheetIdJob.last_error, /^MANUAL_REVIEW_REQUIRED:/);
+      assert.match(diffSheetIdJob.last_error, /expected sheetId 42, found 777/);
+      assert.equal(mock.state.writeRequests.length, 0, 'different sheetId must send ZERO writes to Google');
+      assert.deepEqual(mock.state.headers, LEGACY_APPLICATION_HEADERS, 'legacy headers must remain untouched');
+      mock.state.sheetId = savedSheetId;
+
+      // 3) Legacy 37-column headers on matching sheetId -> MANUAL_REVIEW_REQUIRED, ZERO writes!
+      const legacy37JobId = await enqueueIntegrationJob(db, 'sheets.clear_row', clearJob.payload, `legacy-37-headers-${runId}`);
+      await processIntegrationJob();
+      const legacy37Job = (await db.query('SELECT status,attempts,last_error FROM integration_jobs WHERE id=$1', [legacy37JobId])).rows[0];
+      assert.equal(legacy37Job.status, 'failed');
+      assert.equal(legacy37Job.attempts, 8);
+      assert.match(legacy37Job.last_error, /^MANUAL_REVIEW_REQUIRED:/);
+      assert.match(legacy37Job.last_error, /Legacy 37-column/);
+      assert.equal(mock.state.writeRequests.length, 0, 'legacy 37-col headers must send ZERO writes to Google');
+
+      // 4) Legacy 27-column headers (with middle name) -> MANUAL_REVIEW_REQUIRED, ZERO writes!
+      mock.state.headers = [...APPLICATION_HEADERS_WITH_MIDDLE];
+      const legacy27JobId = await enqueueIntegrationJob(db, 'sheets.clear_row', clearJob.payload, `legacy-27-headers-${runId}`);
+      await processIntegrationJob();
+      const legacy27Job = (await db.query('SELECT status,attempts,last_error FROM integration_jobs WHERE id=$1', [legacy27JobId])).rows[0];
+      assert.equal(legacy27Job.status, 'failed');
+      assert.equal(legacy27Job.attempts, 8);
+      assert.match(legacy27Job.last_error, /^MANUAL_REVIEW_REQUIRED:/);
+      assert.match(legacy27Job.last_error, /Legacy 27-column/);
+      assert.equal(mock.state.writeRequests.length, 0, 'legacy 27-col headers must send ZERO writes to Google');
+      mock.state.headers = savedHeaders;
+
+      // 5) Row insertion + sort after search and before clear -> fail-closed BEFORE any write -> MANUAL_REVIEW_REQUIRED, ZERO writes!
+      mock.state.onAfterMetadataSearch = () => {
         mock.sortRowsDescendingByFirstName();
         mock.insertRowAtTop();
       };
-
-      await db.query("UPDATE integration_jobs SET status='completed' WHERE id <> $1", [clearJob.id]);
-      assert.equal(await processIntegrationJob(), true);
-      const finishedJob = (await db.query('SELECT status,last_error FROM integration_jobs WHERE id=$1', [clearJob.id])).rows[0];
-      assert.equal(finishedJob.status, 'completed', finishedJob.last_error || '');
-      assert.equal(searchFoundRow2, true, 'search must have seen Alpha at row 2 right before mid-flight sort and row insertion');
-
-      // Verify clear used values:batchUpdateByDataFilter bound to Application Item ID (NEVER static row index!)
-      assert.equal(mock.state.staticClearUpdateCellRequests.length, 0, 'must never issue static-row updateCells clear');
-      assert.equal(mock.state.dataFilterUpdateRequests.length, 1);
-      const sentRequest = mock.state.dataFilterUpdateRequests[0];
-      assert.equal(sentRequest.valueInputOption, 'RAW');
-      assert.equal(sentRequest.data.length, 1);
-      assert.equal(sentRequest.data[0].majorDimension, 'ROWS');
-      assert.equal(sentRequest.data[0].values.length, 1);
-      assert.equal(sentRequest.data[0].values[0].length, APPLICATION_HEADERS.length);
-      assert.ok(sentRequest.data[0].values[0].every((cell) => cell === ''));
-      assert.equal(sentRequest.data[0].dataFilter.developerMetadataLookup.metadataKey, APPLICATION_ITEM_METADATA_KEY);
-      assert.equal(sentRequest.data[0].dataFilter.developerMetadataLookup.metadataValue, appA.item1);
-      assert.equal(sentRequest.data[0].dataFilter.developerMetadataLookup.locationType, 'ROW');
-      assert.deepEqual(sentRequest.data[0].dataFilter.developerMetadataLookup.metadataLocation, { sheetId: mock.state.sheetId });
-      assert.equal(sentRequest.data[0].dataFilter.developerMetadataLookup.locationMatchingStrategy, 'INTERSECTING_LOCATION');
-      assert.ok(Number.isInteger(sentRequest.data[0].dataFilter.developerMetadataLookup.metadataId));
-
-      // Alpha's moved row (row 5 = index 3) has ONLY Portal columns (A:Z) cleared; Alpha's staff columns (AA, AB) stay intact!
-      assert.ok(mock.state.rows[3].slice(0, APPLICATION_HEADERS.length).every((cell) => cell === ''), 'Alpha Portal columns must be cleared');
-      assert.deepEqual(mock.state.rows[3].slice(APPLICATION_HEADERS.length), ['Alpha Staff Note', 'Officer 1'], 'staff columns on cleared row must stay intact');
-      // Inserted row (row 2), Charlie (row 3), and Bravo (row 4) + ALL staff columns are 100% intact!
+      const midFlightInsertJobId = await enqueueIntegrationJob(db, 'sheets.clear_row', clearJob.payload, `midflight-insert-${runId}`);
+      await processIntegrationJob();
+      const midFlightInsertJob = (await db.query('SELECT status,attempts,last_error FROM integration_jobs WHERE id=$1', [midFlightInsertJobId])).rows[0];
+      assert.equal(midFlightInsertJob.status, 'failed');
+      assert.equal(midFlightInsertJob.attempts, 8);
+      assert.match(midFlightInsertJob.last_error, /^MANUAL_REVIEW_REQUIRED:/);
+      assert.match(midFlightInsertJob.last_error, /no write was sent to Google/);
+      assert.equal(mock.state.writeRequests.length, 0, 'fail-closed clear must send ZERO writes to Google');
+      // Row order is now [Inserted (row 2), Charlie (row 3), Bravo (row 4), Alpha (row 5)] — ALL data & staff cols intact!
       assert.equal(mock.state.rows[0][0], 'Inserted-Note-Row');
       assert.deepEqual(mock.state.rows[0].slice(APPLICATION_HEADERS.length), ['Top Staff Note', 'Staff X']);
       assert.equal(mock.state.rows[1][11], `Charlie${runId}`);
       assert.deepEqual(mock.state.rows[1].slice(APPLICATION_HEADERS.length), ['Charlie Staff Note', 'Officer 3']);
       assert.equal(mock.state.rows[2][11], `Bravo${runId}`);
       assert.deepEqual(mock.state.rows[2].slice(APPLICATION_HEADERS.length), ['Bravo Staff Note', 'Officer 2']);
-
-      // Re-running the same clear job is an idempotent no-op and touches ZERO rows/columns
-      const rerun = await clearGoogleWorkspaceSheetRow(clearJob.payload);
-      assert.equal(rerun.alreadyCleared, true);
-      assert.equal(rerun.cleared, false);
-      assert.equal(mock.state.dataFilterUpdateRequests.length, 1);
+      assert.equal(mock.state.rows[3][11], `Alpha${runId}`);
       assert.deepEqual(mock.state.rows[3].slice(APPLICATION_HEADERS.length), ['Alpha Staff Note', 'Officer 1']);
 
-      // Mid-flight unsafe state after search: Bravo's metadata moves to another tab before write ->
-      // clear cannot safely match Bravo on sheetId 42, so job is flagged MANUAL_REVIEW_REQUIRED and Bravo/Charlie/staff stay intact!
-      mock.state.onAfterMetadataSearch = () => {
-        const bravoMeta = mock.state.metadata.find((m) => m.metadataValue === appB.item1);
-        bravoMeta.location.dimensionRange.sheetId = mock.state.otherSheetId;
-      };
-      const midFlightUnsafeId = await enqueueIntegrationJob(db, 'sheets.clear_row', {
-        applicationItemId: appB.item1,
-        examRoundId: round1,
-        spreadsheetId: mock.state.spreadsheetId,
-        sheetId: mock.state.sheetId,
-        sheetTitle: mock.state.sheetTitle,
-      }, `midflight-unsafe-${runId}`);
-      await processIntegrationJob();
-      const midFlightJob = (await db.query('SELECT status,attempts,last_error FROM integration_jobs WHERE id=$1', [midFlightUnsafeId])).rows[0];
-      assert.equal(midFlightJob.status, 'failed');
-      assert.equal(midFlightJob.attempts, 8, 'unsafe mid-flight clear must stop without auto-retry');
-      assert.match(midFlightJob.last_error, /^MANUAL_REVIEW_REQUIRED:/);
-      assert.match(midFlightJob.last_error, /could not safely match target row/);
-      assert.equal(mock.state.rows[2][11], `Bravo${runId}`, 'Bravo must stay intact');
-      assert.deepEqual(mock.state.rows[2].slice(APPLICATION_HEADERS.length), ['Bravo Staff Note', 'Officer 2']);
-      assert.equal(mock.state.rows[1][11], `Charlie${runId}`, 'Charlie must stay intact');
-      mock.state.metadata.find((m) => m.metadataValue === appB.item1).location.dimensionRange.sheetId = mock.state.sheetId;
-
-      // Cross-tab duplicate metadata (Charlie appears on BOTH sheetId 42 and sheetId 99) -> worker stops with MANUAL_REVIEW_REQUIRED (attempts=8)
-      const writesBeforeDup = mock.state.dataFilterUpdateRequests.length;
+      // 6) Cross-tab duplicate metadata (Charlie on sheetId 42 AND sheetId 99) -> MANUAL_REVIEW_REQUIRED, ZERO writes!
       mock.state.metadata.push({
         metadataId: 9999,
         metadataKey: APPLICATION_ITEM_METADATA_KEY,
@@ -396,17 +390,13 @@ if (!testUrl) {
       await processIntegrationJob();
       const dupJob = (await db.query('SELECT status,attempts,last_error FROM integration_jobs WHERE id=$1', [dupJobId])).rows[0];
       assert.equal(dupJob.status, 'failed');
-      assert.equal(dupJob.attempts, 8, 'manual-review job must not auto-retry');
+      assert.equal(dupJob.attempts, 8);
       assert.match(dupJob.last_error, /^MANUAL_REVIEW_REQUIRED:/);
       assert.match(dupJob.last_error, /Duplicate application row metadata/);
-      assert.equal(mock.state.dataFilterUpdateRequests.length, writesBeforeDup, 'duplicate metadata must not write to Google Sheets');
-      assert.equal(mock.state.rows[1][11], `Charlie${runId}`, 'Charlie row must stay intact');
+      assert.equal(mock.state.writeRequests.length, 0);
       mock.state.metadata = mock.state.metadata.filter((m) => m.metadataId !== 9999);
 
-      // Legacy row-only jobs (no applicationItemId, no independent evidence) MUST ALWAYS go to MANUAL_REVIEW_REQUIRED without touching Google Sheets!
-      const writesBeforeLegacy = mock.state.dataFilterUpdateRequests.length;
-
-      // 1) Legacy row-only job with unmapped row number
+      // 7) Legacy row-only jobs (no applicationItemId, no independent evidence) MUST ALWAYS go to MANUAL_REVIEW_REQUIRED with ZERO writes!
       const ambiguousLegacyId = await enqueueIntegrationJob(db, 'sheets.clear_row', { examRoundId: round1, spreadsheetRow: 99 }, `legacy-ambiguous-${runId}`);
       await processIntegrationJob();
       const ambiguousLegacy = (await db.query('SELECT status,attempts,last_error FROM integration_jobs WHERE id=$1', [ambiguousLegacyId])).rows[0];
@@ -416,7 +406,6 @@ if (!testUrl) {
       const queueStatus = await integrationQueueStatus();
       assert.equal(queueStatus.jobs.find((j) => Number(j.id) === Number(ambiguousLegacyId))?.manualReviewRequired, true);
 
-      // 2) Legacy row-only job pointing to an active approved item's old row number
       const activeLegacyId = await enqueueIntegrationJob(db, 'sheets.clear_row', { examRoundId: round1, spreadsheetRow: 4 }, `legacy-active-${runId}`);
       await processIntegrationJob();
       const activeLegacy = (await db.query('SELECT status,attempts,last_error FROM integration_jobs WHERE id=$1', [activeLegacyId])).rows[0];
@@ -424,8 +413,6 @@ if (!testUrl) {
       assert.equal(activeLegacy.attempts, 8);
       assert.match(activeLegacy.last_error, /^MANUAL_REVIEW_REQUIRED:/);
 
-      // 3) Legacy row-only job EVEN when google_workspace_sheet_rows holds a rejected item at that row number ->
-      // still has no independent evidence confirming Application Item ID, so MUST stop for manual review without modifying Sheets!
       await db.query("UPDATE applications SET status='rejected' WHERE id=$1", [appB.appId]);
       const rejectedLegacyId = await enqueueIntegrationJob(db, 'sheets.clear_row', { examRoundId: round1, spreadsheetRow: 3 }, `legacy-rejected-row-only-${runId}`);
       await processIntegrationJob();
@@ -433,11 +420,24 @@ if (!testUrl) {
       assert.equal(rejectedLegacy.status, 'failed');
       assert.equal(rejectedLegacy.attempts, 8);
       assert.match(rejectedLegacy.last_error, /^MANUAL_REVIEW_REQUIRED:/);
-      assert.equal(mock.state.dataFilterUpdateRequests.length, writesBeforeLegacy, 'legacy row-only jobs must never write to Google Sheets');
-      assert.equal(mock.state.rows[2][11], `Bravo${runId}`, 'Bravo must remain untouched by legacy row-only job');
-      assert.deepEqual(mock.state.rows[2].slice(APPLICATION_HEADERS.length), ['Bravo Staff Note', 'Officer 2']);
-      assert.equal(mock.state.rows[1][11], `Charlie${runId}`, 'Charlie must remain untouched');
-      assert.deepEqual(mock.state.rows[1].slice(APPLICATION_HEADERS.length), ['Charlie Staff Note', 'Officer 3']);
+      assert.equal(mock.state.writeRequests.length, 0, 'legacy row-only jobs must send ZERO writes to Google');
+
+      // 8) Idempotent re-run after staff clears A:Z on Alpha's row (preserving staff cols AA:AB) -> completes cleanly with ZERO writes!
+      for (let col = 0; col < APPLICATION_HEADERS.length; col += 1) mock.state.rows[3][col] = '';
+      const rerunAfterBlank = await clearGoogleWorkspaceSheetRow(clearJob.payload);
+      assert.equal(rerunAfterBlank.alreadyCleared, true);
+      assert.equal(rerunAfterBlank.cleared, false);
+      assert.equal(mock.state.writeRequests.length, 0);
+      assert.deepEqual(mock.state.rows[3].slice(APPLICATION_HEADERS.length), ['Alpha Staff Note', 'Officer 1']);
+      assert.equal(mock.state.rows[2][11], `Bravo${runId}`);
+      assert.equal(mock.state.rows[1][11], `Charlie${runId}`);
+
+      // Idempotent re-run after metadata is also deleted -> completes cleanly with ZERO writes!
+      mock.state.metadata = mock.state.metadata.filter((m) => m.metadataValue !== appA.item1);
+      const rerunAfterMetaRemoved = await clearGoogleWorkspaceSheetRow(clearJob.payload);
+      assert.equal(rerunAfterMetaRemoved.alreadyCleared, true);
+      assert.equal(rerunAfterMetaRemoved.cleared, false);
+      assert.equal(mock.state.writeRequests.length, 0);
     } finally {
       globalThis.fetch = originalFetch;
     }

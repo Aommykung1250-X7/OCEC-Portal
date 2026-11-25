@@ -1195,10 +1195,16 @@ export async function updateAdminApplication(applicationId, input, adminUserId) 
         await client.query('DELETE FROM certificate_photos WHERE application_item_id=ANY($1::uuid[])', [removedIds]);
         const sheetRows = await client.query(`SELECT r.application_item_id, r.exam_round_id, r.spreadsheet_row,
             t.sheet_id, t.title AS sheet_title,
-            s.drive_file_id AS spreadsheet_id, s.academic_year
+            s.drive_file_id AS spreadsheet_id, s.academic_year,
+            c.short_name AS competition_short_name,
+            g.label AS grade_label
           FROM google_workspace_sheet_rows r
           LEFT JOIN google_workspace_sheet_tabs t ON t.exam_round_id = r.exam_round_id
           LEFT JOIN google_workspace_spreadsheets s ON s.academic_year = t.academic_year
+          LEFT JOIN application_items ai ON ai.id = r.application_item_id
+          LEFT JOIN exam_rounds er ON er.id = ai.exam_round_id
+          LEFT JOIN competitions c ON c.id = er.competition_id
+          LEFT JOIN grade_catalog g ON g.id = ai.grade_id
           WHERE r.application_item_id = ANY($1::uuid[])`, [removedIds]);
         deletedSheetRows.push(...sheetRows.rows);
         for (const row of sheetRows.rows) {
@@ -1213,6 +1219,14 @@ export async function updateAdminApplication(applicationId, input, adminUserId) 
               sheetId: row.sheet_id ?? null,
               sheetTitle: row.sheet_title || null,
               legacySpreadsheetRow: row.spreadsheet_row,
+              expectedRowIdentity: {
+                competition: row.competition_short_name || '',
+                grade: row.grade_label || '',
+                firstNameEn: application.first_name_en || '',
+                lastNameEn: application.last_name_en || '',
+                contactEmail: application.contact_email || '',
+                contactPhone: application.contact_phone || '',
+              },
             },
             `sheets-clear:${row.exam_round_id}:${row.application_item_id}`,
           );
