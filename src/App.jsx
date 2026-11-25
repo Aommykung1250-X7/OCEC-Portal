@@ -811,6 +811,7 @@ function GoogleDriveConnectionCard() {
 }
 
 function AdminSheetsPage() {
+  const confirmAction = useConfirm();
   const [data, setData] = useState(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -819,7 +820,7 @@ function AdminSheetsPage() {
       const response = await fetch("/api/admin/integrations/status", { credentials: "same-origin" });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || "ไม่สามารถอ่านสถานะการเชื่อมต่อได้");
-      setData(result); setMessage("");
+      setData(result);
     } catch (error) { setMessage(error.message || "ไม่สามารถอ่านสถานะการเชื่อมต่อได้"); }
   }
   useEffect(() => {
@@ -830,8 +831,8 @@ function AdminSheetsPage() {
   }, []);
   const counts = (data?.queue?.counts || []).reduce((all, row) => ({ ...all, [`${row.kind}:${row.status}`]: row.count }), {});
   const jobs = data?.queue?.jobs || [];
-  const syncFailedCount = counts["sheets.sync_item:failed"] || 0;
-  const pendingCount = (counts["sheets.sync_item:pending"] || 0) + (counts["gmail.send:pending"] || 0);
+  const syncFailedCount = (counts["sheets.sync_item:failed"] || 0) + (counts["sheets.clear_row:failed"] || 0);
+  const pendingCount = (counts["sheets.sync_item:pending"] || 0) + (counts["sheets.clear_row:pending"] || 0) + (counts["gmail.send:pending"] || 0);
   async function syncApprovedItems() {
     setBusy(true); setMessage("");
     try {
@@ -843,30 +844,97 @@ function AdminSheetsPage() {
     finally { setBusy(false); }
   }
   async function retryJob(id) {
-    setBusy(true);
+    setBusy(true); setMessage("");
     try {
       const response = await fetch(`/api/admin/integration-jobs/${id}/retry`, { method: "POST", credentials: "same-origin" });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || "ไม่สามารถเริ่มงานอีกครั้งได้");
+      setMessage("ส่งงานกลับเข้าคิวเพื่อดำเนินการอีกครั้งแล้ว");
       await refresh();
     } catch (error) { setMessage(error.message || "ไม่สามารถเริ่มงานอีกครั้งได้"); }
     finally { setBusy(false); }
   }
+  async function confirmManualClear(job) {
+    const review = job.clearReview || {};
+    const targetLines = [
+      review.applicantName ? `ผู้สมัคร: ${review.applicantName}` : null,
+      review.competition || review.grade ? `รายการสอบ: ${[review.competition, review.grade].filter(Boolean).join(" · ")}` : null,
+      review.applicationItemId ? `Application Item ID: ${review.applicationItemId}` : null,
+      review.sheetTitle ? `แท็บ Google Sheets: ${review.sheetTitle}${review.sheetId != null ? ` (sheetId ${review.sheetId})` : ""}` : null,
+    ].filter(Boolean);
+    const ok = await confirmAction({
+      title: "ยืนยันว่าล้างข้อมูลใน Google Sheets แล้ว?",
+      message: `${targetLines.join(" · ")}${targetLines.length ? " — " : ""}โปรดตรวจสอบว่าล้างเฉพาะคอลัมน์ A:Z ของผู้สมัครรายนี้และรักษาคอลัมน์เสริม (AA+) กับข้อมูลผู้อื่นไว้ครบถ้วนแล้ว ระบบจะบันทึกผู้ยืนยันและให้ worker ตรวจแบบอ่านอย่างเดียว`,
+      confirmLabel: "ยืนยันว่าล้างข้อมูลแล้ว",
+    });
+    if (!ok) return;
+    setBusy(true); setMessage("");
+    try {
+      const response = await fetch(`/api/admin/integration-jobs/${job.id}/confirm-sheet-clear`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ confirmed: true }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "ไม่สามารถบันทึกการยืนยันได้");
+      setMessage(result.alreadyConfirmed
+        ? "รายการนี้ได้รับการยืนยันแล้วและอยู่ในขั้นตอนตรวจยืนยัน"
+        : "บันทึกการยืนยันว่าล้างข้อมูลแล้ว และส่งงานกลับให้ระบบตรวจแบบอ่านอย่างเดียว");
+      await refresh();
+    } catch (error) { setMessage(error.message || "ไม่สามารถบันทึกการยืนยันได้"); }
+    finally { setBusy(false); }
+  }
   const formatTime = (value) => value ? new Intl.DateTimeFormat("th-TH", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "—";
+  const jobTitle = (job) => {
+    const kindLabel = job.kind === "gmail.send" ? "ส่งอีเมล" : job.kind === "sheets.clear_row" ? "ล้างแถว Google Sheets" : "ซิงก์ Google Sheets";
+    const statusLabel = job.status === "completed"
+      ? "ดำเนินการสำเร็จ"
+      : job.status === "failed"
+        ? (job.manualReviewRequired ? "รอเจ้าหน้าที่ตรวจสอบ" : "ดำเนินการไม่สำเร็จ")
+        : job.status === "running"
+          ? "กำลังดำเนินการ"
+          : "รอดำเนินการ";
+    return `${kindLabel} · ${statusLabel}`;
+  };
   return (
     <div className="page-stack">
       <PageHeading eyebrow="การเชื่อมต่อข้อมูล" title="สถานะการเชื่อมต่อ Google Sheets" description="ระบบจะส่งข้อมูลเฉพาะใบสมัครที่ได้รับอนุมัติแล้ว · จัดเก็บไฟล์แยกตามปีและแผ่นงานตามรายการสอบและรอบ · การแก้ไขข้อมูลใน Google Sheets จะไม่เปลี่ยนแปลงข้อมูลบนเว็บไซต์" action={<Button variant="outline" icon="sync" disabled={busy || !BACKEND_ENABLED} onClick={refresh}>ปรับปรุงสถานะ</Button>} />
       {BACKEND_ENABLED ? <GoogleDriveConnectionCard /> : <div className="notice notice-amber"><Icon name="info" /><div><strong>ยังไม่ได้เปิดใช้งานระบบหลังบ้าน</strong><p>โปรดเปิดใช้งาน VITE_BACKEND_ENABLED และเชื่อมต่อฐานข้อมูลก่อนตรวจสอบสถานะการเชื่อมต่อ</p></div></div>}
       {message ? <div className="notice notice-blue" role="status"><Icon name="info" /><div><p>{message}</p></div></div> : null}
       <div className="sheets-grid">
-        <section className="surface sheets-status-card"><span className={"sheets-status-icon " + (syncFailedCount ? "sheets-status-wait" : "")}><Icon name={syncFailedCount ? "sync" : "check"} /></span><p className="eyebrow">รายการที่อนุมัติ</p><h2>{data?.queue?.sheets?.synced_items ?? "—"} / {data?.queue?.sheets?.approved_items ?? "—"}</h2><p>รายการที่ซิงก์แล้ว / รายการที่อนุมัติและต้องซิงก์</p><div className="sheets-last-sync"><span>งานที่รอดำเนินการ</span><strong>{pendingCount + (counts["sheets.sync_item:failed"] || 0) + (counts["gmail.send:failed"] || 0)} งาน</strong></div><Button variant="outline" icon="sync" disabled={busy || !data?.workspace?.connected} onClick={syncApprovedItems}>{busy ? "กำลังเพิ่มคิว…" : "ซิงก์ใบสมัครที่อนุมัติแล้ว"}</Button></section>
+        <section className="surface sheets-status-card"><span className={"sheets-status-icon " + (syncFailedCount ? "sheets-status-wait" : "")}><Icon name={syncFailedCount ? "sync" : "check"} /></span><p className="eyebrow">รายการที่อนุมัติ</p><h2>{data?.queue?.sheets?.synced_items ?? "—"} / {data?.queue?.sheets?.approved_items ?? "—"}</h2><p>รายการที่ซิงก์แล้ว / รายการที่อนุมัติและต้องซิงก์</p><div className="sheets-last-sync"><span>งานที่รอดำเนินการ</span><strong>{pendingCount + syncFailedCount + (counts["gmail.send:failed"] || 0)} งาน</strong></div><Button variant="outline" icon="sync" disabled={busy || !data?.workspace?.connected} onClick={syncApprovedItems}>{busy ? "กำลังเพิ่มคิว…" : "ซิงก์ใบสมัครที่อนุมัติแล้ว"}</Button></section>
         <section className="surface sheets-activity"><div className="section-heading"><div><p className="eyebrow">Google Sheets</p><h2>ไฟล์ Google Sheets ที่สร้างแล้ว</h2></div></div>
           {(data?.queue?.workbooks || []).length ? <div className="activity-list">{data.queue.workbooks.map((book) => <div className="activity-row" key={book.academic_year}><span className="activity-mark activity-ok"><Icon name="file" size={13} /></span><div><strong>{book.title}</strong><small>ปีการศึกษา {book.academic_year} · ปรับปรุงล่าสุด {formatTime(book.updated_at)}</small></div><a href={book.spreadsheet_url} target="_blank" rel="noreferrer">เปิด Google Sheets</a></div>)}</div> : <div className="empty-inline"><Icon name="info" /><span>ระบบจะสร้างไฟล์ Google Sheets เมื่อมีใบสมัครที่ได้รับอนุมัติเข้าคิว</span></div>}
           <p className="sheets-rule"><Icon name="info" size={15} />หนึ่งแถวต่อ Application Item ID · หากสมัคร 3 รายการ ระบบจะแยกข้อมูลเป็น 3 แท็บตามรอบสอบ</p>
         </section>
       </div>
       <section className="surface sheets-activity"><div className="section-heading"><div><p className="eyebrow">คิวส่งข้อมูล</p><h2>รายการดำเนินการล่าสุด</h2></div></div>
-        {jobs.length ? <div className="activity-list">{jobs.map((job) => <div className={"activity-row " + (job.status === "failed" ? "activity-row-failed" : "")} key={job.id}><span className={"activity-mark " + (job.status === "completed" ? "activity-ok" : job.status === "failed" ? "activity-wait" : "")}><Icon name={job.status === "completed" ? "check" : job.status === "failed" ? "info" : "clock"} size={13} /></span><div><strong>{job.kind === "gmail.send" ? "ส่งอีเมล" : "ซิงก์ Google Sheets"} · {job.status === "completed" ? "ดำเนินการสำเร็จ" : job.status === "failed" ? "ดำเนินการไม่สำเร็จ" : job.status === "running" ? "กำลังดำเนินการ" : "รอดำเนินการ"}</strong><small>{job.last_error || `สร้าง ${formatTime(job.created_at)} · ดำเนินการแล้ว ${job.attempts} ครั้ง`}</small></div>{job.status === "failed" ? <Button variant="text" disabled={busy} onClick={() => retryJob(job.id)}>ดำเนินการอีกครั้ง</Button> : null}</div>)}</div> : <div className="empty-inline"><Icon name="info" /><span>ยังไม่มีรายการดำเนินการด้านอีเมลหรือ Google Sheets</span></div>}
+        {jobs.length ? <div className="activity-list">{jobs.map((job) => {
+          const review = job.kind === "sheets.clear_row" ? job.clearReview : null;
+          const showManualConfirm = Boolean(job.kind === "sheets.clear_row" && job.status === "failed" && job.manualReviewRequired);
+          return <div className={"activity-row " + (job.status === "failed" ? "activity-row-failed" : "")} key={job.id}>
+            <span className={"activity-mark " + (job.status === "completed" ? "activity-ok" : job.status === "failed" ? "activity-wait" : "")}><Icon name={job.status === "completed" ? "check" : job.status === "failed" ? "info" : "clock"} size={13} /></span>
+            <div>
+              <strong>{jobTitle(job)}</strong>
+              {review ? <small>
+                {[
+                  review.applicantName ? `ผู้สมัคร ${review.applicantName}` : null,
+                  review.competition || review.grade ? [review.competition, review.grade].filter(Boolean).join(" · ") : null,
+                  review.applicationItemId ? `Item ID: ${review.applicationItemId}` : "ไม่มี Application Item ID",
+                  review.sheetTitle ? `แท็บ ${review.sheetTitle}${review.sheetId != null ? ` (sheetId ${review.sheetId})` : ""}` : null,
+                ].filter(Boolean).join(" · ")}
+                {review.sheetUrl ? <> · <a href={review.sheetUrl} target="_blank" rel="noreferrer">เปิดชีตเพื่อตรวจ</a></> : null}
+              </small> : null}
+              <small>{job.last_error || `สร้าง ${formatTime(job.created_at)} · ดำเนินการแล้ว ${job.attempts} ครั้ง`}</small>
+              {showManualConfirm && !review?.canConfirmManualClear ? <small>ระบุเป้าหมายไม่ครบ (Application Item ID หรือแท็บปลายทาง) · คงงานไว้ให้เจ้าหน้าที่ตรวจในชีตโดยตรง</small> : null}
+            </div>
+            {job.status === "failed" ? <div className="final-id-row-actions">
+              {showManualConfirm && review?.canConfirmManualClear ? <Button variant="outline" disabled={busy} onClick={() => confirmManualClear(job)}>ยืนยันว่าล้างข้อมูลแล้ว</Button> : null}
+              <Button variant="text" disabled={busy} onClick={() => retryJob(job.id)}>ดำเนินการอีกครั้ง</Button>
+            </div> : null}
+          </div>;
+        })}</div> : <div className="empty-inline"><Icon name="info" /><span>ยังไม่มีรายการดำเนินการด้านอีเมลหรือ Google Sheets</span></div>}
       </section>
     </div>
   );

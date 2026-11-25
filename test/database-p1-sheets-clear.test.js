@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
-import { createCipheriv, randomBytes } from 'node:crypto';
+import { createCipheriv, createHash, randomBytes } from 'node:crypto';
 import test from 'node:test';
 import { APPLICATION_HEADERS, APPLICATION_HEADERS_WITH_MIDDLE, APPLICATION_ITEM_METADATA_KEY, LEGACY_APPLICATION_HEADERS } from '../server/applicationSheetLayout.js';
 import { createIndividualDraft, updateAdminApplication } from '../server/applications.js';
 import { getPool } from '../server/db.js';
 import { clearGoogleWorkspaceSheetRow, recordManualSheetRowClearConfirmation, syncGoogleWorkspaceSheetItem } from '../server/googleWorkspace.js';
+import { buildApp } from '../server/index.js';
 import { enqueueIntegrationJob, integrationQueueStatus, retryIntegrationJob } from '../server/integrationQueue.js';
 import { processIntegrationJob } from '../server/integrationWorker.js';
 import { seed } from '../server/seed.js';
@@ -211,6 +212,7 @@ if (!testUrl) {
     const db = getPool();
     const runId = randomBytes(4).toString('hex');
     const mock = createStatefulSheetsMock();
+    mock.state.spreadsheetId = `mock-sheet-workbook-api-${runId}`;
     const originalFetch = globalThis.fetch;
 
     const users = await db.query(`INSERT INTO users(google_sub,email,display_name,is_admin)
@@ -616,6 +618,235 @@ if (!testUrl) {
       assert.equal(mock.state.writeRequests.length, 0);
     } finally {
       globalThis.fetch = originalFetch;
+    }
+  });
+
+  test('admin API confirms manual sheet clear with server-derived target, blocks unauthorized/unresolvable/non-empty cases, keeps retry separate, avoids duplicate jobs, and sends zero Google writes', async () => {
+    const db = getPool();
+    const runId = randomBytes(4).toString('hex');
+    const mock = createStatefulSheetsMock();
+    mock.state.spreadsheetId = `mock-sheet-workbook-api-${runId}`;
+    const originalFetch = globalThis.fetch;
+    const app = buildApp({ logger: false });
+
+    const regularUser = (await db.query(`INSERT INTO users(google_sub,email,display_name,is_admin)
+      VALUES($1,$2,'Regular User',false) RETURNING id`, [
+      `sh-api-user-${runId}`, `sh-api-user-${runId}@example.test`,
+    ])).rows[0];
+    const existingAdmin = await db.query("SELECT id FROM users WHERE lower(email)='admin@ocec.test' LIMIT 1");
+    const adminUser = existingAdmin.rowCount
+      ? (await db.query('UPDATE users SET is_admin=true WHERE id=$1 RETURNING id', [existingAdmin.rows[0].id])).rows[0]
+      : (await db.query(`INSERT INTO users(google_sub,email,display_name,is_admin)
+          VALUES('ocec-test-admin','admin@ocec.test','Queue Admin',true)
+          ON CONFLICT (google_sub) DO UPDATE SET email=excluded.email,is_admin=true
+          RETURNING id`)).rows[0];
+    const regularUserId = regularUser.id;
+    const adminUserId = adminUser.id;
+    const makeCookie = async (userId) => {
+      const token = randomBytes(24).toString('hex');
+      await db.query("INSERT INTO sessions(token_hash,user_id,expires_at) VALUES($1,$2,now()+interval '1 hour')", [
+        createHash('sha256').update(token).digest('hex'),
+        userId,
+      ]);
+      return `ocec_session=${token}`;
+    };
+    const userCookie = await makeCookie(regularUserId);
+    const adminCookie = await makeCookie(adminUserId);
+
+    const gradeId = (await db.query("SELECT id FROM grade_catalog WHERE label='Primary 1'")).rows[0].id;
+    const centerId = (await db.query("SELECT id FROM exam_centers WHERE code='554'")).rows[0].id;
+    const round1 = `oc05-api-bbb-${runId}`;
+    const round2 = `oc05-api-hkiso-${runId}`;
+    await db.query(`INSERT INTO exam_rounds(id,competition_id,title,year,round_type,open_date,close_date,exam_date,is_open,active)
+      VALUES
+        ($1,'bbb','BBB API Clear','2570','HEAT',current_date-1,current_date+1,current_date+10,true,true),
+        ($2,'hkiso','HKISO API Keep','2570','HEAT',current_date-1,current_date+1,current_date+10,true,true)`, [round1, round2]);
+    await db.query('INSERT INTO exam_round_grades(exam_round_id,grade_id) VALUES($1,$3),($2,$3)', [round1, round2, gradeId]);
+    await db.query('INSERT INTO exam_round_centers(exam_round_id,center_id) VALUES($1,$3),($2,$3)', [round1, round2, centerId]);
+
+    await db.query(`INSERT INTO google_workspace_connection(singleton,account_email,encrypted_refresh_token,granted_scopes,
+        drive_root_folder_id,slip_root_folder_id,certificate_photo_root_folder_id,spreadsheet_root_folder_id)
+      VALUES(true,'sheets-clear@ocec.test',$1,$2,'r','s','p','sh')
+      ON CONFLICT (singleton) DO UPDATE SET
+        account_email=excluded.account_email,encrypted_refresh_token=excluded.encrypted_refresh_token,granted_scopes=excluded.granted_scopes`,
+    [encryptToken('mock-refresh'), ['openid', 'email', 'https://www.googleapis.com/auth/drive.file', 'https://www.googleapis.com/auth/gmail.send', 'https://www.googleapis.com/auth/spreadsheets']]);
+    await db.query(`INSERT INTO google_workspace_spreadsheets(academic_year,drive_file_id,title,spreadsheet_url)
+      VALUES('2570',$1,'OCEC Applications 2570','https://docs.google.com/spreadsheets/d/mock-sheet-workbook-api')
+      ON CONFLICT (academic_year) DO UPDATE SET drive_file_id=excluded.drive_file_id,spreadsheet_url=excluded.spreadsheet_url`, [mock.state.spreadsheetId]);
+    await db.query(`INSERT INTO google_workspace_sheet_tabs(exam_round_id,academic_year,sheet_id,title)
+      VALUES($1,'2570',$2,$3) ON CONFLICT (exam_round_id) DO UPDATE SET sheet_id=excluded.sheet_id,title=excluded.title`,
+    [round1, mock.state.sheetId, mock.state.sheetTitle]);
+
+    const draft = await createIndividualDraft({
+      applicant: { firstNameEn: `ApiAlpha${runId}`, middleNameEn: '', lastNameEn: 'Tester', dateOfBirth: '2017-01-01', schoolName: 'API School', contactEmail: `apialpha-${runId}@example.test`, contactPhone: '0812345678' },
+      items: [
+        { roundId: round1, gradeId, format: 'paper', centerId },
+        { roundId: round2, gradeId, format: 'paper', centerId },
+      ],
+      pastPaperIds: [],
+    }, regularUserId);
+    await db.query("UPDATE applications SET status='approved',approved_at=now() WHERE id=$1", [draft.id]);
+    const itemRows = (await db.query('SELECT id,exam_round_id FROM application_items WHERE application_id=$1', [draft.id])).rows;
+    const item1 = itemRows.find((r) => r.exam_round_id === round1).id;
+    const item2 = itemRows.find((r) => r.exam_round_id === round2).id;
+
+    globalThis.fetch = mock.fetchMock;
+    try {
+      await syncGoogleWorkspaceSheetItem(item1);
+      mock.state.rows[0][26] = 'Keep Staff Note';
+      mock.state.rows[0][27] = 'Staff Reviewer';
+
+      await updateAdminApplication(draft.id, {
+        profile: { firstNameEn: `ApiAlpha${runId}`, middleNameEn: '', lastNameEn: 'Tester', schoolName: 'API School', contactEmail: `apialpha-${runId}@example.test`, contactPhone: '0812345678', address: {} },
+        items: [{ applicationItemId: item2, roundId: round2, gradeId, format: 'paper', centerId }],
+      }, adminUserId);
+
+      const clearJob = (await db.query("SELECT id FROM integration_jobs WHERE kind='sheets.clear_row' AND payload->>'applicationItemId'=$1 ORDER BY id DESC LIMIT 1", [item1])).rows[0];
+      await db.query("UPDATE integration_jobs SET status='completed' WHERE id <> $1 AND status IN ('pending','failed')", [clearJob.id]);
+      mock.state.writeRequests.length = 0;
+
+      // Worker runs first -> marks MANUAL_REVIEW_REQUIRED without writing to Google
+      assert.equal(await processIntegrationJob(), true);
+      assert.equal(mock.state.writeRequests.length, 0);
+
+      // Enqueue a legacy row-only job and a failed sync job for UI/API checks
+      const legacyRowOnlyJobId = await enqueueIntegrationJob(db, 'sheets.clear_row', { examRoundId: round1, spreadsheetRow: 2 }, `api-legacy-row-only-${runId}`);
+      await processIntegrationJob();
+      const failedSyncJobId = (await db.query(
+        `INSERT INTO integration_jobs(kind,payload,dedupe_key,status,attempts,next_attempt_at,last_error)
+         VALUES('sheets.sync_item',$1,$2,'failed',1,now()+interval '1 hour','Temporary error') RETURNING id`,
+        [{ applicationItemId: item2 }, `api-failed-sync-${runId}`],
+      )).rows[0].id;
+
+      // 1) Status API exposes clearReview with sheet link & canConfirmManualClear ONLY where target is valid
+      const statusRes = await app.inject({ method: 'GET', url: '/api/admin/integrations/status', headers: { cookie: adminCookie } });
+      assert.equal(statusRes.statusCode, 200);
+      const statusJobs = statusRes.json().queue.jobs;
+      const clearStatusJob = statusJobs.find((j) => Number(j.id) === Number(clearJob.id));
+      assert.equal(clearStatusJob.manualReviewRequired, true);
+      assert.equal(clearStatusJob.clearReview.applicationItemId, item1);
+      assert.equal(clearStatusJob.clearReview.applicantName, `ApiAlpha${runId} Tester`);
+      assert.equal(clearStatusJob.clearReview.sheetUrl, `https://docs.google.com/spreadsheets/d/mock-sheet-workbook-api#gid=${mock.state.sheetId}`);
+      assert.equal(clearStatusJob.clearReview.canConfirmManualClear, true);
+      const legacyStatusJob = statusJobs.find((j) => Number(j.id) === Number(legacyRowOnlyJobId));
+      assert.equal(legacyStatusJob.clearReview.canConfirmManualClear, false);
+      const syncStatusJob = statusJobs.find((j) => Number(j.id) === Number(failedSyncJobId));
+      assert.equal(syncStatusJob.clearReview, undefined);
+
+      // 2) Unauthorized callers (anonymous 401, non-admin 403) and missing/false confirmation (400) are rejected
+      const anonRes = await app.inject({ method: 'POST', url: `/api/admin/integration-jobs/${clearJob.id}/confirm-sheet-clear`, payload: { confirmed: true } });
+      assert.equal(anonRes.statusCode, 401);
+      const nonAdminRes = await app.inject({ method: 'POST', url: `/api/admin/integration-jobs/${clearJob.id}/confirm-sheet-clear`, headers: { cookie: userCookie }, payload: { confirmed: true } });
+      assert.equal(nonAdminRes.statusCode, 403);
+      const unconfirmedRes = await app.inject({
+        method: 'POST',
+        url: `/api/admin/integration-jobs/${clearJob.id}/confirm-sheet-clear`,
+        headers: { cookie: adminCookie },
+        payload: { confirmed: false },
+      });
+      assert.equal(unconfirmedRes.statusCode, 400, 'explicit confirmed: true must be required');
+
+      // 3) Legacy row-only job (unresolvable target) & non-clear job cannot be confirmed (409 / 400); legacy stays MANUAL_REVIEW_REQUIRED
+      const legacyConfirmRes = await app.inject({ method: 'POST', url: `/api/admin/integration-jobs/${legacyRowOnlyJobId}/confirm-sheet-clear`, headers: { cookie: adminCookie }, payload: { confirmed: true } });
+      assert.equal(legacyConfirmRes.statusCode, 409);
+      const legacyStillFailed = (await db.query('SELECT status,last_error FROM integration_jobs WHERE id=$1', [legacyRowOnlyJobId])).rows[0];
+      assert.equal(legacyStillFailed.status, 'failed');
+      assert.match(legacyStillFailed.last_error, /^MANUAL_REVIEW_REQUIRED:/);
+      const wrongKindRes = await app.inject({ method: 'POST', url: `/api/admin/integration-jobs/${failedSyncJobId}/confirm-sheet-clear`, headers: { cookie: adminCookie }, payload: { confirmed: true } });
+      assert.equal(wrongKindRes.statusCode, 400);
+
+      // 4) Normal retry button (`POST /retry`) MUST NOT create manual_clear_confirmed evidence
+      const retryRes = await app.inject({ method: 'POST', url: `/api/admin/integration-jobs/${clearJob.id}/retry`, headers: { cookie: adminCookie } });
+      assert.equal(retryRes.statusCode, 200);
+      const confirmAuditsAfterRetry = (await db.query(
+        "SELECT count(*)::integer AS count FROM audit_logs WHERE entity_type='google_sheet_row_clear' AND entity_id=$1 AND action='manual_clear_confirmed'",
+        [item1],
+      )).rows[0].count;
+      assert.equal(confirmAuditsAfterRetry, 0, 'normal retry must never create manual_clear_confirmed evidence');
+      // Worker runs after normal retry -> returns to MANUAL_REVIEW_REQUIRED with 0 writes
+      await processIntegrationJob();
+      assert.equal((await db.query('SELECT status FROM integration_jobs WHERE id=$1', [clearJob.id])).rows[0].status, 'failed');
+      assert.equal(mock.state.writeRequests.length, 0);
+
+      // 5) Admin confirms via API (even if extra forged target IDs are sent, server derives target strictly from job + DB)
+      //    while sheet STILL has data -> records audit with adminUserId, re-queues SAME job,
+      //    but worker keeps job in MANUAL_REVIEW_REQUIRED because sheet A:Z is still non-empty!
+      const jobCountBefore = (await db.query("SELECT count(*)::integer AS count FROM integration_jobs WHERE kind='sheets.clear_row' AND payload->>'applicationItemId'=$1", [item1])).rows[0].count;
+      const confirmWhileFullRes = await app.inject({
+        method: 'POST',
+        url: `/api/admin/integration-jobs/${clearJob.id}/confirm-sheet-clear`,
+        headers: { cookie: adminCookie },
+        payload: {
+          confirmed: true,
+          note: 'Checked sheet',
+          applicationItemId: '00000000-0000-4000-8000-000000000999',
+          spreadsheetId: 'forged-evil-workbook',
+          sheetId: 999,
+        },
+      });
+      assert.equal(confirmWhileFullRes.statusCode, 200);
+      assert.equal(confirmWhileFullRes.json().alreadyConfirmed, false);
+      assert.equal(confirmWhileFullRes.json().job.status, 'pending');
+      assert.equal(confirmWhileFullRes.json().target.applicationItemId, item1);
+      assert.equal(confirmWhileFullRes.json().target.spreadsheetId, mock.state.spreadsheetId);
+      assert.equal(confirmWhileFullRes.json().target.sheetId, mock.state.sheetId);
+
+      // Duplicate confirm while pending -> idempotent 200, NO duplicate job, NO extra audit row!
+      const dupConfirmPending = await app.inject({ method: 'POST', url: `/api/admin/integration-jobs/${clearJob.id}/confirm-sheet-clear`, headers: { cookie: adminCookie }, payload: { confirmed: true } });
+      assert.equal(dupConfirmPending.statusCode, 200);
+      assert.equal(dupConfirmPending.json().alreadyConfirmed, true);
+      const jobCountAfter = (await db.query("SELECT count(*)::integer AS count FROM integration_jobs WHERE kind='sheets.clear_row' AND payload->>'applicationItemId'=$1", [item1])).rows[0].count;
+      assert.equal(jobCountAfter, jobCountBefore, 'confirming again must never create duplicate jobs');
+
+      const recordedAudit = (await db.query(
+        "SELECT actor_user_id,after_data FROM audit_logs WHERE entity_type='google_sheet_row_clear' AND entity_id=$1 AND action='manual_clear_confirmed'",
+        [item1],
+      )).rows;
+      assert.equal(recordedAudit.length, 1);
+      assert.equal(recordedAudit[0].actor_user_id, adminUserId);
+      assert.equal(recordedAudit[0].after_data.spreadsheetId, mock.state.spreadsheetId);
+      assert.equal(recordedAudit[0].after_data.sheetId, mock.state.sheetId);
+
+      // Worker runs while data is still on sheet -> stays MANUAL_REVIEW_REQUIRED, 0 writes
+      await processIntegrationJob();
+      const stillBlockedAfterPrematureConfirm = (await db.query('SELECT status,attempts,last_error FROM integration_jobs WHERE id=$1', [clearJob.id])).rows[0];
+      assert.equal(stillBlockedAfterPrematureConfirm.status, 'failed');
+      assert.equal(stillBlockedAfterPrematureConfirm.attempts, 8);
+      assert.match(stillBlockedAfterPrematureConfirm.last_error, /^MANUAL_REVIEW_REQUIRED:/);
+      assert.equal(mock.state.writeRequests.length, 0);
+
+      // 6) Staff clears A:Z (preserving AA:AB), but Google returns incomplete read (missing valueRange) -> worker keeps MANUAL_REVIEW_REQUIRED, 0 writes!
+      for (let col = 0; col < APPLICATION_HEADERS.length; col += 1) mock.state.rows[0][col] = '';
+      mock.state.batchGetResponseOverride = (body) => ({ spreadsheetId: mock.state.spreadsheetId, valueRanges: [{ dataFilters: body.dataFilters }] });
+      const reconfirmForIncomplete = await app.inject({ method: 'POST', url: `/api/admin/integration-jobs/${clearJob.id}/confirm-sheet-clear`, headers: { cookie: adminCookie }, payload: { confirmed: true } });
+      assert.equal(reconfirmForIncomplete.statusCode, 200);
+      await processIntegrationJob();
+      const blockedOnIncompleteRead = (await db.query('SELECT status,attempts,last_error FROM integration_jobs WHERE id=$1', [clearJob.id])).rows[0];
+      assert.equal(blockedOnIncompleteRead.status, 'failed');
+      assert.equal(blockedOnIncompleteRead.attempts, 8);
+      assert.match(blockedOnIncompleteRead.last_error, /missing valueRange/);
+      assert.equal(mock.state.writeRequests.length, 0);
+
+      // 7) Normal complete read of empty A:Z row -> admin confirms & worker closes job as COMPLETED with ZERO Google writes!
+      const finalConfirmRes = await app.inject({ method: 'POST', url: `/api/admin/integration-jobs/${clearJob.id}/confirm-sheet-clear`, headers: { cookie: adminCookie }, payload: { confirmed: true } });
+      assert.equal(finalConfirmRes.statusCode, 200);
+      await processIntegrationJob();
+      const closedJob = (await db.query('SELECT status,last_error,completed_at FROM integration_jobs WHERE id=$1', [clearJob.id])).rows[0];
+      assert.equal(closedJob.status, 'completed', closedJob.last_error || '');
+      assert.equal(closedJob.last_error, null);
+      assert.ok(closedJob.completed_at);
+      assert.equal(mock.state.writeRequests.length, 0);
+      assert.deepEqual(mock.state.rows[0].slice(APPLICATION_HEADERS.length), ['Keep Staff Note', 'Staff Reviewer']);
+
+      // Re-confirming an already completed job returns alreadyConfirmed: true without creating duplicate jobs!
+      const confirmAfterComplete = await app.inject({ method: 'POST', url: `/api/admin/integration-jobs/${clearJob.id}/confirm-sheet-clear`, headers: { cookie: adminCookie }, payload: { confirmed: true } });
+      assert.equal(confirmAfterComplete.statusCode, 200);
+      assert.equal(confirmAfterComplete.json().alreadyConfirmed, true);
+      const finalJobCount = (await db.query("SELECT count(*)::integer AS count FROM integration_jobs WHERE kind='sheets.clear_row' AND payload->>'applicationItemId'=$1", [item1])).rows[0].count;
+      assert.equal(finalJobCount, jobCountBefore);
+    } finally {
+      globalThis.fetch = originalFetch;
+      await app.close();
     }
   });
 }
