@@ -758,15 +758,17 @@ export async function clearGoogleWorkspaceSheetRow(jobOrExamRoundId, legacyRowNu
       );
     }
 
-    const priorCompleted = await getPool().query(
-      `SELECT id FROM integration_jobs
-       WHERE kind = 'sheets.clear_row'
-         AND status = 'completed'
-         AND payload->>'applicationItemId' = $1
-         AND payload->>'examRoundId' = $2
-         AND ($3::text IS NULL OR payload->>'spreadsheetId' IS NULL OR payload->>'spreadsheetId' = $3)
+    const verifiedEvidence = await getPool().query(
+      `SELECT id FROM audit_logs
+       WHERE entity_type = 'google_sheet_row_clear'
+         AND entity_id = $1
+         AND action = 'verified_empty'
+         AND after_data->>'applicationItemId' = $1
+         AND after_data->>'spreadsheetId' = $2
+         AND after_data->>'sheetId' = $3
+         AND after_data->>'verifiedEmpty' = 'true'
        LIMIT 1`,
-      [applicationItemId, examRoundId, tab.drive_file_id],
+      [applicationItemId, tab.drive_file_id, String(tab.sheet_id)],
     );
 
     const outcome = await clearApplicationSheetRowByItemId(
@@ -777,9 +779,31 @@ export async function clearGoogleWorkspaceSheetRow(jobOrExamRoundId, legacyRowNu
       {
         expectedSheetId: expectedSheetId ?? tab.sheet_id,
         expectedRowIdentity: payload.expectedRowIdentity || null,
-        hasVerifiedClearEvidence: priorCompleted.rowCount > 0,
+        hasVerifiedClearEvidence: verifiedEvidence.rowCount > 0,
       },
     );
+    if (outcome.verifiedEmpty) {
+      await getPool().query(
+        `INSERT INTO audit_logs(actor_user_id, entity_type, entity_id, action, after_data)
+         VALUES(NULL, 'google_sheet_row_clear', $1, 'verified_empty', $2)`,
+        [
+          applicationItemId,
+          {
+            verificationVersion: 1,
+            applicationItemId,
+            examRoundId,
+            spreadsheetId: tab.drive_file_id,
+            sheetId: Number(tab.sheet_id),
+            sheetTitle: tab.title,
+            rowNumber: outcome.rowNumber,
+            verifiedRange: outcome.verifiedRange,
+            metadataId: outcome.metadataId,
+            clearedColumnCount: APPLICATION_HEADERS.length,
+            verifiedEmpty: true,
+          },
+        ],
+      );
+    }
     await getPool().query('DELETE FROM google_workspace_sheet_rows WHERE application_item_id=$1', [applicationItemId]);
     if (outcome.cleared) {
       await getPool().query('UPDATE google_workspace_spreadsheets SET updated_at=now() WHERE academic_year=$1', [tab.academic_year]);

@@ -133,17 +133,54 @@ function columnIndexFromA1(letters) {
   return index;
 }
 
-function parseRangeRowNumber(a1Notation) {
-  const raw = String(a1Notation || '');
+function unquoteSheetTitle(rawTitle) {
+  const value = String(rawTitle || '');
+  if (!value) return '';
+  if (value.startsWith("'") && value.endsWith("'") && value.length >= 2) {
+    return value.slice(1, -1).replaceAll("''", "'");
+  }
+  return value;
+}
+
+function parseTargetRowValueRange(a1Notation, expectedTitle) {
+  const raw = String(a1Notation || '').trim();
   const bang = raw.lastIndexOf('!');
-  const a1 = bang >= 0 ? raw.slice(bang + 1) : raw;
-  const match = a1.match(/^([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?$/i);
+  if (bang <= 0) return null;
+  const sheetTitle = unquoteSheetTitle(raw.slice(0, bang));
+  if (sheetTitle !== expectedTitle) return null;
+  const a1 = raw.slice(bang + 1);
+  const match = a1.match(/^([A-Z]+)(\d+):([A-Z]+)(\d+)$/i);
   if (!match) return null;
   const startCol = columnIndexFromA1(match[1]);
   const startRow = Number(match[2]);
-  const endRow = match[4] ? Number(match[4]) : startRow;
-  if (startCol !== 1 || startRow !== endRow) return null;
-  return startRow;
+  const endCol = columnIndexFromA1(match[3]);
+  const endRow = Number(match[4]);
+  if (
+    !Number.isInteger(startRow)
+    || startRow < 2
+    || startRow !== endRow
+    || startCol !== 1
+    || endCol < APPLICATION_HEADERS.length
+  ) {
+    return null;
+  }
+  return { sheetTitle, rowNumber: startRow, startCol, endCol, range: raw };
+}
+
+function matchesClearDataFilter(matchedRange, expectedLookup) {
+  const filters = matchedRange?.dataFilters;
+  if (!Array.isArray(filters) || !filters.length) return false;
+  return filters.some((filter) => {
+    const lookup = filter?.developerMetadataLookup;
+    if (!lookup) return false;
+    return (
+      Number(lookup.metadataId) === Number(expectedLookup.metadataId)
+      && lookup.metadataKey === expectedLookup.metadataKey
+      && lookup.metadataValue === expectedLookup.metadataValue
+      && lookup.locationType === expectedLookup.locationType
+      && Number(lookup.metadataLocation?.sheetId) === Number(expectedLookup.metadataLocation.sheetId)
+    );
+  });
 }
 
 function normalizeCellCompare(value) {
@@ -305,12 +342,46 @@ export async function clearApplicationSheetRowByItemId(
     );
   }
 
-  const valueRange = valueRanges[0]?.valueRange || {};
-  const observedRowNumber = parseRangeRowNumber(valueRange.range) ?? (dimRange.startIndex + 1);
-  if (observedRowNumber < 2) {
-    throw manualReviewError(`Google Sheets clear for item ${normalizedItemId} resolved to protected header row ${observedRowNumber}; manual inspection required without modifying the sheet`);
+  const matchedRange = valueRanges[0];
+  if (!matchesClearDataFilter(matchedRange, clearLookup)) {
+    throw manualReviewError(
+      `Google Sheets read for item ${normalizedItemId} did not confirm matching developerMetadata filter on "${title}" (sheetId ${sheet.sheetId}); manual inspection required without modifying the sheet`,
+    );
+  }
+  const valueRange = matchedRange?.valueRange;
+  if (!valueRange || typeof valueRange !== 'object') {
+    throw manualReviewError(
+      `Google Sheets read for item ${normalizedItemId} is missing valueRange on "${title}" (sheetId ${sheet.sheetId}); manual inspection required without modifying the sheet`,
+    );
+  }
+  if (valueRange.majorDimension != null && valueRange.majorDimension !== 'ROWS') {
+    throw manualReviewError(
+      `Google Sheets read for item ${normalizedItemId} returned unexpected majorDimension "${valueRange.majorDimension}" on "${title}" (sheetId ${sheet.sheetId}); manual inspection required without modifying the sheet`,
+    );
+  }
+  const parsedRange = parseTargetRowValueRange(valueRange.range, title);
+  if (!parsedRange) {
+    throw manualReviewError(
+      `Google Sheets read for item ${normalizedItemId} returned ambiguous or incomplete range "${valueRange.range || ''}" (must be a single data row covering A:Z on "${title}"); manual inspection required without modifying the sheet`,
+    );
+  }
+  const observedRowNumber = parsedRange.rowNumber;
+  if (valueRange.values != null) {
+    if (!Array.isArray(valueRange.values) || valueRange.values.length > 1) {
+      throw manualReviewError(
+        `Google Sheets read for item ${normalizedItemId} returned unexpected row count (${Array.isArray(valueRange.values) ? valueRange.values.length : 'non-array'}) for "${parsedRange.range}"; manual inspection required without modifying the sheet`,
+      );
+    }
+    if (valueRange.values.length === 1 && !Array.isArray(valueRange.values[0])) {
+      throw manualReviewError(
+        `Google Sheets read for item ${normalizedItemId} returned malformed row payload for "${parsedRange.range}"; manual inspection required without modifying the sheet`,
+      );
+    }
   }
 
+  // Google Sheets API v4 omits trailing empty rows/cells from ValueRange.values.
+  // Because `parsedRange` is verified to be a single data row on the target tab covering A:Z,
+  // missing/trimmed entries in `values[0]` represent empty cells.
   const rowCells = valueRange.values?.[0] || [];
   const portalCells = Array.from({ length: APPLICATION_HEADERS.length }, (_, idx) => String(rowCells[idx] ?? '').trim());
   if (portalCells.every((cell) => cell === '')) {
@@ -321,6 +392,8 @@ export async function clearApplicationSheetRowByItemId(
       itemId: normalizedItemId,
       sheetId: sheet.sheetId,
       rowNumber: observedRowNumber,
+      verifiedRange: parsedRange.range,
+      metadataId: target.metadataId,
     };
   }
 

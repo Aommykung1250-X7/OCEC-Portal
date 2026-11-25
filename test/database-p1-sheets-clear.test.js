@@ -52,6 +52,7 @@ function createStatefulSheetsMock() {
     nextMetadataId: 100,
     writeRequests: [],
     onAfterMetadataSearch: null,
+    batchGetResponseOverride: null,
   };
 
   const fetchMock = async (url, options = {}) => {
@@ -84,6 +85,11 @@ function createStatefulSheetsMock() {
         return Response.json({ matchedDeveloperMetadata: matched });
       }
       if (path.endsWith('/values:batchGetByDataFilter')) {
+        if (state.batchGetResponseOverride) {
+          const override = state.batchGetResponseOverride;
+          state.batchGetResponseOverride = null;
+          return Response.json(typeof override === 'function' ? override(body) : override);
+        }
         const valueRanges = [];
         for (const filter of body.dataFilters || []) {
           const lookup = filter.developerMetadataLookup || {};
@@ -94,12 +100,14 @@ function createStatefulSheetsMock() {
             const row = state.rows[dim.startIndex - 1];
             if (!row) continue;
             const rowNumber = dim.startIndex + 1;
+            const trimmed = [...row];
+            while (trimmed.length && trimmed[trimmed.length - 1] === '') trimmed.pop();
             valueRanges.push({
               dataFilters: [filter],
               valueRange: {
                 range: `'${state.sheetTitle}'!A${rowNumber}:${columnLetter(row.length)}${rowNumber}`,
                 majorDimension: 'ROWS',
-                values: [structuredClone(row)],
+                ...(trimmed.length ? { values: [trimmed] } : {}),
               },
             });
           }
@@ -422,23 +430,53 @@ if (!testUrl) {
       assert.match(rejectedLegacy.last_error, /^MANUAL_REVIEW_REQUIRED:/);
       assert.equal(mock.state.writeRequests.length, 0, 'legacy row-only jobs must send ZERO writes to Google');
 
-      // 8) Metadata missing from start while Alpha's data is STILL in the sheet (no prior completed clear) ->
-      //    worker MUST NOT close the job; sets MANUAL_REVIEW_REQUIRED, attempts=8, ZERO writes!
+      // 8) Legacy status='completed' job from an older release (with NO explicit verified_empty audit evidence)
+      //    while Alpha's metadata is missing and Alpha's data is STILL in the sheet ->
+      //    worker MUST NOT trust status='completed' alone; sets MANUAL_REVIEW_REQUIRED, attempts=8, ZERO writes!
+      await db.query(
+        `INSERT INTO integration_jobs(kind,payload,dedupe_key,status,completed_at)
+         VALUES('sheets.clear_row',$1,$2,'completed',now())`,
+        [clearJob.payload, `legacy-completed-no-audit-${runId}`],
+      );
       const savedAlphaMeta = mock.state.metadata.find((m) => m.metadataValue === appA.item1);
       mock.state.metadata = mock.state.metadata.filter((m) => m.metadataValue !== appA.item1);
-      const missingMetaJobId = await enqueueIntegrationJob(db, 'sheets.clear_row', clearJob.payload, `missing-meta-data-still-present-${runId}`);
+      const legacyCompletedBlockedId = await enqueueIntegrationJob(db, 'sheets.clear_row', clearJob.payload, `missing-meta-with-legacy-completed-${runId}`);
       await processIntegrationJob();
-      const missingMetaJob = (await db.query('SELECT status,attempts,last_error FROM integration_jobs WHERE id=$1', [missingMetaJobId])).rows[0];
-      assert.equal(missingMetaJob.status, 'failed', 'job must NOT be closed as completed when metadata is missing without clear evidence');
-      assert.equal(missingMetaJob.attempts, 8);
-      assert.match(missingMetaJob.last_error, /^MANUAL_REVIEW_REQUIRED:/);
-      assert.match(missingMetaJob.last_error, /metadata was not found/);
+      const legacyCompletedBlocked = (await db.query('SELECT status,attempts,last_error FROM integration_jobs WHERE id=$1', [legacyCompletedBlockedId])).rows[0];
+      assert.equal(legacyCompletedBlocked.status, 'failed', 'legacy completed job without explicit verification evidence must NOT close new clear job');
+      assert.equal(legacyCompletedBlocked.attempts, 8);
+      assert.match(legacyCompletedBlocked.last_error, /^MANUAL_REVIEW_REQUIRED:/);
+      assert.match(legacyCompletedBlocked.last_error, /metadata was not found/);
       assert.equal(mock.state.writeRequests.length, 0);
       assert.equal(mock.state.rows[3][11], `Alpha${runId}`, 'Alpha data is still present in sheet');
+
+      // 9) Explicit verified_empty audit evidence from a DIFFERENT tab (sheetId=99 != 42) ->
+      //    worker rejects cross-tab evidence; sets MANUAL_REVIEW_REQUIRED, attempts=8, ZERO writes!
+      await db.query(
+        `INSERT INTO audit_logs(actor_user_id,entity_type,entity_id,action,after_data)
+         VALUES(NULL,'google_sheet_row_clear',$1,'verified_empty',$2)`,
+        [appA.item1, {
+          verificationVersion: 1,
+          applicationItemId: appA.item1,
+          examRoundId: round1,
+          spreadsheetId: mock.state.spreadsheetId,
+          sheetId: mock.state.otherSheetId,
+          sheetTitle: 'Other Tab',
+          rowNumber: 5,
+          verifiedEmpty: true,
+        }],
+      );
+      const wrongTabEvidenceJobId = await enqueueIntegrationJob(db, 'sheets.clear_row', clearJob.payload, `wrong-tab-evidence-${runId}`);
+      await processIntegrationJob();
+      const wrongTabEvidenceJob = (await db.query('SELECT status,attempts,last_error FROM integration_jobs WHERE id=$1', [wrongTabEvidenceJobId])).rows[0];
+      assert.equal(wrongTabEvidenceJob.status, 'failed', 'audit evidence from a different sheetId must NOT close clear job');
+      assert.equal(wrongTabEvidenceJob.attempts, 8);
+      assert.match(wrongTabEvidenceJob.last_error, /^MANUAL_REVIEW_REQUIRED:/);
+      assert.equal(mock.state.writeRequests.length, 0);
       mock.state.metadata.push(savedAlphaMeta);
 
-      // 9) Metadata found on initial search, then disappears BEFORE row read ->
-      //    worker MUST NOT close the job; sets MANUAL_REVIEW_REQUIRED, attempts=8, ZERO writes!
+      // 10) Metadata found on initial search, then disappears BEFORE row read ->
+      //     worker MUST NOT close the job; sets MANUAL_REVIEW_REQUIRED, attempts=8, ZERO writes!
       mock.state.onAfterMetadataSearch = () => {
         mock.state.metadata = mock.state.metadata.filter((m) => m.metadataValue !== appA.item1);
       };
@@ -453,9 +491,37 @@ if (!testUrl) {
       assert.equal(mock.state.rows[3][11], `Alpha${runId}`, 'Alpha data is still present in sheet');
       mock.state.metadata.push(savedAlphaMeta);
 
-      // 10) After staff clears A:Z on Alpha's row (preserving staff cols AA:AB), admin retries clearJob ->
-      //     worker verifies A:Z is empty and closes the job as COMPLETED with ZERO writes!
+      // 11) Google response missing valueRange OR returning incomplete range (A5:E5 not covering A:Z) ->
+      //     worker MUST NOT close as verifiedEmpty; sets MANUAL_REVIEW_REQUIRED, attempts=8, ZERO writes!
       for (let col = 0; col < APPLICATION_HEADERS.length; col += 1) mock.state.rows[3][col] = '';
+      mock.state.batchGetResponseOverride = (body) => ({
+        spreadsheetId: mock.state.spreadsheetId,
+        valueRanges: [{ dataFilters: body.dataFilters }],
+      });
+      const missingValueRangeJobId = await enqueueIntegrationJob(db, 'sheets.clear_row', clearJob.payload, `missing-value-range-${runId}`);
+      await processIntegrationJob();
+      const missingValueRangeJob = (await db.query('SELECT status,attempts,last_error FROM integration_jobs WHERE id=$1', [missingValueRangeJobId])).rows[0];
+      assert.equal(missingValueRangeJob.status, 'failed', 'missing valueRange must NOT be treated as empty row');
+      assert.equal(missingValueRangeJob.attempts, 8);
+      assert.match(missingValueRangeJob.last_error, /^MANUAL_REVIEW_REQUIRED:/);
+      assert.match(missingValueRangeJob.last_error, /missing valueRange/);
+      assert.equal(mock.state.writeRequests.length, 0);
+
+      mock.state.batchGetResponseOverride = (body) => ({
+        spreadsheetId: mock.state.spreadsheetId,
+        valueRanges: [{ dataFilters: body.dataFilters, valueRange: { range: `'${mock.state.sheetTitle}'!A5:E5`, majorDimension: 'ROWS' } }],
+      });
+      const partialRangeJobId = await enqueueIntegrationJob(db, 'sheets.clear_row', clearJob.payload, `partial-range-${runId}`);
+      await processIntegrationJob();
+      const partialRangeJob = (await db.query('SELECT status,attempts,last_error FROM integration_jobs WHERE id=$1', [partialRangeJobId])).rows[0];
+      assert.equal(partialRangeJob.status, 'failed', 'range not covering A:Z must NOT close clear job');
+      assert.equal(partialRangeJob.attempts, 8);
+      assert.match(partialRangeJob.last_error, /^MANUAL_REVIEW_REQUIRED:/);
+      assert.match(partialRangeJob.last_error, /ambiguous or incomplete range/);
+      assert.equal(mock.state.writeRequests.length, 0);
+
+      // 12) Target row genuinely empty in A:Z (staff cols AA:AB preserved), admin retries clearJob ->
+      //     worker verifies single target row covering A:Z is empty, closes job as COMPLETED, records explicit audit evidence bound to (item, spreadsheetId, sheetId), ZERO writes!
       const retried = await retryIntegrationJob(clearJob.id, adminId);
       assert.equal(retried?.status, 'pending');
       assert.equal(await processIntegrationJob(), true);
@@ -468,14 +534,29 @@ if (!testUrl) {
       assert.equal(mock.state.rows[2][11], `Bravo${runId}`);
       assert.equal(mock.state.rows[1][11], `Charlie${runId}`);
 
-      // 11) Idempotent re-run through worker while row is still verified empty in A:Z -> COMPLETED, ZERO writes!
-      const rerunEmptyJobId = await enqueueIntegrationJob(db, 'sheets.clear_row', clearJob.payload, `rerun-after-verified-empty-${runId}`);
+      const auditEvidence = (await db.query(
+        `SELECT after_data FROM audit_logs
+         WHERE entity_type='google_sheet_row_clear' AND entity_id=$1 AND action='verified_empty'
+           AND after_data->>'spreadsheetId'=$2 AND after_data->>'sheetId'=$3`,
+        [appA.item1, mock.state.spreadsheetId, String(mock.state.sheetId)],
+      )).rows;
+      assert.equal(auditEvidence.length, 1, 'explicit target-bound verified_empty audit evidence must be recorded');
+      assert.equal(auditEvidence[0].after_data.rowNumber, 5);
+      assert.equal(auditEvidence[0].after_data.verifiedRange, `'${mock.state.sheetTitle}'!A5:AB5`);
+      assert.equal(auditEvidence[0].after_data.verifiedEmpty, true);
+
+      // 13) Target row completely empty where Google trims `values` entirely from ValueRange -> COMPLETED, ZERO writes!
+      mock.state.batchGetResponseOverride = (body) => ({
+        spreadsheetId: mock.state.spreadsheetId,
+        valueRanges: [{ dataFilters: body.dataFilters, valueRange: { range: `'${mock.state.sheetTitle}'!A5:AB5`, majorDimension: 'ROWS' } }],
+      });
+      const trimmedEmptyJobId = await enqueueIntegrationJob(db, 'sheets.clear_row', clearJob.payload, `rerun-trimmed-empty-${runId}`);
       assert.equal(await processIntegrationJob(), true);
-      const rerunEmptyJob = (await db.query('SELECT status,last_error FROM integration_jobs WHERE id=$1', [rerunEmptyJobId])).rows[0];
-      assert.equal(rerunEmptyJob.status, 'completed', rerunEmptyJob.last_error || '');
+      const trimmedEmptyJob = (await db.query('SELECT status,last_error FROM integration_jobs WHERE id=$1', [trimmedEmptyJobId])).rows[0];
+      assert.equal(trimmedEmptyJob.status, 'completed', trimmedEmptyJob.last_error || '');
       assert.equal(mock.state.writeRequests.length, 0);
 
-      // 12) Idempotent re-run through worker after metadata is ALSO deleted (now backed by prior completed clear evidence!) -> COMPLETED, ZERO writes!
+      // 14) Idempotent re-run through worker after metadata is ALSO deleted (now backed by explicit target-bound audit evidence!) -> COMPLETED, ZERO writes!
       mock.state.metadata = mock.state.metadata.filter((m) => m.metadataValue !== appA.item1);
       const rerunAfterMetaJobId = await enqueueIntegrationJob(db, 'sheets.clear_row', clearJob.payload, `rerun-after-meta-deleted-with-evidence-${runId}`);
       assert.equal(await processIntegrationJob(), true);

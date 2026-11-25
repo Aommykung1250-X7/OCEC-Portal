@@ -36,6 +36,7 @@ function mockSheet(headers=LEGACY_APPLICATION_HEADERS, { spreadsheetId='workbook
     nextMetadataId:100,
     writeRequests:[],
     onAfterMetadataSearch:null,
+    batchGetResponseOverride:null,
   };
   if(headers===LEGACY_APPLICATION_HEADERS) state.rows[0][0]='item-1';
   const request=async(url,options={})=>{
@@ -58,6 +59,11 @@ function mockSheet(headers=LEGACY_APPLICATION_HEADERS, { spreadsheetId='workbook
       return {matchedDeveloperMetadata:matched};
     }
     if(path.endsWith('/values:batchGetByDataFilter')) {
+      if(state.batchGetResponseOverride) {
+        const override=state.batchGetResponseOverride;
+        state.batchGetResponseOverride=null;
+        return typeof override==='function'?override(body):override;
+      }
       const valueRanges=[];
       for(const filter of body.dataFilters||[]) {
         const lookup=filter.developerMetadataLookup||{};
@@ -68,12 +74,14 @@ function mockSheet(headers=LEGACY_APPLICATION_HEADERS, { spreadsheetId='workbook
           const row=state.rows[dim.startIndex-1];
           if(!row) continue;
           const rowNumber=dim.startIndex+1;
+          const trimmed=[...row];
+          while(trimmed.length && trimmed[trimmed.length-1]==='') trimmed.pop();
           valueRanges.push({
             dataFilters:[filter],
             valueRange:{
               range:`'${state.title}'!A${rowNumber}:${columnLetter(row.length)}${rowNumber}`,
               majorDimension:'ROWS',
-              values:[structuredClone(row)],
+              ...(trimmed.length?{values:[trimmed]}:{}),
             },
           });
         }
@@ -337,15 +345,66 @@ test('verifyApplicationSheetClearTarget and clearApplicationSheetRowByItemId are
   assert.deepEqual(state.rows[1].slice(0,26),rowA,'row data still present in sheet');
   state.metadata.push(savedMeta1);
 
-  // 10) Idempotent re-run: when staff has cleared A:Z on row A (preserving staff cols AA:AB), re-run verifies A:Z empty with ZERO writes!
+  // 10) Missing valueRange, incomplete range (A3:E3), wrong tab in range, or mismatched dataFilter -> MANUAL_REVIEW_REQUIRED, 0 writes!
+  state.batchGetResponseOverride=(body)=>({spreadsheetId:'workbook',valueRanges:[{dataFilters:body.dataFilters}]});
+  await assert.rejects(
+    clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-1',{expectedSheetId:7,expectedRowIdentity:identityA}),
+    (err)=>err.manualReviewRequired===true && /missing valueRange/.test(err.message),
+  );
+  state.batchGetResponseOverride=(body)=>({
+    spreadsheetId:'workbook',
+    valueRanges:[{dataFilters:body.dataFilters,valueRange:{range:"'BBB - Heat 2026'!A3:E3",majorDimension:'ROWS'}}],
+  });
+  await assert.rejects(
+    clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-1',{expectedSheetId:7,expectedRowIdentity:identityA}),
+    (err)=>err.manualReviewRequired===true && /ambiguous or incomplete range/.test(err.message),
+  );
+  state.batchGetResponseOverride=(body)=>({
+    spreadsheetId:'workbook',
+    valueRanges:[{dataFilters:body.dataFilters,valueRange:{range:"'Other Tab'!A3:Z3",majorDimension:'ROWS'}}],
+  });
+  await assert.rejects(
+    clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-1',{expectedSheetId:7,expectedRowIdentity:identityA}),
+    (err)=>err.manualReviewRequired===true && /ambiguous or incomplete range/.test(err.message),
+  );
+  state.batchGetResponseOverride=()=>({
+    spreadsheetId:'workbook',
+    valueRanges:[{dataFilters:[],valueRange:{range:"'BBB - Heat 2026'!A3:Z3",majorDimension:'ROWS'}}],
+  });
+  await assert.rejects(
+    clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-1',{expectedSheetId:7,expectedRowIdentity:identityA}),
+    (err)=>err.manualReviewRequired===true && /matching developerMetadata filter/.test(err.message),
+  );
+  assert.equal(state.writeRequests.length,0);
+
+  // 11) Idempotent re-run: when staff has cleared A:Z on row A (preserving staff cols AA:AB), re-run verifies A:Z empty with ZERO writes!
   for(let c=0;c<26;c+=1) state.rows[1][c]='';
   const alreadyBlank=await clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-1',{expectedSheetId:7,expectedRowIdentity:identityA});
-  assert.deepEqual(alreadyBlank,{cleared:false,alreadyCleared:true,verifiedEmpty:true,itemId:'item-1',sheetId:7,rowNumber:3});
+  assert.deepEqual(alreadyBlank,{
+    cleared:false,
+    alreadyCleared:true,
+    verifiedEmpty:true,
+    itemId:'item-1',
+    sheetId:7,
+    rowNumber:3,
+    verifiedRange:"'BBB - Heat 2026'!A3:AB3",
+    metadataId:savedMeta1.metadataId,
+  });
   assert.equal(state.writeRequests.length,0);
   assert.deepEqual(state.rows[1].slice(26),['Keep note A','Officer A']);
   assert.deepEqual(state.rows[2].slice(0,26),rowB);
 
-  // 11) Idempotent re-run after metadata is deleted ONLY when prior verified clear evidence is present -> alreadyCleared: true, 0 writes!
+  // Also supports Google API omitting `values` entirely when trailing empty cells cover the whole row!
+  state.batchGetResponseOverride=(body)=>({
+    spreadsheetId:'workbook',
+    valueRanges:[{dataFilters:body.dataFilters,valueRange:{range:"'BBB - Heat 2026'!A3:AB3",majorDimension:'ROWS'}}],
+  });
+  const trimmedEmpty=await clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-1',{expectedSheetId:7,expectedRowIdentity:identityA});
+  assert.equal(trimmedEmpty.verifiedEmpty,true);
+  assert.equal(trimmedEmpty.rowNumber,3);
+  assert.equal(state.writeRequests.length,0);
+
+  // 12) Idempotent re-run after metadata is deleted ONLY when prior verified clear evidence is present -> alreadyCleared: true, 0 writes!
   state.metadata=state.metadata.filter(m=>m.metadataValue!=='item-1');
   const alreadyGoneWithEvidence=await clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-1',{expectedSheetId:7,expectedRowIdentity:identityA,hasVerifiedClearEvidence:true});
   assert.deepEqual(alreadyGoneWithEvidence,{cleared:false,alreadyCleared:true,verifiedByPriorCompletion:true,itemId:'item-1',sheetId:7});
