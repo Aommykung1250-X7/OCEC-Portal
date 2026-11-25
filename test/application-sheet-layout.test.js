@@ -377,13 +377,22 @@ test('verifyApplicationSheetClearTarget and clearApplicationSheetRowByItemId are
   );
   assert.equal(state.writeRequests.length,0);
 
-  // 11) Idempotent re-run: when staff has cleared A:Z on row A (preserving staff cols AA:AB), re-run verifies A:Z empty with ZERO writes!
+  // 11) Empty metadata row WITHOUT explicit clear confirmation (e.g. A's data moved to another row while stale metadata stayed on empty row 3) -> MANUAL_REVIEW_REQUIRED, 0 writes!
   for(let c=0;c<26;c+=1) state.rows[1][c]='';
-  const alreadyBlank=await clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-1',{expectedSheetId:7,expectedRowIdentity:identityA});
-  assert.deepEqual(alreadyBlank,{
+  await assert.rejects(
+    clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-1',{expectedSheetId:7,expectedRowIdentity:identityA}),
+    (err)=>err.manualReviewRequired===true && /without explicit clear confirmation/.test(err.message),
+  );
+  assert.equal(state.writeRequests.length,0);
+  assert.deepEqual(state.rows[1].slice(26),['Keep note A','Officer A']);
+  assert.deepEqual(state.rows[2].slice(0,26),rowB);
+
+  // 12) With explicit clear confirmation (`hasVerifiedClearEvidence: true`) AND single target row covering A:Z verified empty -> completes cleanly with 0 writes!
+  const alreadyBlankConfirmed=await clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-1',{expectedSheetId:7,expectedRowIdentity:identityA,hasVerifiedClearEvidence:true});
+  assert.deepEqual(alreadyBlankConfirmed,{
     cleared:false,
     alreadyCleared:true,
-    verifiedEmpty:true,
+    verifiedByClearEvidence:true,
     itemId:'item-1',
     sheetId:7,
     rowNumber:3,
@@ -391,22 +400,20 @@ test('verifyApplicationSheetClearTarget and clearApplicationSheetRowByItemId are
     metadataId:savedMeta1.metadataId,
   });
   assert.equal(state.writeRequests.length,0);
-  assert.deepEqual(state.rows[1].slice(26),['Keep note A','Officer A']);
-  assert.deepEqual(state.rows[2].slice(0,26),rowB);
 
-  // Also supports Google API omitting `values` entirely when trailing empty cells cover the whole row!
+  // Also supports Google API omitting `values` entirely when trailing empty cells cover the whole row (still requires explicit clear evidence!)
   state.batchGetResponseOverride=(body)=>({
     spreadsheetId:'workbook',
     valueRanges:[{dataFilters:body.dataFilters,valueRange:{range:"'BBB - Heat 2026'!A3:AB3",majorDimension:'ROWS'}}],
   });
-  const trimmedEmpty=await clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-1',{expectedSheetId:7,expectedRowIdentity:identityA});
-  assert.equal(trimmedEmpty.verifiedEmpty,true);
+  const trimmedEmpty=await clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-1',{expectedSheetId:7,expectedRowIdentity:identityA,hasVerifiedClearEvidence:true});
+  assert.equal(trimmedEmpty.verifiedByClearEvidence,true);
   assert.equal(trimmedEmpty.rowNumber,3);
   assert.equal(state.writeRequests.length,0);
 
-  // 12) Idempotent re-run after metadata is deleted ONLY when prior verified clear evidence is present -> alreadyCleared: true, 0 writes!
+  // 13) Idempotent re-run after metadata is deleted ONLY when explicit clear confirmation is present -> alreadyCleared: true, 0 writes!
   state.metadata=state.metadata.filter(m=>m.metadataValue!=='item-1');
   const alreadyGoneWithEvidence=await clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-1',{expectedSheetId:7,expectedRowIdentity:identityA,hasVerifiedClearEvidence:true});
-  assert.deepEqual(alreadyGoneWithEvidence,{cleared:false,alreadyCleared:true,verifiedByPriorCompletion:true,itemId:'item-1',sheetId:7});
+  assert.deepEqual(alreadyGoneWithEvidence,{cleared:false,alreadyCleared:true,verifiedByClearEvidence:true,itemId:'item-1',sheetId:7});
   assert.equal(state.writeRequests.length,0);
 });

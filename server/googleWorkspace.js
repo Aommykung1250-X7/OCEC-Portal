@@ -714,6 +714,44 @@ function manualReviewError(message) {
   return error;
 }
 
+export async function recordManualSheetRowClearConfirmation({
+  applicationItemId,
+  examRoundId = null,
+  spreadsheetId,
+  sheetId,
+  sheetTitle = null,
+  adminUserId,
+  note = '',
+}) {
+  const normalizedItemId = String(applicationItemId || '').trim();
+  const normalizedSpreadsheetId = String(spreadsheetId || '').trim();
+  const normalizedSheetId = Number(sheetId);
+  const normalizedAdminId = String(adminUserId || '').trim();
+  if (!normalizedItemId) throw new Error('applicationItemId is required to confirm a manual sheet row clear');
+  if (!normalizedSpreadsheetId) throw new Error('spreadsheetId is required to confirm a manual sheet row clear');
+  if (!Number.isInteger(normalizedSheetId)) throw new Error('sheetId must be an integer to confirm a manual sheet row clear');
+  if (!normalizedAdminId) throw new Error('adminUserId is required to confirm a manual sheet row clear');
+
+  const payload = {
+    verificationVersion: 2,
+    proofSource: 'manual_staff_confirmation',
+    applicationItemId: normalizedItemId,
+    examRoundId: examRoundId ? String(examRoundId).trim() : null,
+    spreadsheetId: normalizedSpreadsheetId,
+    sheetId: normalizedSheetId,
+    sheetTitle: sheetTitle ? String(sheetTitle).trim() : null,
+    note: String(note || '').trim().slice(0, 500),
+    confirmedCleared: true,
+  };
+  const inserted = await getPool().query(
+    `INSERT INTO audit_logs(actor_user_id, entity_type, entity_id, action, after_data)
+     VALUES($1, 'google_sheet_row_clear', $2, 'manual_clear_confirmed', $3)
+     RETURNING id, created_at`,
+    [normalizedAdminId, normalizedItemId, payload],
+  );
+  return { id: inserted.rows[0].id, createdAt: inserted.rows[0].created_at, ...payload };
+}
+
 export async function clearGoogleWorkspaceSheetRow(jobOrExamRoundId, legacyRowNumber = null) {
   const payload = jobOrExamRoundId && typeof jobOrExamRoundId === 'object'
     ? jobOrExamRoundId
@@ -758,15 +796,20 @@ export async function clearGoogleWorkspaceSheetRow(jobOrExamRoundId, legacyRowNu
       );
     }
 
+    // Only accept explicit staff-confirmed clear evidence bound to this exact
+    // (applicationItemId, spreadsheetId, sheetId). Legacy `verified_empty` rows from
+    // empty-metadata-row heuristics and legacy `status='completed'` jobs are ignored.
     const verifiedEvidence = await getPool().query(
       `SELECT id FROM audit_logs
        WHERE entity_type = 'google_sheet_row_clear'
          AND entity_id = $1
-         AND action = 'verified_empty'
+         AND action = 'manual_clear_confirmed'
+         AND actor_user_id IS NOT NULL
+         AND after_data->>'proofSource' = 'manual_staff_confirmation'
          AND after_data->>'applicationItemId' = $1
          AND after_data->>'spreadsheetId' = $2
          AND after_data->>'sheetId' = $3
-         AND after_data->>'verifiedEmpty' = 'true'
+         AND after_data->>'confirmedCleared' = 'true'
        LIMIT 1`,
       [applicationItemId, tab.drive_file_id, String(tab.sheet_id)],
     );
@@ -782,28 +825,6 @@ export async function clearGoogleWorkspaceSheetRow(jobOrExamRoundId, legacyRowNu
         hasVerifiedClearEvidence: verifiedEvidence.rowCount > 0,
       },
     );
-    if (outcome.verifiedEmpty) {
-      await getPool().query(
-        `INSERT INTO audit_logs(actor_user_id, entity_type, entity_id, action, after_data)
-         VALUES(NULL, 'google_sheet_row_clear', $1, 'verified_empty', $2)`,
-        [
-          applicationItemId,
-          {
-            verificationVersion: 1,
-            applicationItemId,
-            examRoundId,
-            spreadsheetId: tab.drive_file_id,
-            sheetId: Number(tab.sheet_id),
-            sheetTitle: tab.title,
-            rowNumber: outcome.rowNumber,
-            verifiedRange: outcome.verifiedRange,
-            metadataId: outcome.metadataId,
-            clearedColumnCount: APPLICATION_HEADERS.length,
-            verifiedEmpty: true,
-          },
-        ],
-      );
-    }
     await getPool().query('DELETE FROM google_workspace_sheet_rows WHERE application_item_id=$1', [applicationItemId]);
     if (outcome.cleared) {
       await getPool().query('UPDATE google_workspace_spreadsheets SET updated_at=now() WHERE academic_year=$1', [tab.academic_year]);

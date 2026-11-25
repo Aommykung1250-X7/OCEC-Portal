@@ -242,22 +242,22 @@ export async function verifyApplicationSheetClearTarget(request, spreadsheetId, 
  *    read-only (never calls `ensureApplicationSheetLayout` or mutates layout).
  * 2. Searches workbook-wide developer metadata (`ocecApplicationItemId`):
  *    - 0 matches -> `manualReviewRequired` (0 writes) UNLESS `hasVerifiedClearEvidence`
- *      proves this item was already verified cleared previously. Missing metadata alone
- *      never closes a clear job because applicant data may still remain in the sheet.
+ *      explicitly confirms this item was cleared on this exact `(spreadsheetId, sheetId)`.
  *    - >1 matches (same-tab or cross-tab) -> `manualReviewRequired` (0 writes).
  *    - Validates single data ROW on expected `sheetId` with valid `metadataId`.
  * 3. Reads current row values via `values:batchGetByDataFilter` (bound to `clearLookup`):
  *    - 0 matched valueRanges (metadata disappeared or moved between search and read) ->
  *      ALWAYS `manualReviewRequired` (0 writes).
- *    - All 26 Portal cells A:Z confirmed empty -> safe idempotent completion
- *      (`alreadyCleared: true, verifiedEmpty: true`, 0 writes, preserving staff cols AA+).
+ *    - Validates matching `dataFilters`, non-null `valueRange`, `majorDimension=ROWS`,
+ *      and single data row covering A:Z on the target tab.
+ *    - All 26 Portal cells A:Z empty -> closes ONLY when `hasVerifiedClearEvidence` is true;
+ *      an empty metadata row alone NEVER closes the job because applicant data may have moved
+ *      to another row while stale metadata remained on the empty row (`manualReviewRequired`,
+ *      0 writes).
  *    - Any mismatch against `expectedRowIdentity` (e.g. Sort range swapped another
  *      applicant's values into the row while row metadata stayed in place) ->
  *      `manualReviewRequired` (0 writes).
- * 4. Fails closed BEFORE sending any write command when non-empty Portal values remain,
- *    because Google Sheets API v4 provides no conditional write (`If-Match`) and does
- *    not guarantee row-level DeveloperMetadata follows in-place `Sort range` operations
- *    (and live-sheet Sort range behavior has not been verified).
+ * 4. Fails closed BEFORE sending any write command when non-empty Portal values remain.
  */
 export async function clearApplicationSheetRowByItemId(
   request,
@@ -289,7 +289,7 @@ export async function clearApplicationSheetRowByItemId(
       return {
         cleared: false,
         alreadyCleared: true,
-        verifiedByPriorCompletion: true,
+        verifiedByClearEvidence: true,
         itemId: normalizedItemId,
         sheetId: sheet.sheetId,
       };
@@ -382,19 +382,27 @@ export async function clearApplicationSheetRowByItemId(
   // Google Sheets API v4 omits trailing empty rows/cells from ValueRange.values.
   // Because `parsedRange` is verified to be a single data row on the target tab covering A:Z,
   // missing/trimmed entries in `values[0]` represent empty cells.
+  // However, an empty row at the metadata location alone does NOT prove the applicant's data
+  // was cleared (it could have moved to another row while stale metadata remained here), so
+  // require explicit `hasVerifiedClearEvidence` before closing the job.
   const rowCells = valueRange.values?.[0] || [];
   const portalCells = Array.from({ length: APPLICATION_HEADERS.length }, (_, idx) => String(rowCells[idx] ?? '').trim());
   if (portalCells.every((cell) => cell === '')) {
-    return {
-      cleared: false,
-      alreadyCleared: true,
-      verifiedEmpty: true,
-      itemId: normalizedItemId,
-      sheetId: sheet.sheetId,
-      rowNumber: observedRowNumber,
-      verifiedRange: parsedRange.range,
-      metadataId: target.metadataId,
-    };
+    if (hasVerifiedClearEvidence) {
+      return {
+        cleared: false,
+        alreadyCleared: true,
+        verifiedByClearEvidence: true,
+        itemId: normalizedItemId,
+        sheetId: sheet.sheetId,
+        rowNumber: observedRowNumber,
+        verifiedRange: parsedRange.range,
+        metadataId: target.metadataId,
+      };
+    }
+    throw manualReviewError(
+      `Metadata row "${parsedRange.range}" (sheetId ${sheet.sheetId}) for item ${normalizedItemId} is empty in A:Z, but without explicit clear confirmation the applicant's data may still exist on another row; manual inspection required without modifying the sheet`,
+    );
   }
 
   if (expectedRowIdentity && typeof expectedRowIdentity === 'object') {
