@@ -124,23 +124,60 @@ function manualReviewError(message) {
   return error;
 }
 
+function columnIndexFromA1(letters) {
+  let index = 0;
+  for (const ch of String(letters || '').toUpperCase()) {
+    if (ch < 'A' || ch > 'Z') return -1;
+    index = index * 26 + (ch.charCodeAt(0) - 64);
+  }
+  return index;
+}
+
+function parsePortalRowRange(updatedRange) {
+  const raw = String(updatedRange || '');
+  const bang = raw.lastIndexOf('!');
+  const a1 = bang >= 0 ? raw.slice(bang + 1) : raw;
+  const match = a1.match(/^([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?$/i);
+  if (!match) return null;
+  const startCol = columnIndexFromA1(match[1]);
+  const startRow = Number(match[2]);
+  const endCol = match[3] ? columnIndexFromA1(match[3]) : startCol;
+  const endRow = match[4] ? Number(match[4]) : startRow;
+  if (startRow !== endRow || startCol !== 1 || endCol < 1 || endCol > APPLICATION_HEADERS.length) return null;
+  return { rowNumber: startRow, startCol, endCol };
+}
+
 /**
  * Clear ONLY the Portal-managed columns (`0..APPLICATION_HEADERS.length`, A:Z)
  * on the single verified target row identified by developer metadata
  * (`ocecApplicationItemId`), preserving any staff-added columns (`AA+`).
  *
- * Uses one atomic `spreadsheets.batchUpdate` (`updateCells` with explicit
- * `GridRange` + `deleteDeveloperMetadata`) so repeated executions are safe no-ops.
- * Stops with `manualReviewRequired = true` on any duplicate metadata (same-tab or
- * cross-tab), target mismatch, or unsafe metadata location.
+ * Uses `spreadsheets.values.batchUpdateByDataFilter` with `developerMetadataLookup`
+ * (never a static numeric row index) and a 26-cell empty row payload so Google
+ * resolves the target row by Application Item ID at write time and leaves columns
+ * beyond A:Z untouched per the Google Sheets API v4 `DataFilterValueRange.values`
+ * contract. Stops with `manualReviewRequired = true` on any duplicate metadata
+ * (same-tab or cross-tab), target/header mismatch, missing metadataId, or
+ * unexpected write response.
  */
 export async function clearApplicationSheetRowByItemId(request, spreadsheetId, title, itemId, { expectedSheetId = null } = {}) {
   const normalizedItemId = String(itemId || '').trim();
   if (!normalizedItemId) throw manualReviewError('Application Item ID is required to clear a Google Sheets row');
-  const sheet = await ensureApplicationSheetLayout(request, spreadsheetId, title);
+
+  let sheet;
+  try {
+    sheet = await ensureApplicationSheetLayout(request, spreadsheetId, title);
+  } catch (error) {
+    if (error?.manualReviewRequired) throw error;
+    if (/Application worksheet not found|Unexpected application headers/.test(String(error?.message || ''))) {
+      throw manualReviewError(error.message);
+    }
+    throw error;
+  }
   if (expectedSheetId != null && Number(sheet.sheetId) !== Number(expectedSheetId)) {
     throw manualReviewError(`Google Sheets target mismatch for item ${normalizedItemId}: expected sheetId ${expectedSheetId}, found ${sheet.sheetId} (${title})`);
   }
+
   const url = base(spreadsheetId);
   const searchLookup = {
     metadataKey: APPLICATION_ITEM_METADATA_KEY,
@@ -172,43 +209,76 @@ export async function clearApplicationSheetRowByItemId(request, spreadsheetId, t
   if (Number(dimRange.sheetId) !== Number(sheet.sheetId)) {
     throw manualReviewError(`Application item ${normalizedItemId} metadata found on unexpected sheetId ${dimRange.sheetId} instead of ${sheet.sheetId}; clear stopped`);
   }
+  if (!Number.isInteger(target.metadataId) || target.metadataId <= 0) {
+    throw manualReviewError(`Application item ${normalizedItemId} metadata is missing a valid metadataId; manual inspection required`);
+  }
 
-  const rowNumber = dimRange.startIndex + 1;
+  const clearLookup = {
+    metadataId: target.metadataId,
+    metadataKey: APPLICATION_ITEM_METADATA_KEY,
+    metadataValue: normalizedItemId,
+    visibility: 'DOCUMENT',
+    locationType: 'ROW',
+    metadataLocation: { sheetId: sheet.sheetId },
+    locationMatchingStrategy: 'INTERSECTING_LOCATION',
+  };
+
+  const updateResult = await request(`${url}/values:batchUpdateByDataFilter`, post({
+    valueInputOption: 'RAW',
+    data: [
+      {
+        dataFilter: { developerMetadataLookup: clearLookup },
+        majorDimension: 'ROWS',
+        values: [Array(APPLICATION_HEADERS.length).fill('')],
+      },
+    ],
+  }));
+
+  const responses = Array.isArray(updateResult?.responses) ? updateResult.responses : [];
+  const totalUpdatedRows = Number(updateResult?.totalUpdatedRows ?? responses.reduce((sum, entry) => sum + Number(entry?.updatedRows || 0), 0));
+  const totalUpdatedColumns = Number(updateResult?.totalUpdatedColumns ?? responses.reduce((max, entry) => Math.max(max, Number(entry?.updatedColumns || 0)), 0));
+
+  if (responses.length > 1 || totalUpdatedRows > 1) {
+    throw manualReviewError(`Google Sheets clear for item ${normalizedItemId} matched ${Math.max(responses.length, totalUpdatedRows)} rows; manual inspection required`);
+  }
+  if (totalUpdatedColumns > APPLICATION_HEADERS.length) {
+    throw manualReviewError(`Google Sheets clear for item ${normalizedItemId} exceeded Portal columns (${totalUpdatedColumns} > ${APPLICATION_HEADERS.length}); manual inspection required`);
+  }
+  if (responses.length === 0 || totalUpdatedRows === 0) {
+    const recheck = await request(`${url}/developerMetadata:search`, post({ dataFilters: [{ developerMetadataLookup: searchLookup }] }));
+    const remaining = (recheck.matchedDeveloperMetadata || []).map((entry) => entry.developerMetadata).filter(Boolean);
+    if (!remaining.length) {
+      return { cleared: false, alreadyCleared: true, itemId: normalizedItemId, sheetId: sheet.sheetId };
+    }
+    throw manualReviewError(`Google Sheets clear for item ${normalizedItemId} could not safely match target row on sheetId ${sheet.sheetId} at write time; manual inspection required`);
+  }
+
+  const updatedRange = String(responses[0]?.updatedRange || '');
+  const parsedRange = updatedRange ? parsePortalRowRange(updatedRange) : null;
+  if (updatedRange && !parsedRange) {
+    throw manualReviewError(`Google Sheets clear for item ${normalizedItemId} returned unexpected updatedRange (${updatedRange}); manual inspection required`);
+  }
+  if (parsedRange && parsedRange.rowNumber < 2) {
+    throw manualReviewError(`Google Sheets clear for item ${normalizedItemId} resolved to protected header row ${parsedRange.rowNumber}; manual inspection required`);
+  }
+
   await request(`${url}:batchUpdate`, post({
     requests: [
       {
-        updateCells: {
-          range: {
-            sheetId: sheet.sheetId,
-            startRowIndex: dimRange.startIndex,
-            endRowIndex: dimRange.startIndex + 1,
-            startColumnIndex: 0,
-            endColumnIndex: APPLICATION_HEADERS.length,
-          },
-          fields: 'userEnteredValue',
-        },
-      },
-      {
         deleteDeveloperMetadata: {
-          dataFilter: {
-            developerMetadataLookup: {
-              metadataKey: APPLICATION_ITEM_METADATA_KEY,
-              metadataValue: normalizedItemId,
-              locationType: 'ROW',
-              visibility: 'DOCUMENT',
-              ...(target.metadataId != null ? { metadataId: target.metadataId } : {}),
-            },
-          },
+          dataFilter: { developerMetadataLookup: clearLookup },
         },
       },
     ],
   }));
+
   return {
     cleared: true,
     alreadyCleared: false,
     itemId: normalizedItemId,
     sheetId: sheet.sheetId,
-    rowNumber,
+    rowNumber: parsedRange?.rowNumber ?? (dimRange.startIndex + 1),
     clearedColumnCount: APPLICATION_HEADERS.length,
+    ...(updatedRange ? { updatedRange } : {}),
   };
 }

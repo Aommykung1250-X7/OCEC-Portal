@@ -751,38 +751,21 @@ export async function clearGoogleWorkspaceSheetRow(jobOrExamRoundId, legacyRowNu
   }
 
   return withSheetYearLock(tab.academic_year, async () => {
-    let targetItemId = applicationItemId;
-    if (!targetItemId) {
-      const rowNumber = Number(legacyRow);
-      if (!Number.isInteger(rowNumber) || rowNumber < 2) {
-        throw manualReviewError('Legacy Google Sheets clear job lacks a valid applicationItemId or spreadsheetRow');
-      }
-      // Only continue a legacy row-only job when reliable DB tracking uniquely identifies the Application Item ID.
-      const tracked = await getPool().query(
-        `SELECT r.application_item_id, a.status AS application_status
-         FROM google_workspace_sheet_rows r
-         LEFT JOIN application_items ai ON ai.id = r.application_item_id
-         LEFT JOIN applications a ON a.id = ai.application_id
-         WHERE r.exam_round_id = $1 AND r.spreadsheet_row = $2`,
-        [examRoundId, rowNumber],
+    if (!applicationItemId) {
+      const rowHint = Number.isInteger(Number(legacyRow)) ? ` row ${Number(legacyRow)}` : '';
+      throw manualReviewError(
+        `Legacy Google Sheets clear job for round ${examRoundId}${rowHint} has no Application Item ID and no independent evidence of target identity; manual inspection required without modifying the sheet`,
       );
-      if (tracked.rowCount !== 1) {
-        throw manualReviewError(`Legacy clear job for round ${examRoundId} row ${rowNumber} cannot reliably resolve Application Item ID; manual inspection required`);
-      }
-      if (tracked.rows[0].application_status === 'approved') {
-        throw manualReviewError(`Legacy clear job for round ${examRoundId} row ${rowNumber} points to active approved item ${tracked.rows[0].application_item_id}; manual inspection required`);
-      }
-      targetItemId = tracked.rows[0].application_item_id;
     }
 
     const outcome = await clearApplicationSheetRowByItemId(
       googleRequest,
       tab.drive_file_id,
       tab.title,
-      targetItemId,
+      applicationItemId,
       { expectedSheetId: expectedSheetId ?? tab.sheet_id },
     );
-    await getPool().query('DELETE FROM google_workspace_sheet_rows WHERE application_item_id=$1', [targetItemId]);
+    await getPool().query('DELETE FROM google_workspace_sheet_rows WHERE application_item_id=$1', [applicationItemId]);
     if (outcome.cleared) {
       await getPool().query('UPDATE google_workspace_spreadsheets SET updated_at=now() WHERE academic_year=$1', [tab.academic_year]);
     }
