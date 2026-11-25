@@ -204,12 +204,16 @@ export async function verifyApplicationSheetClearTarget(request, spreadsheetId, 
  * 1. Verifies target spreadsheet ID, tab sheetId, and current A1:Z1 headers strictly
  *    read-only (never calls `ensureApplicationSheetLayout` or mutates layout).
  * 2. Searches workbook-wide developer metadata (`ocecApplicationItemId`):
- *    - 0 matches -> idempotent no-op (`alreadyCleared: true`, 0 writes).
+ *    - 0 matches -> `manualReviewRequired` (0 writes) UNLESS `hasVerifiedClearEvidence`
+ *      proves this item was already verified cleared previously. Missing metadata alone
+ *      never closes a clear job because applicant data may still remain in the sheet.
  *    - >1 matches (same-tab or cross-tab) -> `manualReviewRequired` (0 writes).
  *    - Validates single data ROW on expected `sheetId` with valid `metadataId`.
  * 3. Reads current row values via `values:batchGetByDataFilter` (bound to `clearLookup`):
- *    - All 26 Portal cells A:Z already empty -> idempotent no-op (`alreadyCleared: true`,
- *      0 writes, preserving staff columns AA+).
+ *    - 0 matched valueRanges (metadata disappeared or moved between search and read) ->
+ *      ALWAYS `manualReviewRequired` (0 writes).
+ *    - All 26 Portal cells A:Z confirmed empty -> safe idempotent completion
+ *      (`alreadyCleared: true, verifiedEmpty: true`, 0 writes, preserving staff cols AA+).
  *    - Any mismatch against `expectedRowIdentity` (e.g. Sort range swapped another
  *      applicant's values into the row while row metadata stayed in place) ->
  *      `manualReviewRequired` (0 writes).
@@ -223,7 +227,7 @@ export async function clearApplicationSheetRowByItemId(
   spreadsheetId,
   title,
   itemId,
-  { expectedSheetId = null, expectedRowIdentity = null } = {},
+  { expectedSheetId = null, expectedRowIdentity = null, hasVerifiedClearEvidence = false } = {},
 ) {
   const normalizedItemId = String(itemId || '').trim();
   if (!normalizedItemId) throw manualReviewError('Application Item ID is required to clear a Google Sheets row');
@@ -244,7 +248,18 @@ export async function clearApplicationSheetRowByItemId(
     throw manualReviewError(`Duplicate application row metadata for ${normalizedItemId} found in ${matched.length} locations (sheetIds: ${sheetIds.join(', ')}); clear stopped without modifying the sheet`);
   }
   if (!matched.length) {
-    return { cleared: false, alreadyCleared: true, itemId: normalizedItemId, sheetId: sheet.sheetId };
+    if (hasVerifiedClearEvidence) {
+      return {
+        cleared: false,
+        alreadyCleared: true,
+        verifiedByPriorCompletion: true,
+        itemId: normalizedItemId,
+        sheetId: sheet.sheetId,
+      };
+    }
+    throw manualReviewError(
+      `Application item ${normalizedItemId} metadata was not found on "${title}" (sheetId ${sheet.sheetId}) and no reliable evidence confirms its row was cleared; manual inspection required without modifying the sheet`,
+    );
   }
 
   const target = matched[0];
@@ -285,12 +300,9 @@ export async function clearApplicationSheetRowByItemId(
     throw manualReviewError(`Google Sheets read for item ${normalizedItemId} matched ${valueRanges.length} rows; manual inspection required without modifying the sheet`);
   }
   if (valueRanges.length === 0) {
-    const recheck = await request(`${url}/developerMetadata:search`, post({ dataFilters: [{ developerMetadataLookup: searchLookup }] }));
-    const remaining = (recheck.matchedDeveloperMetadata || []).map((entry) => entry.developerMetadata).filter(Boolean);
-    if (!remaining.length) {
-      return { cleared: false, alreadyCleared: true, itemId: normalizedItemId, sheetId: sheet.sheetId };
-    }
-    throw manualReviewError(`Google Sheets clear for item ${normalizedItemId} could not safely match target row on sheetId ${sheet.sheetId}; manual inspection required without modifying the sheet`);
+    throw manualReviewError(
+      `Application item ${normalizedItemId} metadata disappeared or could not be read between search and row verification on "${title}" (sheetId ${sheet.sheetId}); manual inspection required without modifying the sheet`,
+    );
   }
 
   const valueRange = valueRanges[0]?.valueRange || {};
@@ -305,6 +317,7 @@ export async function clearApplicationSheetRowByItemId(
     return {
       cleared: false,
       alreadyCleared: true,
+      verifiedEmpty: true,
       itemId: normalizedItemId,
       sheetId: sheet.sheetId,
       rowNumber: observedRowNumber,

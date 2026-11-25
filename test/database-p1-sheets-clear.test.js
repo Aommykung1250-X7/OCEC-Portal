@@ -5,7 +5,7 @@ import { APPLICATION_HEADERS, APPLICATION_HEADERS_WITH_MIDDLE, APPLICATION_ITEM_
 import { createIndividualDraft, updateAdminApplication } from '../server/applications.js';
 import { getPool } from '../server/db.js';
 import { clearGoogleWorkspaceSheetRow, syncGoogleWorkspaceSheetItem } from '../server/googleWorkspace.js';
-import { enqueueIntegrationJob, integrationQueueStatus } from '../server/integrationQueue.js';
+import { enqueueIntegrationJob, integrationQueueStatus, retryIntegrationJob } from '../server/integrationQueue.js';
 import { processIntegrationJob } from '../server/integrationWorker.js';
 import { seed } from '../server/seed.js';
 
@@ -422,21 +422,65 @@ if (!testUrl) {
       assert.match(rejectedLegacy.last_error, /^MANUAL_REVIEW_REQUIRED:/);
       assert.equal(mock.state.writeRequests.length, 0, 'legacy row-only jobs must send ZERO writes to Google');
 
-      // 8) Idempotent re-run after staff clears A:Z on Alpha's row (preserving staff cols AA:AB) -> completes cleanly with ZERO writes!
+      // 8) Metadata missing from start while Alpha's data is STILL in the sheet (no prior completed clear) ->
+      //    worker MUST NOT close the job; sets MANUAL_REVIEW_REQUIRED, attempts=8, ZERO writes!
+      const savedAlphaMeta = mock.state.metadata.find((m) => m.metadataValue === appA.item1);
+      mock.state.metadata = mock.state.metadata.filter((m) => m.metadataValue !== appA.item1);
+      const missingMetaJobId = await enqueueIntegrationJob(db, 'sheets.clear_row', clearJob.payload, `missing-meta-data-still-present-${runId}`);
+      await processIntegrationJob();
+      const missingMetaJob = (await db.query('SELECT status,attempts,last_error FROM integration_jobs WHERE id=$1', [missingMetaJobId])).rows[0];
+      assert.equal(missingMetaJob.status, 'failed', 'job must NOT be closed as completed when metadata is missing without clear evidence');
+      assert.equal(missingMetaJob.attempts, 8);
+      assert.match(missingMetaJob.last_error, /^MANUAL_REVIEW_REQUIRED:/);
+      assert.match(missingMetaJob.last_error, /metadata was not found/);
+      assert.equal(mock.state.writeRequests.length, 0);
+      assert.equal(mock.state.rows[3][11], `Alpha${runId}`, 'Alpha data is still present in sheet');
+      mock.state.metadata.push(savedAlphaMeta);
+
+      // 9) Metadata found on initial search, then disappears BEFORE row read ->
+      //    worker MUST NOT close the job; sets MANUAL_REVIEW_REQUIRED, attempts=8, ZERO writes!
+      mock.state.onAfterMetadataSearch = () => {
+        mock.state.metadata = mock.state.metadata.filter((m) => m.metadataValue !== appA.item1);
+      };
+      const vanishedMetaJobId = await enqueueIntegrationJob(db, 'sheets.clear_row', clearJob.payload, `vanished-meta-mid-read-${runId}`);
+      await processIntegrationJob();
+      const vanishedMetaJob = (await db.query('SELECT status,attempts,last_error FROM integration_jobs WHERE id=$1', [vanishedMetaJobId])).rows[0];
+      assert.equal(vanishedMetaJob.status, 'failed', 'job must NOT be closed as completed when metadata disappears between search and read');
+      assert.equal(vanishedMetaJob.attempts, 8);
+      assert.match(vanishedMetaJob.last_error, /^MANUAL_REVIEW_REQUIRED:/);
+      assert.match(vanishedMetaJob.last_error, /metadata disappeared or could not be read/);
+      assert.equal(mock.state.writeRequests.length, 0);
+      assert.equal(mock.state.rows[3][11], `Alpha${runId}`, 'Alpha data is still present in sheet');
+      mock.state.metadata.push(savedAlphaMeta);
+
+      // 10) After staff clears A:Z on Alpha's row (preserving staff cols AA:AB), admin retries clearJob ->
+      //     worker verifies A:Z is empty and closes the job as COMPLETED with ZERO writes!
       for (let col = 0; col < APPLICATION_HEADERS.length; col += 1) mock.state.rows[3][col] = '';
-      const rerunAfterBlank = await clearGoogleWorkspaceSheetRow(clearJob.payload);
-      assert.equal(rerunAfterBlank.alreadyCleared, true);
-      assert.equal(rerunAfterBlank.cleared, false);
+      const retried = await retryIntegrationJob(clearJob.id, adminId);
+      assert.equal(retried?.status, 'pending');
+      assert.equal(await processIntegrationJob(), true);
+      const completedClearJob = (await db.query('SELECT status,last_error,completed_at FROM integration_jobs WHERE id=$1', [clearJob.id])).rows[0];
+      assert.equal(completedClearJob.status, 'completed', completedClearJob.last_error || '');
+      assert.equal(completedClearJob.last_error, null);
+      assert.ok(completedClearJob.completed_at);
       assert.equal(mock.state.writeRequests.length, 0);
       assert.deepEqual(mock.state.rows[3].slice(APPLICATION_HEADERS.length), ['Alpha Staff Note', 'Officer 1']);
       assert.equal(mock.state.rows[2][11], `Bravo${runId}`);
       assert.equal(mock.state.rows[1][11], `Charlie${runId}`);
 
-      // Idempotent re-run after metadata is also deleted -> completes cleanly with ZERO writes!
+      // 11) Idempotent re-run through worker while row is still verified empty in A:Z -> COMPLETED, ZERO writes!
+      const rerunEmptyJobId = await enqueueIntegrationJob(db, 'sheets.clear_row', clearJob.payload, `rerun-after-verified-empty-${runId}`);
+      assert.equal(await processIntegrationJob(), true);
+      const rerunEmptyJob = (await db.query('SELECT status,last_error FROM integration_jobs WHERE id=$1', [rerunEmptyJobId])).rows[0];
+      assert.equal(rerunEmptyJob.status, 'completed', rerunEmptyJob.last_error || '');
+      assert.equal(mock.state.writeRequests.length, 0);
+
+      // 12) Idempotent re-run through worker after metadata is ALSO deleted (now backed by prior completed clear evidence!) -> COMPLETED, ZERO writes!
       mock.state.metadata = mock.state.metadata.filter((m) => m.metadataValue !== appA.item1);
-      const rerunAfterMetaRemoved = await clearGoogleWorkspaceSheetRow(clearJob.payload);
-      assert.equal(rerunAfterMetaRemoved.alreadyCleared, true);
-      assert.equal(rerunAfterMetaRemoved.cleared, false);
+      const rerunAfterMetaJobId = await enqueueIntegrationJob(db, 'sheets.clear_row', clearJob.payload, `rerun-after-meta-deleted-with-evidence-${runId}`);
+      assert.equal(await processIntegrationJob(), true);
+      const rerunAfterMetaJob = (await db.query('SELECT status,last_error FROM integration_jobs WHERE id=$1', [rerunAfterMetaJobId])).rows[0];
+      assert.equal(rerunAfterMetaJob.status, 'completed', rerunAfterMetaJob.last_error || '');
       assert.equal(mock.state.writeRequests.length, 0);
     } finally {
       globalThis.fetch = originalFetch;

@@ -758,6 +758,17 @@ export async function clearGoogleWorkspaceSheetRow(jobOrExamRoundId, legacyRowNu
       );
     }
 
+    const priorCompleted = await getPool().query(
+      `SELECT id FROM integration_jobs
+       WHERE kind = 'sheets.clear_row'
+         AND status = 'completed'
+         AND payload->>'applicationItemId' = $1
+         AND payload->>'examRoundId' = $2
+         AND ($3::text IS NULL OR payload->>'spreadsheetId' IS NULL OR payload->>'spreadsheetId' = $3)
+       LIMIT 1`,
+      [applicationItemId, examRoundId, tab.drive_file_id],
+    );
+
     const outcome = await clearApplicationSheetRowByItemId(
       googleRequest,
       tab.drive_file_id,
@@ -766,6 +777,7 @@ export async function clearGoogleWorkspaceSheetRow(jobOrExamRoundId, legacyRowNu
       {
         expectedSheetId: expectedSheetId ?? tab.sheet_id,
         expectedRowIdentity: payload.expectedRowIdentity || null,
+        hasVerifiedClearEvidence: priorCompleted.rowCount > 0,
       },
     );
     await getPool().query('DELETE FROM google_workspace_sheet_rows WHERE application_item_id=$1', [applicationItemId]);

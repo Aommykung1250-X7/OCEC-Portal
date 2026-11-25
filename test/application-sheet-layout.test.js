@@ -314,17 +314,40 @@ test('verifyApplicationSheetClearTarget and clearApplicationSheetRowByItemId are
   assert.equal(state.writeRequests.length,0);
   state.metadata.pop();
 
-  // 8) Idempotent re-run: when staff has cleared A:Z on row A (preserving staff cols AA:AB), re-run succeeds as no-op with ZERO writes!
+  // 8) Metadata missing from start while applicant data is STILL in the sheet (no prior clear evidence) -> MANUAL_REVIEW_REQUIRED, 0 writes!
+  const savedMeta1=state.metadata.find(m=>m.metadataValue==='item-1');
+  state.metadata=state.metadata.filter(m=>m.metadataValue!=='item-1');
+  await assert.rejects(
+    clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-1',{expectedSheetId:7,expectedRowIdentity:identityA}),
+    (err)=>err.manualReviewRequired===true && /metadata was not found/.test(err.message),
+  );
+  assert.equal(state.writeRequests.length,0,'missing metadata without clear evidence must send ZERO writes');
+  assert.deepEqual(state.rows[1].slice(0,26),rowA,'row data still present in sheet');
+  state.metadata.push(savedMeta1);
+
+  // 9) Metadata found on initial search, then disappears BEFORE row read -> MANUAL_REVIEW_REQUIRED, 0 writes!
+  state.onAfterMetadataSearch=()=>{
+    state.metadata=state.metadata.filter(m=>m.metadataValue!=='item-1');
+  };
+  await assert.rejects(
+    clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-1',{expectedSheetId:7,expectedRowIdentity:identityA}),
+    (err)=>err.manualReviewRequired===true && /metadata disappeared or could not be read/.test(err.message),
+  );
+  assert.equal(state.writeRequests.length,0,'mid-read missing metadata must send ZERO writes');
+  assert.deepEqual(state.rows[1].slice(0,26),rowA,'row data still present in sheet');
+  state.metadata.push(savedMeta1);
+
+  // 10) Idempotent re-run: when staff has cleared A:Z on row A (preserving staff cols AA:AB), re-run verifies A:Z empty with ZERO writes!
   for(let c=0;c<26;c+=1) state.rows[1][c]='';
   const alreadyBlank=await clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-1',{expectedSheetId:7,expectedRowIdentity:identityA});
-  assert.deepEqual(alreadyBlank,{cleared:false,alreadyCleared:true,itemId:'item-1',sheetId:7,rowNumber:3});
+  assert.deepEqual(alreadyBlank,{cleared:false,alreadyCleared:true,verifiedEmpty:true,itemId:'item-1',sheetId:7,rowNumber:3});
   assert.equal(state.writeRequests.length,0);
   assert.deepEqual(state.rows[1].slice(26),['Keep note A','Officer A']);
   assert.deepEqual(state.rows[2].slice(0,26),rowB);
 
-  // 9) Idempotent re-run when metadata is already deleted -> alreadyCleared: true, ZERO writes!
+  // 11) Idempotent re-run after metadata is deleted ONLY when prior verified clear evidence is present -> alreadyCleared: true, 0 writes!
   state.metadata=state.metadata.filter(m=>m.metadataValue!=='item-1');
-  const alreadyGone=await clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-1',{expectedSheetId:7,expectedRowIdentity:identityA});
-  assert.deepEqual(alreadyGone,{cleared:false,alreadyCleared:true,itemId:'item-1',sheetId:7});
+  const alreadyGoneWithEvidence=await clearApplicationSheetRowByItemId(request,'workbook','BBB - Heat 2026','item-1',{expectedSheetId:7,expectedRowIdentity:identityA,hasVerifiedClearEvidence:true});
+  assert.deepEqual(alreadyGoneWithEvidence,{cleared:false,alreadyCleared:true,verifiedByPriorCompletion:true,itemId:'item-1',sheetId:7});
   assert.equal(state.writeRequests.length,0);
 });
