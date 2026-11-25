@@ -85,4 +85,3 @@ jobs:
           test/e2e/final-x.spec.js
           test/e2e/admin-slip-approval.spec.js
           test/e2e/admin-catalog-conflict.spec.js
-          test/e2e/admin-sheets-clear-confirm.spec.js

@@ -10,7 +10,7 @@ import { archiveExamRound, createExamRounds, formatCatalogEtag, loadCatalog, par
 import { registerAuthRoutes, requireAdmin, requireUser } from './auth.js';
 import { confirmAdminPaymentSlipInspection, createApplicationAdminNote, createIndividualDraft, createSchoolDraft, deleteApplicationAdminNote, downloadCertificatePhoto, getPublicApplicationForEdit, getSlipReplacementStatus, listAllApplications, listApplicationAdminNotes, listMyApplications, loadAdminPaymentSlip, removeCertificatePhoto, replacePaymentSlip, reviewApplication, searchPublicApplicationStatuses, submitIndividualApplication, submitSchoolBatch, updateAdminApplication, updateApplicationAdminNote, updateOwnedApplicationProfile, updatePublicApplicationProfile, uploadCertificatePhoto } from './applications.js';
 import { addFilteredApplicationsToMockSheet, completeGoogleWorkspaceAuthorization, createGoogleWorkspaceAuthorizationUrl, googleWorkspaceStatus, initializeGoogleDriveFolders, organizeExistingGoogleDrivePaymentSlips } from './googleWorkspace.js';
-import { confirmManualSheetRowClearJob, enqueueIntegrationJob, integrationQueueStatus, retryIntegrationJob } from './integrationQueue.js';
+import { enqueueIntegrationJob, integrationQueueStatus, retryIntegrationJob } from './integrationQueue.js';
 import { applyFinalIds, generateExamNumbers, getFinalIdImport, importFinalIds, importResultRows, listAdminResultWorkflows, listPublishedResultFilters, listPublishedResults, publishResultBatch, resolveFinalIdImportRow, resolveResultImportRow } from './results.js';
 import { createFinalVerificationGrant, finalGrantCookie, finalGrantTokenFromRequest, listFinalEligibilityForUser, searchSchoolFinalEligibility } from './finalEligibility.js';
 import { isKnownSpaLocation } from '../src/routes.js';
@@ -349,25 +349,6 @@ export function buildApp({ logger = createLoggerOptions(), authDeps = {} } = {})
     const retried = await retryIntegrationJob(request.params.id, request.user.id);
     if (!retried) return reply.code(404).send({ error: 'Failed integration job not found' });
     return { job: retried };
-  });
-  app.post('/api/admin/integration-jobs/:id/confirm-sheet-clear', {
-    preHandler: requireAdmin,
-    schema: {
-      params: { type: 'object', required: ['id'], properties: { id: { type: 'string', pattern: '^[1-9][0-9]*$' } } },
-      body: {
-        type: 'object',
-        additionalProperties: false,
-        required: ['confirmed'],
-        properties: {
-          confirmed: { type: 'boolean', const: true },
-          note: { type: 'string', maxLength: 500 },
-        },
-      },
-    },
-  }, async (request, reply) => {
-    const result = await confirmManualSheetRowClearJob(request.params.id, request.user.id, { note: request.body.note });
-    if (!result) return reply.code(404).send({ error: 'Integration job not found' });
-    return result;
   });
 
   const finalBookingItemProperties = {
